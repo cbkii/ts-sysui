@@ -16,6 +16,15 @@ public class TouchStripGeometryTest {
         assertEquals(64, r.displayWidth - r.stripRight);
     }
 
+    @Test public void onePercentIsAllowedInsteadOfBeingRaisedToFivePercent() {
+        TouchStripGeometry.Result r = TouchStripGeometry.compute(1280, 55, 0.01f, 64);
+        assertTrue(r.valid);
+        assertEquals(0.01f, r.fraction, 0.0001f);
+        assertEquals(12, r.stripWidth());
+        assertEquals(1204, r.stripLeft);
+        assertEquals(1216, r.stripRight);
+    }
+
     @Test public void noRightInsetStillLeavesPhysicalCornerGap() {
         TouchStripGeometry.Result r = TouchStripGeometry.compute(1280, 0, 0.20f, 64);
         assertTrue(r.valid);

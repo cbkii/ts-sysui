@@ -2,54 +2,96 @@
 
 ## 0. Recovery prerequisite
 
-Before enabling SystemUI hooks, confirm you can disable an LSPosed module and a
-Magisk module after a bad boot. Do not proceed if you have no recovery route.
+Before enabling SystemUI hooks, confirm you can disable both the LSPosed APK and
+the Magisk geometry module after a bad boot. Do not proceed without a recovery
+route.
 
-## 1. Build
+## 1. Geometry first
 
-For first-device development, GitHub Actions `Build` produces debug artefacts.
-For durable use, configure one persistent signing key and use the `Release`
-workflow; do not alternate signers for the same overlay package.
+Install `TS18-StatusBar-Geometry-Magisk-*.zip` in Magisk and reboot with the
+LSPosed component still disabled. Verify the RRO is active, the top bar/inset is
+about 43 dp, the right navigation bar is unchanged, and normal apps receive the
+smaller top inset. If geometry did not change cleanly, disable the Magisk module
+and reboot; do not stack additional overlays blindly.
 
-## 2. Geometry first
+## 2. Install LSPosed in observation-only mode
 
-Install `TS18-StatusBar-Geometry-Magisk-*.zip` in Magisk and reboot.
+Install `TS18-StatusBar-Input-LSPosed-*.apk`. Scope it to **only** the main
+`com.android.systemui` process. Do not scope Android Framework/system_server,
+DoFun, launcher, or other packages.
 
-Do **not** enable the LSPosed APK yet. Verify:
+The APK is inert by default even after SystemUI restarts. v0.3 also requires
+`ts18_statusbar_policy_version=3`, so stale v0.2 Settings.Global values are ignored.
+The configuration helper migrates safely by clearing master/input/visual flags
+before writing policy generation 3. Reboot/restart SystemUI and confirm the
+`TS18StatusBar` installation line appears without a crash loop. Optionally make
+the observation state explicit:
 
-- the overlay is listed and enabled;
-- collapsed StatusBar height is approximately 41–42 px at the current 153 dpi
-  override, or otherwise corresponds to 43 dp at the current density;
-- the right navigation bar is unchanged;
-- apps receive the new smaller top inset correctly.
+```sh
+su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh observe'
+```
 
-If geometry did not change, disable the Magisk module and reboot. Do not stack
-additional overlays until the overlay/idmap policy is understood.
+Do not arm input until this baseline is stable.
 
-## 3. Input/visual second
+## 3. Arm input only
 
-Install `TS18-StatusBar-Input-LSPosed-*.apk`. In LSPosed:
+```sh
+su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh input-on'
+```
 
-- enable the module;
-- scope it to **`com.android.systemui` only**;
-- do not add Android Framework/system_server, launcher, DoFun or other packages.
+Restart SystemUI/reboot, then perform Stage B1 in `VALIDATION.md`. The default
+strip is at most 20% of the physical width, at least 64 px from both top corners,
+and excludes the current right navigation inset. Smaller widths down to 1% are
+allowed.
 
-Reboot. The default collapsed shade-initiation region is hard-bounded to no more
-than 20% of the physical screen width and remains at least 64 px horizontally
-clear of both top corners. On the 1280 px TS18 baseline with the 55 px right-nav
-inset, the expected default region is x=960..1216. The visual leaf scale is 75%.
+If the live StatusBar window does not map 1:1 to the physical top edge, or stock
+insets do not look like an ordinary collapsed bar, the hook deliberately leaves
+stock input unchanged.
 
-## 4. Optional runtime settings
+## 4. Arm optional visual scaling separately
 
-Copy `tools/ts18-statusbar-config.sh` to the TS18 and run it under root.
-Examples:
+Only after input is qualified:
+
+```sh
+su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh visual-on'
+```
+
+Visual scaling remains experimental and defaults to `0.75`. Disable it
+independently if any clock/icon/animation behaviour is wrong:
+
+```sh
+su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh visual-off'
+```
+
+A SystemUI restart/reboot is the cleanest way to force immediate visual-state
+reapplication/restoration after a setting change.
+
+## Runtime configuration
 
 ```sh
 su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh status'
-su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh visual-off'
+su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh touch-fraction 0.10'
 su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh corner-gap 80'
-su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh disable'
+su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh visual-scale 0.75'
+su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh disarm'
 ```
 
-After a setting change, a SystemUI restart or reboot is the cleanest way to
-ensure visual-state changes are fully reapplied.
+`disarm` is the preferred persistent fail-open state: master/input/visual are all
+off. The removed `ts18_statusbar_window_height_normalise` setting from v0.2 has
+no runtime effect in v0.3+.
+
+## Local build wrapper bootstrap
+
+The repository does not trust or commit a generated `gradle-wrapper.jar`. Before
+the first local `./gradlew` invocation, provision the official Gradle 8.9 wrapper
+JAR and verify it against Gradle's published SHA-256:
+
+```sh
+bash tools/bootstrap-gradle-wrapper.sh
+bash tools/test-gradle-wrapper.sh
+./gradlew --version
+```
+
+The bootstrap refuses to overwrite a wrapper JAR whose checksum is unknown.
+Delete a suspect local JAR manually before retrying rather than silently replacing
+an executable binary.

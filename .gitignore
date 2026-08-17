@@ -12,3 +12,4 @@ signing.properties
 
 .signing/
 /secrets/
+/gradle/wrapper/gradle-wrapper.jar

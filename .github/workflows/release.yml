@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag, e.g. v0.2.0'
+        description: 'Release tag; must exactly match version.properties, e.g. v0.3.0'
         required: true
-        default: 'v0.2.0'
+        default: 'v0.3.0'
 
 permissions:
   contents: write
@@ -16,24 +16,55 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
-      - run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
-      - uses: gradle/actions/setup-gradle@v4
+      - name: Validate requested release version
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          VERSION_NAME="$(sed -n 's/^versionName=//p' version.properties | head -n 1)"
+          test -n "$VERSION_NAME" || { echo 'FAILED: version.properties has no versionName' >&2; exit 2; }
+          if [ "$RELEASE_TAG" != "v$VERSION_NAME" ]; then
+            echo "STOPPED FOR SAFETY: release tag $RELEASE_TAG does not match canonical v$VERSION_NAME" >&2
+            exit 4
+          fi
+      - name: Provision Android SDK packages
+        shell: bash
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$SDKMANAGER" || { echo "FAILED: sdkmanager not found at $SDKMANAGER" >&2; exit 3; }
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "$SDK_ROOT/build-tools/35.0.0" >> "$GITHUB_PATH"
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
         with:
-          gradle-version: '8.9'
-      - name: Restore persistent release keystore
+          validate-wrappers: false
+      - name: Validate signing inputs and restore keystore
+        shell: bash
         env:
           KEYSTORE_B64: ${{ secrets.TS18_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.TS18_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.TS18_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.TS18_KEY_PASSWORD }}
         run: |
-          test -n "$KEYSTORE_B64" || { echo 'STOP: TS18_KEYSTORE_B64 secret is missing'; exit 4; }
-          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/ts18-release.jks"
+          test -n "$KEYSTORE_B64" || { echo 'STOPPED FOR SAFETY: TS18_KEYSTORE_B64 is missing' >&2; exit 4; }
+          test -n "$STORE_PASSWORD" || { echo 'STOPPED FOR SAFETY: TS18_KEYSTORE_PASSWORD is missing' >&2; exit 4; }
+          test -n "$KEY_ALIAS" || { echo 'STOPPED FOR SAFETY: TS18_KEY_ALIAS is missing' >&2; exit 4; }
+          test -n "$KEY_PASSWORD" || { echo 'STOPPED FOR SAFETY: TS18_KEY_PASSWORD is missing' >&2; exit 4; }
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/ts18-release.jks" || {
+            echo 'FAILED: cannot decode TS18_KEYSTORE_B64' >&2
+            rm -f -- "$RUNNER_TEMP/ts18-release.jks"
+            exit 2
+          }
           chmod 600 "$RUNNER_TEMP/ts18-release.jks"
       - name: Validate and build signed release
+        shell: bash
         env:
           TS18_KEYSTORE_PATH: ${{ runner.temp }}/ts18-release.jks
           TS18_KEYSTORE_PASSWORD: ${{ secrets.TS18_KEYSTORE_PASSWORD }}
@@ -43,11 +74,19 @@ jobs:
           bash -n tools/*.sh
           sh -n magisk/customize.sh
           bash tools/test-geometry.sh
-          gradle --no-daemon clean test :overlay:assembleRelease :lsposed:assembleRelease
-          test -s overlay/build/outputs/apk/release/overlay-release.apk || exit 2
-          test -s lsposed/build/outputs/apk/release/lsposed-release.apk || exit 2
+          bash tools/test-xposed-stubs.sh
+          bash tools/test-source-manifest.sh
+          bash tools/bootstrap-gradle-wrapper.sh
+          bash tools/test-gradle-wrapper.sh
+          ./gradlew --no-daemon clean test :overlay:lintRelease :lsposed:lintRelease :overlay:assembleRelease :lsposed:assembleRelease
+          bash tools/test-apk-contract.sh lsposed/build/outputs/apk/release/lsposed-release.apk
           bash tools/package-release.sh release
-      - uses: softprops/action-gh-release@v2
+      - name: Remove signing keystore before publication
+        if: always()
+        shell: bash
+        run: rm -f -- "$RUNNER_TEMP/ts18-release.jks"
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        if: success()
         with:
           tag_name: ${{ inputs.tag }}
           fail_on_unmatched_files: true

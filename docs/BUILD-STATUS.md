@@ -1,49 +1,32 @@
-# Build/validation status
+# Build and validation status
 
-Prepared: 17 August 2026.
+Updated for the v0.3 hardening branch on 17 August 2026.
 
-## Static/source checks run for v0.2.0
+## Repository-owned source checks
 
-- `bash -n tools/*.sh` — **PASS**.
-- POSIX `sh -n` on Magisk/device shell scripts — **PASS**.
-- `tools/test-geometry.sh` pure-Java policy/invariant suite — **PASS**.
-  - exact 1280/55 case resolves to x=960..1216;
-  - width is 256 px, exactly 20% of 1280;
-  - top-right clearance is 64 px;
-  - requests above 20% are capped;
-  - configured corner gaps below 64 px are clamped upward;
-  - representative width/inset/fraction sweeps assert both corner clearances and
-    the 20% maximum for every valid result;
-  - impossible small surfaces return invalid so runtime code can fail open.
-- `javac` compilation of all LSPosed Java sources against a minimal Android 10/
-  Xposed compile-stub surface — **PASS**.
-- GitHub workflow YAML parse — **PASS**.
-- XML well-formedness checks for manifests/resources — **PASS**.
-- stale-policy search (`preserve_clickables`, old x=980..1225 geometry, old 50%
-  cap) — **PASS**, no live source/config references remain.
-- repository binary/private-key scan — **PASS**; no proprietary APKs, generated
-  release archives or signing keys are included.
+The repository provides and CI runs:
 
-## Supplied artefact provenance used
+- shell syntax checks for host and Android shell scripts;
+- `tools/test-geometry.sh` for geometry, coordinate-space, collapsed-state and
+  visual-ownership pure policies;
+- `tools/test-xposed-stubs.sh` for the declared legacy Xposed compile contract;
+- `tools/test-source-manifest.sh` for tracked-source integrity;
+- Gradle unit tests for geometry/state/coordinate/visual policy;
+- Android Lint for both APK modules;
+- debug/release APK assembly as appropriate;
+- `tools/test-apk-contract.sh` to ensure local Xposed stubs remain compile-only;
+- packaging with checksums; release packaging additionally verifies APK signatures.
 
-The source package now follows the user's supplied rename mapping rather than
-assuming exporter filenames are original partition basenames. In particular,
-`android.overlay.sysbar_720x1280_10.apk` is treated as the export-renamed exact
-active sysbar RRO associated with
-`/product/overlay/framework-res_sysbar_rro_1280x720.apk`, and
-`Android System_10.apk` is treated as the export-renamed
-`/system/framework/framework-res.apk`.
+Gradle 8.9 and its distribution checksum are pinned. The generated
+`gradle-wrapper.jar` is not committed or trusted blindly: the bootstrap downloads
+the Gradle v8.9.0 wrapper JAR and verifies its published SHA-256 before any
+`./gradlew` execution.
 
-The latter internally identifies as package `android` and has no `classes.dex`;
-therefore it remains distinct from the executable `com.android.systemui`
-package regardless of export filename.
+## Evidence classes
 
-## Not run here
+A successful GitHub `Build` run proves host checks, unit tests, Lint, Android
+compilation/assembly and debug packaging for that exact commit. It does **not**
+prove Magisk RRO activation, SystemUI runtime behaviour, LSPosed compatibility on
+the installed framework, touch pass-through or physical lifecycle behaviour.
 
-A real Android Gradle build was **not** run in this packaging environment because
-it has no Android SDK/Gradle installation. The repository's `Build` workflow is
-configured to install Android SDK 35, use JDK 17 / Gradle 8.9, run the unit tests,
-and assemble both debug APKs on the first GitHub push.
-
-No physical TS18 behaviour has been claimed. Follow `VALIDATION.md` after CI is
-green, one component at a time.
+Physical acceptance remains the staged sequence in `VALIDATION.md`.

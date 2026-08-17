@@ -11,17 +11,21 @@ public final class Ts18StatusBarModule implements IXposedHookLoadPackage {
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) {
         if (!TARGET.equals(lpparam.packageName)) return;
         if (lpparam.processName != null && !TARGET.equals(lpparam.processName)) return;
+        if (!HookRuntime.beginInstall()) return;
 
+        HookRegistry registry = new HookRegistry();
         try {
-            // Install the observer hook first. Without a captured status-bar root it is inert,
-            // so a later WindowManager-hook failure remains fail-open rather than partial.
-            TouchableInsetsHook.install(lpparam.classLoader);
-            WindowHooks.install(lpparam.classLoader);
-            XposedBridge.log("TS18StatusBar: hooks installed in " + lpparam.processName
-                    + "; fail-open circuit breaker active");
+            TouchableInsetsHook.install(lpparam.classLoader, registry);
+            WindowHooks.install(lpparam.classLoader, registry);
+            HookRuntime.activate();
+            XposedBridge.log("TS18StatusBar: " + registry.size()
+                    + " hook registrations installed in " + lpparam.processName
+                    + "; runtime mutations are inert until explicitly armed; circuit breaker active");
         } catch (Throwable t) {
-            // Installation failure means no mutation, rather than a partially guessed global hook.
-            XposedBridge.log("TS18StatusBar: hook installation failed open: " + t);
+            HookRuntime.deactivate();
+            registry.unhookAll();
+            XposedBridge.log("TS18StatusBar: hook installation failed open; partial hooks removed: " + t);
+            XposedBridge.log(t);
         }
     }
 }

@@ -99,7 +99,7 @@ capture display_density 10 wm density
     grep -E -i -A 18 -B 4 'StatusBar|touchableRegion|NavigationBar0' "$WORK/input.txt" | head -n 800
     echo ""
     echo "=== module settings ==="
-    for key in ts18_statusbar_enabled ts18_statusbar_input_enabled ts18_statusbar_touch_fraction ts18_statusbar_visual_enabled ts18_statusbar_visual_scale ts18_statusbar_corner_gap_px ts18_statusbar_right_inset_px ts18_statusbar_window_height_normalise ts18_statusbar_debug; do
+    for key in ts18_statusbar_policy_version ts18_statusbar_enabled ts18_statusbar_input_enabled ts18_statusbar_touch_fraction ts18_statusbar_visual_enabled ts18_statusbar_visual_scale ts18_statusbar_corner_gap_px ts18_statusbar_right_inset_px ts18_statusbar_debug; do
         value="$(run_timeout 10 settings get global "$key" 2>/dev/null)"
         rc=$?
         echo "$key=${value:-null} (status=$rc)"

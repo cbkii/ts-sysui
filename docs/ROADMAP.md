@@ -1,6 +1,6 @@
 # Roadmap
 
-## v0.2 baseline — compact status bar
+## v0.3 baseline — hardened compact status bar
 
 Current scope stays deliberately small:
 
@@ -8,7 +8,9 @@ Current scope stays deliberately small:
 - collapsed shade touch strip hard-capped to 20% of screen width;
 - mandatory >=64 px top-corner exclusion;
 - right-navigation inset excluded;
-- optional 0.75 collapsed visual scaling;
+- observation-only LSPosed first run;
+- optional, separately armed 0.75 collapsed visual scaling;
+- framework RRO as the sole status-bar height authority;
 - no `system_server` hooks;
 - no right-navigation mutation.
 

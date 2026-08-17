@@ -2,14 +2,23 @@ plugins {
     id("com.android.application")
 }
 
+val ts18VersionName = rootProject.extra["ts18VersionName"] as String
+val ts18VersionCode = rootProject.extra["ts18VersionCode"] as Int
+
 android {
     val releaseKeystorePath = System.getenv("TS18_KEYSTORE_PATH")
     val releaseSigning = if (!releaseKeystorePath.isNullOrBlank()) {
+        val storePasswordValue = System.getenv("TS18_KEYSTORE_PASSWORD")
+        val keyAliasValue = System.getenv("TS18_KEY_ALIAS")
+        val keyPasswordValue = System.getenv("TS18_KEY_PASSWORD")
+        require(!storePasswordValue.isNullOrBlank()) { "TS18_KEYSTORE_PASSWORD is required when TS18_KEYSTORE_PATH is set" }
+        require(!keyAliasValue.isNullOrBlank()) { "TS18_KEY_ALIAS is required when TS18_KEYSTORE_PATH is set" }
+        require(!keyPasswordValue.isNullOrBlank()) { "TS18_KEY_PASSWORD is required when TS18_KEYSTORE_PATH is set" }
         signingConfigs.create("ts18Release") {
             storeFile = file(releaseKeystorePath)
-            storePassword = System.getenv("TS18_KEYSTORE_PASSWORD")
-            keyAlias = System.getenv("TS18_KEY_ALIAS")
-            keyPassword = System.getenv("TS18_KEY_PASSWORD")
+            storePassword = storePasswordValue
+            keyAlias = keyAliasValue
+            keyPassword = keyPasswordValue
         }
     } else null
 
@@ -20,13 +29,21 @@ android {
         applicationId = "au.com.cb.ts18.statusbar.input"
         minSdk = 29
         targetSdk = 29
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = ts18VersionCode
+        versionName = ts18VersionName
     }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError = true
+        checkReleaseBuilds = true
+        // This private exact-device module deliberately targets Android 10/API 29;
+        // it is not a Google Play application and must preserve API29 target behaviour.
+        disable += "ExpiredTargetSdkVersion"
     }
 
     buildTypes {
@@ -36,6 +53,7 @@ android {
         }
     }
 }
+
 dependencies {
     compileOnly(project(":xposed-stubs"))
     testImplementation("junit:junit:4.13.2")

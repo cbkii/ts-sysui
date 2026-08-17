@@ -12,9 +12,16 @@ final class StatusBarState {
 
     private StatusBarState() {}
 
-    static synchronized void capture(View root, ViewGroup.LayoutParams params) {
+    static synchronized View capture(View root, ViewGroup.LayoutParams params) {
+        View previous = rootRef.get();
         rootRef = new WeakReference<>(root);
         updateParams(params);
+        return previous;
+    }
+
+    static synchronized void clear() {
+        rootRef = new WeakReference<>(null);
+        windowHeightSpec = Integer.MIN_VALUE;
     }
 
     static void updateIfTracked(View view, ViewGroup.LayoutParams params) {
@@ -26,8 +33,13 @@ final class StatusBarState {
         if (params != null) windowHeightSpec = params.height;
     }
 
-    static View root() { return rootRef.get(); }
-    static int windowHeightSpec() { return windowHeightSpec; }
+    static View root() {
+        return rootRef.get();
+    }
+
+    static int windowHeightSpec() {
+        return windowHeightSpec;
+    }
 
     static boolean isStatusBarParams(Object value) {
         if (!(value instanceof WindowManager.LayoutParams)) return false;

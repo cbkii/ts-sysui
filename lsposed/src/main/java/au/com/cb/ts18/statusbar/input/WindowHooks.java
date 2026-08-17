@@ -2,67 +2,61 @@ package au.com.cb.ts18.statusbar.input;
 
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.WindowManager;
 
 import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
+import de.robv.android.xposed.XposedHelpers;
 
 final class WindowHooks {
     private WindowHooks() {}
 
-    static void install(ClassLoader classLoader) throws ClassNotFoundException {
+    static void install(ClassLoader classLoader, HookRegistry registry) throws ClassNotFoundException {
         Class<?> impl = Class.forName("android.view.WindowManagerImpl", false, classLoader);
 
-        XposedBridge.hookAllMethods(impl, "addView", new XC_MethodHook() {
-            @Override protected void beforeHookedMethod(MethodHookParam param) {
-                try {
-                    if (CircuitBreaker.isOpen() || param.args == null || param.args.length < 2) return;
-                    if (!(param.args[0] instanceof View) || !StatusBarState.isStatusBarParams(param.args[1])) return;
-                    View root = (View) param.args[0];
-                    ViewGroup.LayoutParams lp = (ViewGroup.LayoutParams) param.args[1];
-                    normaliseHeightIfRequested(root, lp);
-                    StatusBarState.capture(root, lp);
-                } catch (Throwable t) {
-                    CircuitBreaker.recordFailure("WindowManager.addView", t);
-                }
-            }
+        XC_MethodHook.Unhook addViewHook = XposedHelpers.findAndHookMethod(
+                impl, "addView", View.class, ViewGroup.LayoutParams.class, new XC_MethodHook() {
+                    @Override protected void afterHookedMethod(MethodHookParam param) {
+                        try {
+                            if (!HookRuntime.isOperational()
+                                    || param.getThrowable() != null
+                                    || param.args == null || param.args.length < 2) return;
+                            if (!(param.args[0] instanceof View)
+                                    || !StatusBarState.isStatusBarParams(param.args[1])) return;
 
-            @Override protected void afterHookedMethod(MethodHookParam param) {
-                try {
-                    View root = StatusBarState.root();
-                    if (root != null) VisualScaler.attach(root);
-                } catch (Throwable t) {
-                    CircuitBreaker.recordFailure("visual attach", t);
-                }
-            }
-        });
+                            View root = (View) param.args[0];
+                            ViewGroup.LayoutParams params = (ViewGroup.LayoutParams) param.args[1];
+                            View previous = StatusBarState.capture(root, params);
+                            if (previous != null && previous != root) {
+                                VisualScaler.detach(previous, true);
+                                SystemBarDimensions.clearCache();
+                            }
+                            // Do not keep a layout listener alive in observation-only mode.
+                            VisualScaler.sync(root);
+                        } catch (Throwable t) {
+                            CircuitBreaker.recordFailure("window-add-view", t);
+                        }
+                    }
+                });
+        registry.addRequired("WindowManagerImpl.addView", addViewHook);
 
-        XposedBridge.hookAllMethods(impl, "updateViewLayout", new XC_MethodHook() {
-            @Override protected void beforeHookedMethod(MethodHookParam param) {
-                try {
-                    if (CircuitBreaker.isOpen() || param.args == null || param.args.length < 2) return;
-                    if (!(param.args[0] instanceof View) || !(param.args[1] instanceof ViewGroup.LayoutParams)) return;
-                    View view = (View) param.args[0];
-                    View root = StatusBarState.root();
-                    if (root == null || root != view) return;
-                    ViewGroup.LayoutParams lp = (ViewGroup.LayoutParams) param.args[1];
-                    normaliseHeightIfRequested(root, lp);
-                    StatusBarState.updateIfTracked(view, lp);
-                } catch (Throwable t) {
-                    CircuitBreaker.recordFailure("WindowManager.updateViewLayout", t);
-                }
-            }
-        });
-    }
-
-    private static void normaliseHeightIfRequested(View root, ViewGroup.LayoutParams lp) {
-        Config.Snapshot cfg = Config.get(root.getContext());
-        if (!cfg.enabled || !cfg.normaliseWindowHeight) return;
-        if (!(lp instanceof WindowManager.LayoutParams)) return;
-        WindowManager.LayoutParams wlp = (WindowManager.LayoutParams) lp;
-        if (wlp.type != WindowManager.LayoutParams.TYPE_STATUS_BAR) return;
-        if (lp.height <= 0) return; // MATCH_PARENT/WRAP_CONTENT: do not guess.
-        int expected = SystemBarDimensions.statusBarHeight(root);
-        if (expected > 0 && lp.height != expected) lp.height = expected;
+        XC_MethodHook.Unhook updateHook = XposedHelpers.findAndHookMethod(
+                impl, "updateViewLayout", View.class, ViewGroup.LayoutParams.class, new XC_MethodHook() {
+                    @Override protected void afterHookedMethod(MethodHookParam param) {
+                        try {
+                            if (!HookRuntime.isOperational()
+                                    || param.getThrowable() != null
+                                    || param.args == null || param.args.length < 2) return;
+                            if (!(param.args[0] instanceof View)
+                                    || !(param.args[1] instanceof ViewGroup.LayoutParams)) return;
+                            View view = (View) param.args[0];
+                            if (StatusBarState.root() != view) return;
+                            StatusBarState.updateIfTracked(
+                                    view, (ViewGroup.LayoutParams) param.args[1]);
+                            VisualScaler.sync(view);
+                        } catch (Throwable t) {
+                            CircuitBreaker.recordFailure("window-update-layout", t);
+                        }
+                    }
+                });
+        registry.addRequired("WindowManagerImpl.updateViewLayout", updateHook);
     }
 }

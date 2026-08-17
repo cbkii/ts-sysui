@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Host-only pure Java policy validation. No Android SDK or network required.
+# Host-only pure Java safety-policy validation. No Android SDK or network required.
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)" || {
     printf 'FAILED: cannot resolve script directory\n' >&2
@@ -22,20 +22,19 @@ if ! command -v javac >/dev/null 2>&1 || ! command -v java >/dev/null 2>&1; then
     exit 3
 fi
 
-mkdir -p "$TMP/au/com/cb/ts18/statusbar/input" || exit 3
-cp -- "$ROOT/lsposed/src/main/java/au/com/cb/ts18/statusbar/input/TouchStripGeometry.java" \
-    "$TMP/au/com/cb/ts18/statusbar/input/" || exit 3
-cp -- "$ROOT/tools/GeometryPolicySelfTest.java" \
-    "$TMP/au/com/cb/ts18/statusbar/input/" || exit 3
+PKG="$TMP/au/com/cb/ts18/statusbar/input"
+mkdir -p "$PKG" || exit 3
+for file in TouchStripGeometry.java CoordinateSpacePolicy.java TouchableStatePolicy.java VisualScalePolicy.java; do
+    cp -- "$ROOT/lsposed/src/main/java/au/com/cb/ts18/statusbar/input/$file" "$PKG/" || exit 2
+done
+cp -- "$ROOT/tools/GeometryPolicySelfTest.java" "$PKG/" || exit 2
 
-if ! javac -d "$TMP/classes" \
-    "$TMP/au/com/cb/ts18/statusbar/input/TouchStripGeometry.java" \
-    "$TMP/au/com/cb/ts18/statusbar/input/GeometryPolicySelfTest.java"; then
+if ! javac -d "$TMP/classes" "$PKG"/*.java; then
     printf 'FAILED: javac policy compile\n' >&2
     exit 2
 fi
 
 if ! java -cp "$TMP/classes" au.com.cb.ts18.statusbar.input.GeometryPolicySelfTest; then
-    printf 'FAILED: geometry policy self-test\n' >&2
+    printf 'FAILED: runtime policy self-test\n' >&2
     exit 2
 fi
