@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.4.0 — right-nav observation foundation
+
+- added read-only `TYPE_NAVIGATION_BAR` root tracking through the existing exact
+  SystemUI WindowManager hooks;
+- added an independently armed, bounded right-nav hierarchy probe with weak-root
+  lifecycle handling and rate-limited change logging;
+- added a right-nav-specific circuit breaker so probe/future nav failures cannot
+  disable the compact status-bar runtime;
+- added safe parsing for configurable Previous / Play-Pause / Next subset/order;
+- added pure/JUnit-tested right-nav free-space/capacity placement policy with
+  explicit fail-open reasons and minimum touch-target enforcement;
+- added independent navbar policy-generation/settings and root helper commands;
+- added a detailed evidence-gated functional media-controls roadmap and physical
+  observation validation stage;
+- kept all right-nav mutation disabled: no views are added/removed/resized and no
+  media command path exists in this milestone.
+
 ## 0.3.0 — review hardening
 
 - made LSPosed first-run observation-only: master/input/visual mutations default off;
