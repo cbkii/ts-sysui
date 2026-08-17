@@ -95,7 +95,8 @@ cp -- "$lsposed" "$DIST/TS18-StatusBar-Input-LSPosed-v$VERSION-$MODE.apk" || exi
 cp -- "$DIST/TS18-StatusBar-Geometry-Magisk-v$VERSION-$MODE.zip" "$TMP/bundle/" || exit 2
 cp -- "$DIST/TS18-StatusBar-Input-LSPosed-v$VERSION-$MODE.apk" "$TMP/bundle/" || exit 2
 cp -- "$ROOT/docs/INSTALL.md" "$ROOT/docs/RECOVERY.md" "$ROOT/docs/VALIDATION.md" \
-    "$ROOT/docs/ROADMAP.md" "$ROOT/docs/LSPOSED-COMPATIBILITY.md" "$TMP/bundle/" || exit 2
+    "$ROOT/docs/ROADMAP.md" "$ROOT/docs/RIGHT-NAV-MEDIA-ROADMAP.md" \
+    "$ROOT/docs/LSPOSED-COMPATIBILITY.md" "$TMP/bundle/" || exit 2
 (
     cd "$TMP/bundle" || exit 3
     zip -qr "$DIST/TS18-StatusBar-Bundle-v$VERSION-$MODE.zip" .
