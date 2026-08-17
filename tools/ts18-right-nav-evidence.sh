@@ -66,7 +66,10 @@ fi
 cleanup() {
     rm -rf "$WORK" 2>/dev/null
 }
-trap cleanup EXIT HUP INT TERM
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 capture() {
     name="$1"
@@ -203,7 +206,7 @@ if command -v zip >/dev/null 2>&1; then
     if (cd "$OUT_DIR" && zip -qr "$archive" .); then
         echo "ARCHIVE: $archive"
     else
-        warn "optional zip packaging failed; use the evidence directory directly"
+        echo "WARNING: optional zip packaging failed; use the evidence directory directly" >&2
     fi
 fi
 
