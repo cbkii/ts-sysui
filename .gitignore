@@ -11,3 +11,4 @@ signing.properties
 .DS_Store
 
 .signing/
+/secrets/
