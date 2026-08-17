@@ -7,6 +7,11 @@ import android.view.WindowManager;
 import java.lang.ref.WeakReference;
 
 final class NavBarState {
+    // TYPE_NAVIGATION_BAR is @hide in the Android SDK stubs. Android 10 framework
+    // defines it as FIRST_SYSTEM_WINDOW (2000) + 19. Keep the API29 value local
+    // instead of reflecting across hidden-API enforcement from SystemUI.
+    private static final int TYPE_NAVIGATION_BAR_API29 = 2019;
+
     private static WeakReference<View> rootRef = new WeakReference<>(null);
     private static int generation;
     private static volatile int widthSpec = Integer.MIN_VALUE;
@@ -58,8 +63,7 @@ final class NavBarState {
 
     static boolean isNavigationBarParams(Object value) {
         if (!(value instanceof WindowManager.LayoutParams)) return false;
-        return ((WindowManager.LayoutParams) value).type
-                == WindowManager.LayoutParams.TYPE_NAVIGATION_BAR;
+        return ((WindowManager.LayoutParams) value).type == TYPE_NAVIGATION_BAR_API29;
     }
 
     static final class Capture {
