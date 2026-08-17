@@ -111,16 +111,27 @@ Before starting:
 
 1. record current Android build identity;
 2. record current Magisk/Zygisk/LSPosed/module state and any other SystemUI writer;
-3. obtain the current `pm path com.android.systemui` result where possible;
-4. retain/hash the current full SystemUI APK before any future private-class work.
-
-Enable only the hierarchy probe:
+3. obtain and retain the current full `com.android.systemui` APK identity;
+4. arm only the read-only hierarchy probe.
 
 ```sh
 su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh nav-observe'
 ```
 
-Expected behaviour:
+For each material test state, run the bundled bounded collector:
+
+```sh
+su -c 'sh /storage/emulated/0/Download/ts18-right-nav-evidence.sh'
+```
+
+The collector writes only to shared Download plus a short-lived root scratch
+directory. It captures current build/display/package/window/nav settings and
+bounded right-nav logs, resolves `pm path com.android.systemui`, copies the
+current SystemUI APK(s) into the evidence directory and records SHA-256 values.
+Its `EVIDENCE_GATE=PARTIAL` result means binary identity was captured; it does
+**not** mean hierarchy/lifecycle qualification is complete.
+
+Expected behaviour while the probe is active:
 
 - navigation bar looks and behaves exactly as before;
 - no new clickable/non-clickable view appears;
@@ -130,7 +141,7 @@ Expected behaviour:
   listeners;
 - navbar-specific failures do not open the compact `CircuitBreaker`.
 
-Capture the hierarchy in each state that is available:
+Capture each state that is available:
 
 ```text
 launcher/home
@@ -170,7 +181,7 @@ su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh nav-probe-off'
 ```
 
 Stage N0 **does not authorise an inert marker or media button**. Compare the
-capture against `RIGHT-NAV-MEDIA-ROADMAP.md`; if the host, free space, stock
+captures against `RIGHT-NAV-MEDIA-ROADMAP.md`; if the host, free space, stock
 semantics or lifecycle remain ambiguous, STOP at observation-only.
 
 ## Future right-navigation mutation stages
