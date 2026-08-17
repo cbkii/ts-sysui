@@ -31,7 +31,7 @@ b36808cd4065ec70ddbc452f3653e6c88118736f28d5f194fabf9627ba3f9f14  ./lsposed/src/
 d55b76c9491e31e9b5a93f120327dd44f29152cc7fedd71951b58a4ee82d0e61  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/HookRegistry.java
 108c51c6f29e48cc7b7a1c5e90030beddf32ecdbd8064be54164b364ac7c84a3  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/HookRuntime.java
 d0ae7294cb281d4dd249c7a19c1c906713e0f91edb28f5a09bce42712922ec6a  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/NavAction.java
-8d4a5d1ff982cf5e30a4b92499514d4b7e6f0598ae67c8b1ce7274f3d6e4d171  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/NavBarState.java
+33de279492c200c5a3387b52e323361f851186577a3b448d61deddc7d98b91d5  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/NavBarState.java
 099417cf24bea3059f67fb735af5ec1be5e2c224918f04d9a887e44ed43b7efc  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/NavConfig.java
 de69a431b20ae24b39719fc8c8b88470f815ebe6b33c1997e1759da54a786ac1  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/NavFeatureRuntime.java
 30c61dc767dd2e8af30415c2da4fa3eaf7fa48e874694ea70abd591918f54328  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/NavHierarchyProbe.java
