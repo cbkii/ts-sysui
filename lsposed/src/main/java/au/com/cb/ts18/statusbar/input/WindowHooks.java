@@ -15,8 +15,7 @@ final class WindowHooks {
         XC_MethodHook.Unhook addViewHook = XposedHelpers.findAndHookMethod(
                 impl, "addView", View.class, ViewGroup.LayoutParams.class, new XC_MethodHook() {
                     @Override protected void afterHookedMethod(MethodHookParam param) {
-                        if (!HookRuntime.isOperational()
-                                || param.getThrowable() != null
+                        if (param.getThrowable() != null
                                 || param.args == null || param.args.length < 2
                                 || !(param.args[0] instanceof View)
                                 || !(param.args[1] instanceof ViewGroup.LayoutParams)) return;
@@ -26,7 +25,7 @@ final class WindowHooks {
                                 (ViewGroup.LayoutParams) param.args[1];
 
                         if (StatusBarState.isStatusBarParams(params)) {
-                            handleStatusBarAdd(root, params);
+                            if (HookRuntime.isOperational()) handleStatusBarAdd(root, params);
                             return;
                         }
                         if (NavBarState.isNavigationBarParams(params)) {
@@ -40,8 +39,7 @@ final class WindowHooks {
                 impl, "updateViewLayout", View.class, ViewGroup.LayoutParams.class,
                 new XC_MethodHook() {
                     @Override protected void afterHookedMethod(MethodHookParam param) {
-                        if (!HookRuntime.isOperational()
-                                || param.getThrowable() != null
+                        if (param.getThrowable() != null
                                 || param.args == null || param.args.length < 2
                                 || !(param.args[0] instanceof View)
                                 || !(param.args[1] instanceof ViewGroup.LayoutParams)) return;
@@ -51,7 +49,7 @@ final class WindowHooks {
                                 (ViewGroup.LayoutParams) param.args[1];
 
                         if (StatusBarState.root() == view) {
-                            handleStatusBarUpdate(view, params);
+                            if (HookRuntime.isOperational()) handleStatusBarUpdate(view, params);
                             return;
                         }
                         if (NavBarState.root() == view
