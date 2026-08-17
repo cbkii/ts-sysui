@@ -41,6 +41,9 @@ android {
     lint {
         abortOnError = true
         checkReleaseBuilds = true
+        // This private exact-device module deliberately targets Android 10/API 29;
+        // it is not a Google Play application and must preserve API29 target behaviour.
+        disable += "ExpiredTargetSdkVersion"
     }
 
     buildTypes {
