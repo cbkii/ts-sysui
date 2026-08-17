@@ -97,6 +97,9 @@ cp -- "$DIST/TS18-StatusBar-Input-LSPosed-v$VERSION-$MODE.apk" "$TMP/bundle/" ||
 cp -- "$ROOT/docs/INSTALL.md" "$ROOT/docs/RECOVERY.md" "$ROOT/docs/VALIDATION.md" \
     "$ROOT/docs/ROADMAP.md" "$ROOT/docs/RIGHT-NAV-MEDIA-ROADMAP.md" \
     "$ROOT/docs/LSPOSED-COMPATIBILITY.md" "$TMP/bundle/" || exit 2
+cp -- "$ROOT/tools/ts18-statusbar-config.sh" \
+    "$ROOT/tools/ts18-statusbar-validate.sh" \
+    "$ROOT/tools/ts18-right-nav-evidence.sh" "$TMP/bundle/" || exit 2
 (
     cd "$TMP/bundle" || exit 3
     zip -qr "$DIST/TS18-StatusBar-Bundle-v$VERSION-$MODE.zip" .
