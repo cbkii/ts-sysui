@@ -111,19 +111,19 @@ final class NavHierarchyProbe {
                 binding.lastCaptureAt = now;
             }
 
-            Snapshot snapshot = buildSnapshot(root, binding.generation, config.debug);
+            String snapshot = buildSnapshot(root, binding.generation, config.debug);
             synchronized (binding) {
-                if (snapshot.fingerprint == binding.lastFingerprint) return;
-                binding.lastFingerprint = snapshot.fingerprint;
+                if (snapshot.equals(binding.lastSnapshot)) return;
+                binding.lastSnapshot = snapshot;
             }
 
-            RateLimitedLog.always(snapshot.text);
+            RateLimitedLog.always(snapshot);
         } catch (Throwable t) {
             NavFeatureRuntime.recordFailure("probe", t);
         }
     }
 
-    private static Snapshot buildSnapshot(View root, int generation, boolean includeLabels) {
+    private static String buildSnapshot(View root, int generation, boolean includeLabels) {
         StringBuilder out = new StringBuilder(4096);
         int[] rootLocation = new int[2];
         root.getLocationOnScreen(rootLocation);
@@ -153,10 +153,10 @@ final class NavHierarchyProbe {
             out.append(marker);
         }
 
-        // Hash the actual bounded serialised evidence, not a subset of fields, so
-        // root/display/layout/description-only changes cannot be suppressed.
-        String text = out.toString();
-        return new Snapshot(text.hashCode(), text);
+        // The complete bounded serialisation is the change key. This prevents
+        // root/display/layout/description-only changes from being suppressed and
+        // avoids relying on a lossy subset fingerprint.
+        return out.toString();
     }
 
     private static void appendNode(View view, int[] rootLocation, int depth, String path,
@@ -235,21 +235,11 @@ final class NavHierarchyProbe {
         final View.OnLayoutChangeListener listener;
         volatile int generation;
         long lastCaptureAt = -MIN_CAPTURE_INTERVAL_MS;
-        int lastFingerprint = Integer.MIN_VALUE;
+        String lastSnapshot;
 
         Binding(View.OnLayoutChangeListener listener, int generation) {
             this.listener = listener;
             this.generation = generation;
-        }
-    }
-
-    private static final class Snapshot {
-        final int fingerprint;
-        final String text;
-
-        Snapshot(int fingerprint, String text) {
-            this.fingerprint = fingerprint;
-            this.text = text;
         }
     }
 
