@@ -38,6 +38,10 @@ final class NavHierarchyProbe {
     static void attach(View root, int generation) {
         if (root == null || !NavFeatureRuntime.isOperational()) return;
         synchronized (ROOTS) {
+            // Coordinate with breaker cleanup: if it opened before this lock was
+            // acquired, do not register a listener after failOpen() has run.
+            if (!NavFeatureRuntime.isOperational()) return;
+
             Binding existing = ROOTS.get(root);
             if (existing != null) {
                 existing.generation = generation;
@@ -141,12 +145,18 @@ final class NavHierarchyProbe {
 
         Counter counter = new Counter();
         appendNode(root, rootLocation, 0, "0", out, counter, includeLabels);
-        if (counter.truncated) {
-            out.append("... probe truncated at ")
-                    .append(counter.count).append(" nodes / ")
-                    .append(MAX_TEXT_CHARS).append(" chars\n");
+        if (counter.truncated || out.length() > MAX_TEXT_CHARS) {
+            String marker = "\n... probe truncated at " + counter.count
+                    + " nodes / " + MAX_TEXT_CHARS + " chars\n";
+            int bodyLimit = Math.max(0, MAX_TEXT_CHARS - marker.length());
+            if (out.length() > bodyLimit) out.setLength(bodyLimit);
+            out.append(marker);
         }
-        return new Snapshot(counter.fingerprint, out.toString());
+
+        // Hash the actual bounded serialised evidence, not a subset of fields, so
+        // root/display/layout/description-only changes cannot be suppressed.
+        String text = out.toString();
+        return new Snapshot(text.hashCode(), text);
     }
 
     private static void appendNode(View view, int[] rootLocation, int depth, String path,
@@ -167,18 +177,6 @@ final class NavHierarchyProbe {
         ViewGroup.LayoutParams params = view.getLayoutParams();
 
         counter.count++;
-        counter.mix(view.getClass().getName().hashCode());
-        counter.mix(view.getId());
-        counter.mix(relX);
-        counter.mix(relY);
-        counter.mix(view.getWidth());
-        counter.mix(view.getHeight());
-        counter.mix(view.getVisibility());
-        counter.mix(view.isClickable() ? 1 : 0);
-        counter.mix(view.isLongClickable() ? 1 : 0);
-        counter.mix(view.isEnabled() ? 1 : 0);
-        counter.mix(view.isFocusable() ? 1 : 0);
-
         indent(out, depth);
         out.append(path)
                 .append(" class=").append(view.getClass().getName())
@@ -199,7 +197,6 @@ final class NavHierarchyProbe {
         if (view instanceof ViewGroup) {
             ViewGroup group = (ViewGroup) view;
             out.append(" children=").append(group.getChildCount());
-            counter.mix(group.getChildCount());
             out.append('\n');
             for (int i = 0; i < group.getChildCount(); i++) {
                 appendNode(group.getChildAt(i), rootLocation, depth + 1,
@@ -209,6 +206,8 @@ final class NavHierarchyProbe {
         } else {
             out.append('\n');
         }
+
+        if (out.length() >= MAX_TEXT_CHARS) counter.truncated = true;
     }
 
     private static String resourceName(View view) {
@@ -256,11 +255,6 @@ final class NavHierarchyProbe {
 
     private static final class Counter {
         int count;
-        int fingerprint = 17;
         boolean truncated;
-
-        void mix(int value) {
-            fingerprint = 31 * fingerprint + value;
-        }
     }
 }
