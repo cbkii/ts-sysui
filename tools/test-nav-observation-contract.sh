@@ -7,10 +7,17 @@ BASE="$ROOT/lsposed/src/main/java/au/com/cb/ts18/statusbar/input"
 RUNTIME="$BASE/NavFeatureRuntime.java"
 PROBE="$BASE/NavHierarchyProbe.java"
 WINDOWS="$BASE/WindowHooks.java"
+NAV_SOURCES=("$BASE"/Nav*.java "$WINDOWS")
 
 for file in "$RUNTIME" "$PROBE" "$WINDOWS"; do
     if [ ! -s "$file" ]; then
         printf 'FAILED: missing right-nav observation source: %s\n' "$file" >&2
+        exit 2
+    fi
+done
+for file in "${NAV_SOURCES[@]}"; do
+    if [ ! -s "$file" ]; then
+        printf 'FAILED: expected right-nav source glob produced missing path: %s\n' "$file" >&2
         exit 2
     fi
 done
@@ -34,8 +41,8 @@ for forbidden in \
     'MediaController' \
     'TransportControls'
 do
-    if grep -F "$forbidden" "$PROBE" >/dev/null 2>&1; then
-        printf 'FAILED: observation probe contains forbidden mutation/control token: %s\n' "$forbidden" >&2
+    if grep -F "$forbidden" "${NAV_SOURCES[@]}" >/dev/null 2>&1; then
+        printf 'FAILED: right-nav observation path contains forbidden mutation/control token: %s\n' "$forbidden" >&2
         exit 2
     fi
 done
@@ -49,4 +56,4 @@ if ! grep -F 'TYPE_NAVIGATION_BAR' "$BASE/NavBarState.java" >/dev/null 2>&1; the
     exit 2
 fi
 
-printf 'SUCCESS: right-nav milestone remains observation-only and failure-isolated\n'
+printf 'SUCCESS: complete right-nav path remains observation-only and failure-isolated\n'
