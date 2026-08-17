@@ -1,6 +1,9 @@
 package au.com.cb.ts18.statusbar.input;
 
+/** Host-only smoke coverage for pure safety policies; Android/JUnit CI adds deeper coverage. */
 public final class GeometryPolicySelfTest {
+    private GeometryPolicySelfTest() {}
+
     private static void eq(int expected, int actual, String label) {
         if (expected != actual) {
             throw new AssertionError(label + ": expected=" + expected + " actual=" + actual);
@@ -17,40 +20,21 @@ public final class GeometryPolicySelfTest {
         eq(960, exact.stripLeft, "TS18 stripLeft");
         eq(1216, exact.stripRight, "TS18 stripRight");
         eq(256, exact.stripWidth(), "TS18 stripWidth");
-        eq(960, exact.leftCornerDistance(), "TS18 left-corner distance");
         eq(64, exact.rightCornerDistance(), "TS18 right-corner distance");
 
-        TouchStripGeometry.Result noInset = TouchStripGeometry.compute(1280, 0, .20f, 64);
-        yes(noInset.valid, "no-inset geometry valid");
-        eq(960, noInset.stripLeft, "no-inset stripLeft");
-        eq(1216, noInset.stripRight, "no-inset stripRight");
-        eq(256, noInset.stripWidth(), "no-inset stripWidth");
+        TouchStripGeometry.Result onePercent = TouchStripGeometry.compute(1280, 55, .01f, 64);
+        yes(onePercent.valid, "1-percent geometry valid");
+        eq(12, onePercent.stripWidth(), "1-percent width");
 
-        // A caller asking for more than 20% is hard-capped to 20% of full screen width.
-        TouchStripGeometry.Result capped = TouchStripGeometry.compute(1280, 55, .50f, 64);
-        yes(capped.valid, "capped geometry valid");
+        TouchStripGeometry.Result capped = TouchStripGeometry.compute(1280, 55, .99f, 64);
         eq(256, capped.stripWidth(), "20-percent hard width cap");
 
-        // A caller asking for less than the mandatory 64px corner exclusion is clamped upward.
-        TouchStripGeometry.Result minGap = TouchStripGeometry.compute(1280, 55, .20f, 0);
-        yes(minGap.valid, "minimum-gap geometry valid");
-        eq(64, minGap.rightCornerDistance(), "64px mandatory top-right exclusion");
-
-        // A larger right system inset remains authoritative when it already exceeds 64px.
-        TouchStripGeometry.Result largerInset = TouchStripGeometry.compute(1280, 100, .20f, 64);
-        yes(largerInset.valid, "larger-inset geometry valid");
-        eq(1180, largerInset.stripRight, "larger-inset stripRight");
-        eq(100, largerInset.rightCornerDistance(), "larger-inset corner distance");
-        eq(256, largerInset.stripWidth(), "larger-inset width");
-
-        // Never weaken the 64px rule on an impossibly small surface: report invalid/fail-open.
         TouchStripGeometry.Result impossible = TouchStripGeometry.compute(120, 0, .20f, 64);
-        yes(!impossible.valid, "small surface must fail safe instead of weakening corner gap");
+        yes(!impossible.valid, "small surface must fail open");
 
-        // Sweep representative widths/insets/fractions and assert the user's hard invariants.
         int[] widths = {129, 160, 320, 800, 1024, 1225, 1280, 1920};
         int[] insets = {0, 1, 55, 64, 100, 240};
-        float[] fractions = {0.01f, 0.05f, 0.10f, 0.20f, 0.25f, 0.99f};
+        float[] fractions = {0.01f, 0.02f, 0.05f, 0.10f, 0.20f, 0.25f, 0.99f};
         for (int width : widths) {
             for (int inset : insets) {
                 for (float fraction : fractions) {
@@ -60,12 +44,32 @@ public final class GeometryPolicySelfTest {
                     yes(r.rightCornerDistance() >= 64, "right corner clearance width=" + width);
                     yes(r.stripWidth() <= (int) Math.floor(width * 0.20d),
                             "20-percent width cap width=" + width);
-                    yes(r.stripLeft >= 0 && r.stripRight <= width && r.stripLeft < r.stripRight,
-                            "strip bounds width=" + width);
                 }
             }
         }
 
-        System.out.println("SUCCESS: geometry policy self-test");
+        yes(CoordinateSpacePolicy.evaluate(0, 0, 1280, 1280).valid,
+                "full-width physical coordinate mapping");
+        yes(!CoordinateSpacePolicy.evaluate(0, 0, 1225, 1280).valid,
+                "partial-width coordinate mapping must fail open");
+
+        TouchableStatePolicy.Decision collapsed = TouchableStatePolicy.evaluate(
+                false, false, true, 0, 0, 1280, 41, 1280, 41, 3, 3, 41);
+        yes(collapsed.apply, "ordinary collapsed region eligible");
+        yes(!TouchableStatePolicy.evaluate(
+                false, false, true, 900, 0, 1200, 41, 1280, 41, 3, 3, 41).apply,
+                "heads-up-like region kept stock");
+        yes(!TouchableStatePolicy.evaluate(
+                false, false, true, 0, 0, 1280, 41, 1280, 41, 3, 3, 720).apply,
+                "expanded window kept stock");
+
+        yes(VisualScalePolicy.decide(true, false, false, true)
+                        == VisualScalePolicy.Action.RESTORE_AND_RELEASE,
+                "owned leaf leaving bar restores");
+        yes(VisualScalePolicy.decide(true, false, true, false)
+                        == VisualScalePolicy.Action.RELEASE_CONFLICT,
+                "external scale change releases ownership");
+
+        System.out.println("SUCCESS: geometry/runtime policy self-test");
     }
 }

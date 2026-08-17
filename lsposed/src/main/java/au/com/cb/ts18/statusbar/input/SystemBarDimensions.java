@@ -1,39 +1,103 @@
 package au.com.cb.ts18.statusbar.input;
 
+import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.view.View;
 import android.view.WindowInsets;
 
+import java.util.Collections;
+import java.util.Map;
+import java.util.WeakHashMap;
+
 final class SystemBarDimensions {
+    private static final int UNRESOLVED = Integer.MIN_VALUE;
+    private static final Map<Resources, Cache> CACHES =
+            Collections.synchronizedMap(new WeakHashMap<>());
+
     private SystemBarDimensions() {}
 
     static int statusBarHeight(View root) {
         Resources res = root.getResources();
-        int id = res.getIdentifier("status_bar_height", "dimen", "android");
-        if (id == 0) return 0;
-        try { return res.getDimensionPixelSize(id); }
-        catch (Resources.NotFoundException e) { return 0; }
+        Cache cache = cacheFor(res);
+        synchronized (cache) {
+            cache.refreshConfiguration(res);
+            if (cache.statusBarHeightPx == UNRESOLVED) {
+                cache.statusBarHeightPx = dimensionPixelSize(res, cache.statusBarHeightId);
+            }
+            return Math.max(0, cache.statusBarHeightPx);
+        }
     }
 
+    @SuppressWarnings("deprecation") // Android 10 API 29 runtime; newer inset APIs are not backported.
     static int rightSystemInset(View root) {
-        int inset = 0;
         WindowInsets wi = root.getRootWindowInsets();
         if (wi != null) {
-            inset = Math.max(wi.getStableInsetRight(), wi.getSystemWindowInsetRight());
+            int inset = Math.max(wi.getStableInsetRight(), wi.getSystemWindowInsetRight());
+            if (inset > 0) return inset;
         }
-        if (inset > 0) return inset;
 
-        // TS18 fallback: the right navigation bar is a framework dimension.
         Resources res = root.getResources();
-        int id = res.getIdentifier("navigation_bar_width", "dimen", "android");
-        if (id != 0) {
-            try {
-                int width = res.getDimensionPixelSize(id);
-                if (width > 0 && width < root.getWidth() / 4) return width;
-            } catch (Resources.NotFoundException ignored) {
-                // Expected safe fallback: no right inset.
+        Cache cache = cacheFor(res);
+        int width;
+        synchronized (cache) {
+            cache.refreshConfiguration(res);
+            if (cache.navigationBarWidthPx == UNRESOLVED) {
+                cache.navigationBarWidthPx = dimensionPixelSize(res, cache.navigationBarWidthId);
             }
+            width = cache.navigationBarWidthPx;
         }
-        return 0;
+        return width > 0 && width < root.getWidth() / 4 ? width : 0;
+    }
+
+    static void clearCache() {
+        CACHES.clear();
+    }
+
+    private static Cache cacheFor(Resources res) {
+        Cache cache = CACHES.get(res);
+        if (cache != null) return cache;
+        synchronized (CACHES) {
+            cache = CACHES.get(res);
+            if (cache == null) {
+                cache = new Cache(
+                        res.getIdentifier("status_bar_height", "dimen", "android"),
+                        res.getIdentifier("navigation_bar_width", "dimen", "android"));
+                CACHES.put(res, cache);
+            }
+            return cache;
+        }
+    }
+
+    private static int dimensionPixelSize(Resources res, int id) {
+        if (id == 0) return 0;
+        try {
+            return res.getDimensionPixelSize(id);
+        } catch (Resources.NotFoundException e) {
+            return 0;
+        }
+    }
+
+    private static final class Cache {
+        final int statusBarHeightId;
+        final int navigationBarWidthId;
+        int densityDpi = UNRESOLVED;
+        int orientation = Configuration.ORIENTATION_UNDEFINED;
+        int statusBarHeightPx = UNRESOLVED;
+        int navigationBarWidthPx = UNRESOLVED;
+
+        Cache(int statusBarHeightId, int navigationBarWidthId) {
+            this.statusBarHeightId = statusBarHeightId;
+            this.navigationBarWidthId = navigationBarWidthId;
+        }
+
+        void refreshConfiguration(Resources res) {
+            int newDensity = res.getDisplayMetrics().densityDpi;
+            int newOrientation = res.getConfiguration().orientation;
+            if (newDensity == densityDpi && newOrientation == orientation) return;
+            densityDpi = newDensity;
+            orientation = newOrientation;
+            statusBarHeightPx = UNRESOLVED;
+            navigationBarWidthPx = UNRESOLVED;
+        }
     }
 }

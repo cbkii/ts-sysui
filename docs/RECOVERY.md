@@ -1,30 +1,30 @@
-# Recovery and rollback
+# Recovery
 
-## Fast LSPosed kill switch
+The geometry RRO and LSPosed APK are independent. Do not troubleshoot both layers
+at once.
 
-If root shell is available:
+## LSPosed/SystemUI problem
 
-```sh
-su -c 'settings put global ts18_statusbar_enabled 0'
-```
+Preferred non-destructive recovery order:
 
-Then restart SystemUI only if your existing TS18 recovery procedure makes that
-safe; otherwise reboot normally. The hook checks this key and fails open.
+1. set the persistent master switch off if Android is usable:
+   `settings put global ts18_statusbar_enabled 0`;
+2. disable the LSPosed module/scope and restart SystemUI or reboot;
+3. if visual scaling had been armed, a process restart guarantees all transient
+   view transforms/listeners are discarded;
+4. only then investigate logs and current WindowManager/input state.
 
-If SystemUI repeatedly faults before you can run that command, disable the
-`TS18 Status Bar Input` module from LSPosed/safe mode and reboot.
+The in-process breaker also deactivates after three hook failures and attempts to
+restore only visual transforms it can still prove it owns. It never claims to
+undo unrelated SystemUI animation state.
 
-## Geometry rollback
+## Geometry problem
 
-Disable `TS18 Compact Status Bar Geometry` in Magisk and reboot. Because the
-module only adds a systemless RRO, the untouched OEM sysbar overlay becomes
-active again.
+Disable the Magisk module `ts18_statusbar_geometry` and reboot. The OEM RRO is
+not deleted or replaced, so it becomes authoritative again.
 
-## Full uninstall order
+## STOP conditions
 
-1. Disable/uninstall the LSPosed module; reboot and confirm stock touch behaviour.
-2. Disable/uninstall the Magisk geometry module; reboot and confirm stock height.
-3. Optionally remove `ts18_statusbar_*` global settings after stock behaviour is
-   confirmed.
-
-No direct `/system` or `/product` cleanup should be necessary.
+Stop rather than escalating to partition/package replacement if recovery requires
+writing `/system` or `/product`, replacing `SystemUI.apk`, deleting the OEM RRO,
+or adding `system_server` hooks without new exact-device evidence.

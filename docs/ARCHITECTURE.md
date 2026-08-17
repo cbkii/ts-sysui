@@ -4,87 +4,108 @@
 
 ### Geometry — framework RRO
 
-The status-bar frame/insets are framework-owned. The exact supplied active
-sysbar RRO was exported under the extractor name
-`android.overlay.sysbar_720x1280_10.apk`; project runtime evidence associates the
-installed overlay with `/product/overlay/framework-res_sysbar_rro_1280x720.apk`.
-It targets package `android` and overrides the status/nav geometry resources.
+Status-bar frame/insets are framework-owned. The exact supplied active sysbar
+RRO was exported under the extractor name `android.overlay.sysbar_720x1280_10.apk`;
+project evidence associates the installed overlay with
+`/product/overlay/framework-res_sysbar_rro_1280x720.apk`. It targets `android`
+and carries the status/navigation geometry resources.
 
-This project follows that OEM mechanism with a new narrow RRO that changes only:
+This project follows the OEM mechanism with a narrow systemless RRO that changes
+only:
 
 - `status_bar_height`
 - `status_bar_height_landscape`
 - `status_bar_height_portrait`
 
-No navigation dimensions are changed. The new overlay is mounted by Magisk under
-`/product/overlay`; the OEM overlay stays intact.
+The right navigation dimensions are not changed. No SystemUI hook attempts to
+normalise the status-bar window height; the framework resource layer is the sole
+owner of geometry unless future physical evidence proves otherwise.
 
 ### Collapsed input — SystemUI process only
 
-Making a `View` return `false` from `onTouchEvent()` is insufficient once Window
-Manager has already selected the SystemUI status-bar window as the input target.
-The input window's touchable `Region` must exclude the app-facing area.
+Returning `false` from a status-bar child view is insufficient once WindowManager
+has already selected the SystemUI window as the input target. The input window's
+computed touchable `Region` must exclude the app-facing area.
 
-The LSPosed module uses Android framework surfaces *inside only the SystemUI main
-process*:
+The legacy Xposed module uses framework surfaces only inside the main
+`com.android.systemui` process:
 
-1. hook `WindowManagerImpl.addView/updateViewLayout` to identify the actual
-   `TYPE_STATUS_BAR` root and track its window height;
-2. hook `ViewTreeObserver.dispatchOnComputeInternalInsets` **after** stock
-   listeners, but act only when the observer belongs to that captured status-bar
-   root.
+1. `WindowManagerImpl.addView/updateViewLayout` identifies and tracks the actual
+   `TYPE_STATUS_BAR` root after successful stock calls;
+2. `ViewTreeObserver.dispatchOnComputeInternalInsets` is observed **after** stock
+   listeners and only when the observer belongs to that captured root;
+3. the stock region is modified only when a pure safety policy identifies a
+   full-width, rectangular, region-mode, collapsed bar with a matching compact
+   window height;
+4. keyguard, empty/non-rectangular regions, heads-up-like regions, expanded or
+   ambiguous states remain stock.
 
-On a clearly collapsed bar, the final region obeys these hard invariants:
+Before applying physical corner requirements, the module verifies that the
+status-bar window is located at physical `(0,0)` and that its local width exactly
+matches the real display width. A partial or offset window fails open.
+
+On an eligible collapsed bar, the final strip obeys:
 
 ```text
 cornerGapPx >= 64
-stripWidth <= floor(fullStatusBarWidth * 0.20)
+stripWidth <= floor(fullPhysicalWidth * 0.20)
 stripLeft >= cornerGapPx
-stripRight <= fullStatusBarWidth - cornerGapPx
-stripRight <= fullStatusBarWidth - rightSystemInset
+stripRight <= fullPhysicalWidth - cornerGapPx
+stripRight <= fullPhysicalWidth - rightSystemInset
 ```
 
-The configured fraction may be smaller than 20%, but never larger. The right
-system inset is resolved from current `WindowInsets`, falling back to
-`android:navigation_bar_width` for the TS18 side nav bar. A root-set
-`ts18_statusbar_right_inset_px` override remains available if the live inset
-source proves wrong; `-1` means automatic.
+Configured width may be **1%–20%**; only the 20% maximum is a product limit. The
+right inset comes from current `WindowInsets` with an Android framework
+`navigation_bar_width` fallback. A root-only override remains available if live
+evidence proves that automatic inset source wrong.
 
-For 1280 px width / 55 px right inset / 64 px corner exclusion, the default is
-**x=960..1216**: 256 px wide, exactly 64 px from the physical right corner and 9
-px left of the historical navigation boundary.
+For 1280 px width / 55 px right inset / 64 px corner exclusion, 20% resolves to
+**x=960..1216**.
 
-If the touch region extends below the compact bar (expanded shade, heads-up or
-other transient surface), the hook leaves the stock region untouched. Keyguard
-is also fail-open/stock. If the hard geometry cannot be represented safely, the
-module leaves stock behaviour unchanged rather than reducing the corner gap.
+### Visual scaling — optional/experimental
 
-### Visual scale
+Visual scaling is **off by default** and must be armed separately after input is
+qualified. The optional implementation scales collapsed leaf views while leaving
+layout/touch containers unchanged.
 
-The current implementation does not require private Topway SystemUI class names.
-Collapsed leaf `View`s are uniformly scaled to 75% while their parent
-layout/touch containers remain unchanged. Original scales are retained in weak
-references and restored when visual scaling is disabled.
+Ownership is conservative:
 
-An exact future SystemUI resource pass may replace generic leaf scaling only if
-static/runtime evidence shows a safer resource contract.
+- root location is computed once per traversal rather than once per leaf;
+- a leaf leaving the bar is restored immediately if the module still owns its
+  scale;
+- if SystemUI/animation changes scale while the module owns a leaf, the module
+  releases that leaf without overwriting the new value and skips it until visual
+  state is reset;
+- disabling visuals, replacing the root, or opening the circuit breaker removes
+  listeners and restores only transforms that are still provably module-owned.
+
+Exact SystemUI resource/layout overrides remain preferable if a current runtime
+hierarchy establishes a safer contract.
+
+## Installation and failure state
+
+Hook registration is idempotent. Registered callbacks stay inert until all
+required hooks are installed. If installation fails part-way, already registered
+hooks are unhooked and no runtime mutation is armed.
+
+Runtime configuration is observation-only by default:
+
+```text
+master enabled = false
+input enabled  = false
+visual enabled = false
+```
+
+After three runtime hook failures, the process circuit breaker deactivates
+further mutation, detaches visual listeners, restores transforms still owned by
+the module, clears the tracked root, and remains disabled until SystemUI restarts.
+The persistent kill switch is `ts18_statusbar_enabled=0`.
+
+No `system_server` hook exists.
 
 ## Right-navigation media controls — future separate feature
 
-The right-side `NavigationBar0` is a separate protected SystemUI surface. It is
-not modified by the compact-status-bar v0.2 runtime. A future optional module may
-inject bounded Previous / Play-Pause / Next controls only after the roadmap
-evidence gates are satisfied. It must reuse the currently active Android
-MediaSession/MediaController authority and must not create a new playback
-service, MediaSession, queue, audio-focus owner or notification authority.
-
-See [`ROADMAP.md`](ROADMAP.md).
-
-## Failure policy
-
-- Missing framework classes/methods: no hook mutation.
-- Any repeated runtime hook exception: after three failures the in-process
-  circuit breaker disables all modifications until SystemUI restarts.
-- Persistent kill switch: `settings put global ts18_statusbar_enabled 0`.
-- Expanded/keyguard/ambiguous touch state: stock region is preserved.
-- No `system_server` hook exists in this version.
+`NavigationBar0` remains a separate protected SystemUI surface and is unchanged
+by this release. Future optional media controls remain evidence-gated and must
+reuse an existing MediaSession without adding playback authority. See
+[`ROADMAP.md`](ROADMAP.md).

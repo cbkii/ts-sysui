@@ -1,32 +1,34 @@
 # TS18 compact status bar
 
-A narrow, reversible Android 10 solution for CB's Topway TS18 that addresses
-three separate concerns:
+A narrow, reversible Android 10/API 29 solution for CB's exact Topway TS18. It
+keeps three authorities separate:
 
-1. **Geometry:** reduce the framework status-bar height from the exact supplied
-   OEM 58 dp resource value to **43 dp** (about 75%, and about 41 px at the
-   last-observed 153 dpi override).
-2. **Input:** restrict collapsed notification-shade interception to one bounded
-   top-edge strip so ordinary apps can use the rest of the top edge.
-3. **Visuals:** scale collapsed status-bar leaf views to **75%** while keeping
-   their layout/touch containers unchanged.
+1. **Geometry** — a systemless framework resource overlay reduces the status-bar
+   height from the supplied OEM 58 dp value to **43 dp** (about 75%, and about
+   41 px at the last-observed 153 dpi override).
+2. **Input** — an LSPosed hook can restrict ordinary collapsed notification-shade
+   interception to one bounded top-edge strip so apps can use the rest of the
+   top edge.
+3. **Visuals** — an optional, separately armed SystemUI transform can scale
+   collapsed status-bar leaf views to **75%** while leaving their layout/touch
+   containers unchanged.
 
 The right-side navigation bar is deliberately not modified by the current
 implementation.
 
 ## Hard input boundary
 
-The collapsed swipe/drag-down/touch region now has two non-negotiable limits:
+Any armed collapsed swipe/drag-down region has two non-negotiable limits:
 
-- **at least 64 px from either top corner**; and
+- **at least 64 px from either physical top corner**; and
 - **never wider than 20% of the full status-bar/screen width**.
 
-The right navigation inset is also excluded. The 64 px rule is a horizontal
-corner exclusion along the top edge: the strip still starts at y=0 so a normal
-top-edge downward gesture can begin.
+The current right-navigation inset is also excluded. The 64 px rule is a
+horizontal corner exclusion: the strip still starts at y=0 so a normal top-edge
+downward gesture can begin.
 
-For the exact last-observed 1280×720 geometry with a 55 px right navigation
-inset, the default strip is:
+For the exact last-observed 1280x720 geometry with a 55 px right-navigation
+inset, the 20% policy resolves to:
 
 ```text
 screen:       x=0................................................1279
@@ -35,14 +37,11 @@ right nav:                                               1225..1279
 drag strip (256px):                              960..1215
 ```
 
-So the effective default region is **x=960..1216** (right coordinate exclusive),
-exactly 256 px wide, with 64 px clearance from the physical top-right corner and
-9 px clearance from the historical right-nav boundary.
-
-Any configured `touch_fraction` above `0.20` is clamped to `0.20`; any configured
-corner gap below `64` is clamped to `64`. If a surface is too small to satisfy
-those hard limits, the hook fails open to stock SystemUI rather than silently
-weakening them.
+So the maximum default geometry is **x=960..1216** (right coordinate exclusive),
+256 px wide. A configured `touch_fraction` may be reduced as far as `0.01`; any
+request above `0.20` is clamped to `0.20`. A configured corner gap below `64` is
+clamped to `64`. If the physical-to-window coordinate mapping or collapsed state
+cannot be established safely, the hook leaves stock SystemUI behaviour intact.
 
 ## Why two components
 
@@ -50,37 +49,61 @@ The bar height/insets belong to framework resources, while touch ownership and
 SystemUI child rendering belong to the SystemUI process. This repository builds:
 
 - **`TS18-StatusBar-Geometry-Magisk-*.zip`** — a systemless product RRO;
-- **`TS18-StatusBar-Input-LSPosed-*.apk`** — a narrowly scoped LSPosed module.
+- **`TS18-StatusBar-Input-LSPosed-*.apk`** — a narrowly scoped legacy-Xposed
+  module supported by LSPosed.
 
-Install and validate the geometry module first. Only then install the LSPosed
-component. See [`docs/INSTALL.md`](docs/INSTALL.md).
+The framework RRO is the **only** status-bar height owner in this project. The
+LSPosed module no longer rewrites `WindowManager.LayoutParams.height`.
 
-## Default policy
+Install and validate geometry first. Only then install the LSPosed component.
+See [`docs/INSTALL.md`](docs/INSTALL.md).
+
+## Runtime defaults and staged arming
+
+The LSPosed APK is intentionally **observation-only on first run**. Its master,
+input and visual mutations all default to off. This lets hook installation be
+confirmed before a protected SystemUI window is changed.
 
 | Setting | Default / hard limit |
 |---|---:|
 | framework status-bar height | `43dp` |
-| shade activation width | `20%` of full screen/window width |
+| LSPosed master mutation switch | **off** |
+| collapsed input mutation | **off** |
+| configured shade width | `20%` when armed |
+| configurable shade-width range | `1%..20%` |
 | hard maximum shade width | `20%` |
 | top-corner exclusion | `>=64px` |
 | right navigation inset | excluded |
-| visual leaf scale | `0.75` |
-| SystemUI scope | main `com.android.systemui` process only |
+| optional visual scaling | **off** |
+| configured visual scale | `0.75` |
+| LSPosed scope | main `com.android.systemui` process only |
 
-## Supplied APK provenance correction
+Use `tools/ts18-statusbar-config.sh` under root to enter observation mode, arm
+input, optionally arm visuals, or disarm all runtime mutations. The recommended
+sequence is documented in `docs/INSTALL.md` and `docs/VALIDATION.md`.
 
-The APK extractor renamed installed files. The previous v0.1.0 source package
-incorrectly described the supplied sysbar overlay as merely a sibling and the
-active landscape RRO as missing. Per the supplied provenance, this repository now
-treats:
+## LSPosed API compatibility
+
+The current APK intentionally uses the **legacy Xposed bridge contract**:
+`assets/xposed_init`, `IXposedHookLoadPackage`, `XposedBridge` and
+`xposedminversion=82`. It is not a modern libxposed/API-100 implementation. The
+local `xposed-stubs` project is compile-only and CI verifies those bridge classes
+are not packaged into the APK. See
+[`docs/LSPOSED-COMPATIBILITY.md`](docs/LSPOSED-COMPATIBILITY.md).
+
+## Supplied APK provenance
+
+The extractor used for the supplied firmware artefacts renamed installed files.
+Per the supplied provenance this repository treats:
 
 - `android.overlay.sysbar_720x1280_10.apk` as the extracted copy corresponding to
   the active `/product/overlay/framework-res_sysbar_rro_1280x720.apk`; and
-- `Android System_10.apk` as the renamed extract of `/system/framework/framework-res.apk`.
+- `Android System_10.apk` as the renamed extract of
+  `/system/framework/framework-res.apk`.
 
 See [`reference/RENAMED_ASSET_PROVENANCE.md`](reference/RENAMED_ASSET_PROVENANCE.md).
-The code still avoids depending on private Topway SystemUI class names because a
-filename label is not itself a class/API contract.
+The runtime code still avoids depending on private Topway SystemUI class names
+because a filename label is not a class/API contract.
 
 ## Roadmap
 
@@ -92,18 +115,25 @@ plan is in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Build
 
+The canonical project version is in `version.properties`; Gradle APK metadata,
+Magisk `module.prop` generation and package filenames all derive from it.
+
 The repository intentionally does not commit a signing private key. CI has two
 lanes:
 
-- `build.yml`: compiles/tests debug artefacts for code validation;
-- `release.yml`: creates installable stable artefacts when repository signing
-  secrets are configured.
+- `build.yml`: host policy checks, unit tests, Android Lint, debug APK assembly,
+  APK contract validation and debug packaging;
+- `release.yml`: the same relevant checks plus signed release assembly,
+  signature verification, exact tag/version matching and release packaging when
+  repository signing secrets are configured.
 
-Local build prerequisites: JDK 17, Android SDK platform 35/build-tools 35, and
-Gradle 8.9. Then:
+The committed Gradle wrapper pins Gradle 8.9 and its distribution checksum. Local
+build prerequisites are JDK 17 and Android SDK platform 35/build-tools 35. Then:
 
 ```bash
-gradle --no-daemon clean test :overlay:assembleDebug :lsposed:assembleDebug
+./gradlew --no-daemon clean test :overlay:lintDebug :lsposed:lintDebug \
+  :overlay:assembleDebug :lsposed:assembleDebug
+bash tools/test-apk-contract.sh lsposed/build/outputs/apk/debug/lsposed-debug.apk
 ALLOW_DEBUG_SIGNING=1 bash tools/package-release.sh debug
 ```
 
@@ -113,5 +143,6 @@ between builds can make Android reject the replacement.
 
 ## Physical status
 
-Source/static validation is not physical TS18 validation. The required staged
-acceptance sequence is in [`docs/VALIDATION.md`](docs/VALIDATION.md).
+Source/static/CI validation is not physical TS18 validation. The required staged
+SystemUI restart, reboot, cold-boot and ACC acceptance sequence is in
+[`docs/VALIDATION.md`](docs/VALIDATION.md).

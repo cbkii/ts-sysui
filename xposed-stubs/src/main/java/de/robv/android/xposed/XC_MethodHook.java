@@ -10,4 +10,8 @@ public abstract class XC_MethodHook {
         public Object getResult() { throw new UnsupportedOperationException("compile-only stub"); }
         public Throwable getThrowable() { throw new UnsupportedOperationException("compile-only stub"); }
     }
+
+    public final class Unhook {
+        public void unhook() { throw new UnsupportedOperationException("compile-only stub"); }
+    }
 }

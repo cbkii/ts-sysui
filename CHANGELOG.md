@@ -1,27 +1,31 @@
 # Changelog
 
-## 0.2.0 — 2026-08-17
+## 0.3.0 — review hardening
 
-- Treat the supplied export-renamed sysbar RRO as the exact active TS18 geometry
-  artefact rather than a sibling-orientation approximation.
-- Record `Android System_10.apk` as the export-renamed
-  `/system/framework/framework-res.apk`; keep it distinct from `SystemUI.apk`.
-- Make the collapsed shade/input region obey hard product invariants:
-  - at least 64 px clear of the physical screen corners (the two top corners are
-    the binding constraints for a top-edge region);
-  - never wider than 20% of the full screen/status-bar width;
-  - exclude the current right-navigation inset;
-  - fail open to stock SystemUI if those constraints cannot be satisfied.
-- Remove the old `preserve-clickables` escape path because it could reintroduce
-  SystemUI touch interception outside the permitted strip.
-- For the 1280 px TS18 baseline, change the default collapsed strip from the old
-  usable-width calculation to x=960..1216 (right-exclusive), 256 px wide.
-- Add pure-Java invariant tests covering the 64 px and 20% safety bounds.
-- Add an evidence-gated roadmap for optional Previous / Play-Pause / Next media
-  controls in genuinely unused space on the separate right navigation strip.
-- Bump source/build/module version to 0.2.0.
+- made LSPosed first-run observation-only: master/input/visual mutations default off;
+- removed the speculative SystemUI window-height normaliser so framework RRO is
+  the sole geometry authority;
+- made hook registration idempotent and partial installation rollbackable;
+- strengthened the circuit breaker to deactivate mutation, detach visual listeners
+  and restore only transforms still provably owned by the module;
+- restricted touch-region mutation to a recognised full-width collapsed REGION
+  state and added live physical/window coordinate validation;
+- allowed configured touch widths from 1% through the hard 20% maximum while
+  retaining the >=64 px physical corner exclusion and right-inset exclusion;
+- hardened optional visual scaling against moved/reused views and external scale
+  animations, and removed per-leaf root-location allocations;
+- cached framework dimension resolution/configuration values on SystemUI hot paths;
+- added stage-bounded error logging with first-failure stack traces;
+- expanded pure/JUnit policy coverage and added legacy Xposed/APK contract checks;
+- centralised version metadata in `version.properties`;
+- added a Gradle 8.9 wrapper with distribution integrity checking;
+- added Android Lint to CI and hardened/pinned build/release actions;
+- hardened release signing-key lifetime, tag/version checks and signature verification;
+- updated installation/recovery/validation docs for staged arming and legacy Xposed compatibility.
 
-## 0.1.0
+## 0.2.0
 
-Initial source scaffold: 43 dp framework geometry RRO plus SystemUI-only
-LSPosed touch-region and visual scaling prototype.
+- corrected supplied APK provenance mapping;
+- implemented 43 dp status-bar geometry RRO and hard-bounded collapsed input strip;
+- added optional 0.75 generic visual leaf scaling;
+- added initial CI, packaging, recovery and validation documentation.

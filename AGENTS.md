@@ -33,11 +33,17 @@ the region smaller or move it farther from a corner, never larger/closer.
 
 1. Change one layer at a time: geometry RRO first, SystemUI hook second.
 2. Preserve the stock right navigation bar in the current release.
-3. Any hook failure must leave stock behaviour intact.
-4. Keep the persistent global kill switch and in-process circuit breaker.
-5. Validate SystemUI restart, reboot, cold boot and ACC sleep/wake before
+3. Any hook failure must leave stock behaviour intact; rollback only state the
+   module can still prove it owns.
+4. LSPosed first execution must remain observation-only: master/input/visual
+   mutations default off and are armed explicitly after hook-load validation.
+5. Framework resources are the status-bar geometry authority. Do not reintroduce
+   a generic `TYPE_STATUS_BAR` window-height normaliser without exact runtime
+   evidence that the RRO is insufficient.
+6. Keep the persistent global kill switch and in-process circuit breaker.
+7. Validate SystemUI restart, reboot, cold boot and ACC sleep/wake before
    considering a release physically proven.
-6. Never claim CI/static success is physical TS18 validation.
-7. Future right-nav media controls must be optional, evidence-gated and command
+8. Never claim CI/static success is physical TS18 validation.
+9. Future right-nav media controls must be optional, evidence-gated and command
    an existing MediaSession; they must not introduce playback authority or
    displace stock navigation functions.

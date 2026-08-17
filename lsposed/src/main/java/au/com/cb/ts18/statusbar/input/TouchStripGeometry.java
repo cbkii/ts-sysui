@@ -2,7 +2,7 @@ package au.com.cb.ts18.statusbar.input;
 
 final class TouchStripGeometry {
     static final int MIN_CORNER_GAP_PX = 64;
-    static final float MIN_FRACTION = 0.05f;
+    static final float MIN_FRACTION = 0.01f;
     static final float MAX_FRACTION = 0.20f;
 
     private TouchStripGeometry() {}
@@ -14,17 +14,16 @@ final class TouchStripGeometry {
         float fraction = clamp(requestedFraction, MIN_FRACTION, MAX_FRACTION);
         int cornerGap = Math.max(MIN_CORNER_GAP_PX, requestedCornerGapPx);
 
-        // The touch strip is measured in the status-bar window coordinate space.
-        // On the exact TS18 that window has historically spanned the full 1280px display.
-        // Keep every part of the strip at least cornerGap pixels from BOTH top corners.
+        // Callers must first prove that this window-local width maps 1:1 to the physical
+        // top edge. Once that contract is established, these are physical corner bounds.
         int safeLeft = cornerGap;
         int safeRight = Math.min(width - inset, width - cornerGap);
         if (safeRight <= safeLeft) {
             return Result.invalid(width, inset, fraction, cornerGap);
         }
 
-        // Width is capped against the full display/status-bar width, not the usable width.
-        // floor() guarantees the result can never round above the requested fraction.
+        // Width is capped against the full display/status-bar width. floor() guarantees
+        // the result cannot round above the requested fraction or the 20% hard maximum.
         int requestedWidth = Math.max(1, (int) Math.floor(width * (double) fraction));
         int maximumWidth = Math.max(1, (int) Math.floor(width * (double) MAX_FRACTION));
         int availableWidth = safeRight - safeLeft;
@@ -35,9 +34,7 @@ final class TouchStripGeometry {
 
         int stripRight = safeRight;
         int stripLeft = stripRight - stripWidth;
-        if (stripLeft < safeLeft) {
-            stripLeft = safeLeft;
-        }
+        if (stripLeft < safeLeft) stripLeft = safeLeft;
         return new Result(width, stripLeft, stripRight, inset, fraction, cornerGap, true);
     }
 
