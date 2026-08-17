@@ -2,7 +2,7 @@
 
 ## v0.3 baseline — hardened compact status bar
 
-Current scope stays deliberately small:
+The compact status-bar baseline remains deliberately bounded:
 
 - framework status-bar height at 43 dp;
 - collapsed shade touch strip hard-capped to 20% of screen width;
@@ -11,92 +11,52 @@ Current scope stays deliberately small:
 - observation-only LSPosed first run;
 - optional, separately armed 0.75 collapsed visual scaling;
 - framework RRO as the sole status-bar height authority;
-- no `system_server` hooks;
-- no right-navigation mutation.
+- no `system_server` hooks.
 
-## Candidate: right-navigation media controls
+## v0.4 — right-navigation observation foundation
 
-**Feasibility: plausible, but evidence-gated.** The TS18 exposes a separate
-right-side `NavigationBar0`/navigation surface. Injecting additional buttons from
-an LSPosed module running in `com.android.systemui` is technically possible in
-principle, but it is a protected safety-relevant UI surface and must not be
-modified from generic Android assumptions.
+The right-side navigation bar is still **not mutated**. v0.4 adds the safe
+engineering foundation required before media controls can be considered:
 
-### Intended feature
+- recognise and weakly track the live `TYPE_NAVIGATION_BAR` root through the
+  existing exact WindowManager hooks;
+- independently arm a bounded, rate-limited hierarchy probe;
+- record current public View hierarchy/bounds/lifecycle evidence;
+- maintain a navbar-specific circuit breaker so nav failures cannot disable the
+  compact status-bar runtime;
+- parse optional Previous / Play-Pause / Next subset/order;
+- calculate safe capacity/slots with a pure tested layout policy;
+- default all navbar observation/mutation settings off;
+- keep `ts18_statusbar_nav_enabled=0`; there is no clickable nav control in this
+  milestone.
 
-Add a compact optional vertical media group to genuinely unused right-nav space:
+The complete product contract, evidence gates, phased implementation sequence,
+validation matrix and STOP conditions are in
+[`RIGHT-NAV-MEDIA-ROADMAP.md`](RIGHT-NAV-MEDIA-ROADMAP.md).
+
+## Later candidate — functional right-navigation media controls
+
+The intended optional group remains:
 
 ```text
 Previous
-Play / Pause   (state-aware icon if reliable)
+Play / Pause
 Next
 ```
 
-The controls should target the currently selected/active Android media session.
-An optional package preference may be added later, but the first design should
-remain generic rather than make Auxio-TS the only supported player.
+Controls must target an **existing** Android MediaSession/MediaController and
+must not create playback, queue, notification, audio-focus or media-database
+authority.
 
-### Authority model
+Before the first inert marker or functional control, the exact current full
+`com.android.systemui` APK and a fresh physical hierarchy/lifecycle capture must
+establish:
 
-The buttons are **control clients only**. They must not create another playback
-service, MediaSession, queue, notification, audio-focus owner or media database.
-Preferred command path:
+1. the exact owner/host of the right navigation surface;
+2. genuinely unused space across relevant vehicle/UI states;
+3. existing stock controls and their touch semantics/bounds;
+4. exactly-once root reinflation/injection behaviour;
+5. SystemUI's ability to control the intended active MediaController on API 29.
 
-```text
-SystemUI injected button
-  -> MediaSessionManager / existing MediaController
-  -> active session TransportControls
-```
-
-If the exact firmware proves that public Android media control is insufficient,
-a Topway-private command path may be investigated separately, but only after its
-contract and authority are recovered. Do not copy stock smali or infer MCU/media
-commands from unrelated services.
-
-### Evidence gate before implementation
-
-Before adding a functional nav button, establish all of the following from the
-exact supplied/current SystemUI artefact and then confirm on-device:
-
-1. exact class/layout owning `NavigationBar0` on this firmware;
-2. exact child hierarchy and which portions of the 55 px strip are genuinely
-   unused in normal, immersive, keyguard, reverse-camera, call and projection
-   states;
-3. existing Back/Home/Recents/custom Topway buttons, their click/long-click
-   semantics and minimum touch targets;
-4. lifecycle/reinflation path so injected buttons are added exactly once;
-5. whether SystemUI's process identity can obtain/control the active
-   `MediaController` on API 29 without extra privilege mutation;
-6. how the right nav changes across launcher restart, SystemUI restart, reboot,
-   cold boot and ACC sleep/wake.
-
-If those cannot be established, **STOP** rather than replace or overlay the whole
-navigation bar.
-
-### Proposed implementation sequence
-
-1. **Read-only hierarchy/log pass** — identify root and candidate insertion point;
-   no visual or touch mutation.
-2. **One inert test view** — non-clickable marker in confirmed unused space;
-   verify no displacement/relayout of stock controls.
-3. **One media button** — Play/Pause only, fail-open, kill-switch protected;
-   dispatch to the existing active Android session.
-4. **Add Previous/Next** only after exactly-once command behaviour is proven.
-5. **State-aware presentation** — update play/pause icon from PlaybackState only
-   if callback lifecycle is reliable and bounded.
-6. **Optional package targeting** — only if generic active-session selection is
-   ambiguous on this unit.
-
-### Safety/rollback requirements
-
-- independent enable switch from compact-status-bar input/visual settings;
-- same SystemUI-only scope and in-process circuit breaker;
-- never hide/replace an existing stock nav function to make room;
-- no blocking package/session scans on SystemUI main thread;
-- rate-limit logs and callbacks;
-- restore stock layout immediately when disabled/reinflated;
-- physical validation across reverse camera, calls, projection, launcher,
-  SystemUI restart, reboot, cold boot and ACC boundaries.
-
-This feature should be a later optional component or separately gated module so a
-media-control defect cannot regress the already-validated compact status bar.
+If those cannot be established, STOP at observation-only rather than replacing
+or overlaying the whole navigation bar.
