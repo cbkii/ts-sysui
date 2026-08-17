@@ -10,14 +10,17 @@ The repository provides and CI runs:
 - `tools/test-geometry.sh` for geometry, coordinate-space, collapsed-state and
   visual-ownership pure policies;
 - `tools/test-xposed-stubs.sh` for the declared legacy Xposed compile contract;
+- `tools/test-source-manifest.sh` for tracked-source integrity;
 - Gradle unit tests for geometry/state/coordinate/visual policy;
 - Android Lint for both APK modules;
 - debug/release APK assembly as appropriate;
 - `tools/test-apk-contract.sh` to ensure local Xposed stubs remain compile-only;
 - packaging with checksums; release packaging additionally verifies APK signatures.
 
-The Gradle wrapper is pinned to Gradle 8.9 and its distribution checksum is
-committed. CI uses the wrapper rather than selecting an independent Gradle version.
+Gradle 8.9 and its distribution checksum are pinned. The generated
+`gradle-wrapper.jar` is not committed or trusted blindly: the bootstrap downloads
+the Gradle v8.9.0 wrapper JAR and verifies its published SHA-256 before any
+`./gradlew` execution.
 
 ## Evidence classes
 

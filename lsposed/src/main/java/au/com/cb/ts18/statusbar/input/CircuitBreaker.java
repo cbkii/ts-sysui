@@ -23,13 +23,30 @@ final class CircuitBreaker {
             disabledForProcess = true;
             HookRuntime.deactivate();
 
-            VisualScaler.RollbackResult rollback = VisualScaler.failOpen();
-            StatusBarState.clear();
-            RateLimitedLog.always("Circuit breaker opened at stage=" + stage
-                    + "; further mutations are disabled until SystemUI restarts; "
-                    + "visual rollback restored=" + rollback.restored
-                    + " released=" + rollback.releasedWithoutWrite
-                    + " listeners=" + rollback.listenersRemoved + ".");
+            VisualScaler.RollbackResult rollback = VisualScaler.RollbackResult.empty();
+            try {
+                rollback = VisualScaler.failOpen();
+            } catch (Throwable rollbackFailure) {
+                RateLimitedLog.error("breaker-visual-rollback",
+                        "visual fail-open cleanup threw; continuing breaker cleanup",
+                        rollbackFailure);
+            }
+            try {
+                StatusBarState.clear();
+            } catch (Throwable stateFailure) {
+                RateLimitedLog.error("breaker-state-clear",
+                        "status-bar state cleanup threw; breaker remains open",
+                        stateFailure);
+            }
+            try {
+                RateLimitedLog.always("Circuit breaker opened at stage=" + stage
+                        + "; further mutations are disabled until SystemUI restarts; "
+                        + "visual rollback restored=" + rollback.restored
+                        + " released=" + rollback.releasedWithoutWrite
+                        + " listeners=" + rollback.listenersRemoved + ".");
+            } catch (Throwable ignored) {
+                // The breaker must remain non-throwing even if logging itself fails.
+            }
         }
     }
 }

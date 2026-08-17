@@ -39,7 +39,7 @@ Do not arm input until this baseline is stable.
 su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh input-on'
 ```
 
-Restart SystemUI/reboot, then perform Stage B in `VALIDATION.md`. The default
+Restart SystemUI/reboot, then perform Stage B1 in `VALIDATION.md`. The default
 strip is at most 20% of the physical width, at least 64 px from both top corners,
 and excludes the current right navigation inset. Smaller widths down to 1% are
 allowed.
@@ -79,3 +79,19 @@ su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh disarm'
 `disarm` is the preferred persistent fail-open state: master/input/visual are all
 off. The removed `ts18_statusbar_window_height_normalise` setting from v0.2 has
 no runtime effect in v0.3+.
+
+## Local build wrapper bootstrap
+
+The repository does not trust or commit a generated `gradle-wrapper.jar`. Before
+the first local `./gradlew` invocation, provision the official Gradle 8.9 wrapper
+JAR and verify it against Gradle's published SHA-256:
+
+```sh
+bash tools/bootstrap-gradle-wrapper.sh
+bash tools/test-gradle-wrapper.sh
+./gradlew --version
+```
+
+The bootstrap refuses to overwrite a wrapper JAR whose checksum is unknown.
+Delete a suspect local JAR manually before retrying rather than silently replacing
+an executable binary.

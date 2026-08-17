@@ -106,7 +106,7 @@ Per the supplied provenance this repository treats:
 
 See [`reference/RENAMED_ASSET_PROVENANCE.md`](reference/RENAMED_ASSET_PROVENANCE.md).
 The runtime code still avoids depending on private Topway SystemUI class names
-because a filename label is not a class/API contract.
+because a filename label is not itself a class/API contract.
 
 ## Roadmap
 
@@ -130,10 +130,17 @@ lanes:
   signature verification, exact tag/version matching and release packaging when
   repository signing secrets are configured.
 
-The committed Gradle wrapper pins Gradle 8.9 and its distribution checksum. Local
-build prerequisites are JDK 17 and Android SDK platform 35/build-tools 35. Then:
+The wrapper metadata pins Gradle 8.9 and its official distribution checksum. The
+executable `gradle-wrapper.jar` is deliberately not trusted as a repository
+binary; CI and local builds provision it from Gradle's v8.9.0 source and verify
+the published wrapper-JAR SHA-256 before first execution.
+
+Local build prerequisites are JDK 17, Android SDK platform 35/build-tools 35,
+`curl`, and `sha256sum`. Then:
 
 ```bash
+bash tools/bootstrap-gradle-wrapper.sh
+bash tools/test-gradle-wrapper.sh
 ./gradlew --no-daemon clean test :overlay:lintDebug :lsposed:lintDebug \
   :overlay:assembleDebug :lsposed:assembleDebug
 bash tools/test-apk-contract.sh lsposed/build/outputs/apk/debug/lsposed-debug.apk

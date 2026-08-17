@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Verify the committed Gradle 8.9 wrapper and its pinned distribution integrity.
+# Verify the Gradle 8.9 wrapper metadata and the locally provisioned official wrapper JAR.
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)" || exit 3
 ROOT="$(dirname -- "$SCRIPT_DIR")"
@@ -15,7 +15,8 @@ for cmd in sha256sum grep awk; do
     fi
 done
 if [ ! -s "$JAR" ]; then
-    printf 'FAILED: missing Gradle wrapper JAR: %s\n' "$JAR" >&2
+    printf 'FAILED: missing verified Gradle wrapper JAR: %s\n' "$JAR" >&2
+    printf 'Run tools/bootstrap-gradle-wrapper.sh before invoking ./gradlew.\n' >&2
     exit 2
 fi
 if [ ! -s "$PROPS" ]; then

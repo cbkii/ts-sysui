@@ -33,11 +33,12 @@ TMP="$(mktemp -d "${TMPDIR:-/tmp}/ts18-statusbar-package.XXXXXX")" || {
     exit 3
 }
 cleanup() {
-    rc=$?
     rm -rf -- "$TMP"
-    exit "$rc"
 }
-trap cleanup EXIT HUP INT TERM
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 for cmd in zip sha256sum sed grep; do
     command -v "$cmd" >/dev/null 2>&1 || {
@@ -58,11 +59,12 @@ if [ ! -s "$lsposed" ]; then printf 'FAILED: missing built LSPosed APK: %s\n' "$
 
 if [ "$MODE" = "release" ]; then
     APKSIGNER=""
+    SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
     if command -v apksigner >/dev/null 2>&1; then
         APKSIGNER="$(command -v apksigner)"
     fi
-    if [ -z "$APKSIGNER" ] && [ -n "${ANDROID_HOME:-}" ] && [ -x "$ANDROID_HOME/build-tools/35.0.0/apksigner" ]; then
-        APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+    if [ -z "$APKSIGNER" ] && [ -n "$SDK_ROOT" ] && [ -x "$SDK_ROOT/build-tools/35.0.0/apksigner" ]; then
+        APKSIGNER="$SDK_ROOT/build-tools/35.0.0/apksigner"
     fi
     if [ -z "$APKSIGNER" ]; then
         printf 'FAILED: apksigner is required to verify release APK signatures\n' >&2

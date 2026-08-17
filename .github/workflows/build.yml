@@ -30,8 +30,6 @@ jobs:
           echo "$SDK_ROOT/build-tools/35.0.0" >> "$GITHUB_PATH"
       - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
         with:
-          # The repository validates its exact committed wrapper JAR and Gradle 8.9
-          # distribution checksum before first wrapper execution below.
           validate-wrappers: false
       - name: Host policy and contract checks
         shell: bash
@@ -40,6 +38,8 @@ jobs:
           sh -n magisk/customize.sh
           bash tools/test-geometry.sh
           bash tools/test-xposed-stubs.sh
+          bash tools/test-source-manifest.sh
+          bash tools/bootstrap-gradle-wrapper.sh
           bash tools/test-gradle-wrapper.sh
           ./gradlew --version
       - name: Android compile, unit tests and lint

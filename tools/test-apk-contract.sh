@@ -35,11 +35,12 @@ TMP="$(mktemp -d "${TMPDIR:-/tmp}/ts18-apk-contract.XXXXXX")" || {
     exit 3
 }
 cleanup() {
-    rc=$?
     rm -rf -- "$TMP"
-    exit "$rc"
 }
-trap cleanup EXIT HUP INT TERM
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 dex_list="$(unzip -Z1 "$APK" 'classes*.dex' 2>/dev/null)"
 if [ -z "$dex_list" ]; then

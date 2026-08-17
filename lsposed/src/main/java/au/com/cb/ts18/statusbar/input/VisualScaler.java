@@ -44,7 +44,7 @@ final class VisualScaler {
         synchronized (ROOTS) {
             if (ROOTS.containsKey(root)) return;
             View.OnLayoutChangeListener listener =
-                    (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> apply(root);
+                    (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> apply(v);
             ROOTS.put(root, new RootBinding(listener));
             root.addOnLayoutChangeListener(listener);
         }
@@ -96,10 +96,21 @@ final class VisualScaler {
         for (Map.Entry<View, OwnedScale> entry : owned) {
             View view = entry.getKey();
             if (view == null) continue;
-            if (restoreIfStillOwned(view, entry.getValue())) restored++;
-            else releasedWithoutWrite++;
+            try {
+                if (restoreOwnedAxes(view, entry.getValue())) restored++;
+                else releasedWithoutWrite++;
+            } catch (Throwable t) {
+                releasedWithoutWrite++;
+                RateLimitedLog.error("visual-rollback-view",
+                        "failed to restore one owned visual during fail-open", t);
+            }
         }
-        CONFLICTED.clear();
+        try {
+            CONFLICTED.clear();
+        } catch (Throwable t) {
+            RateLimitedLog.error("visual-rollback-conflicts",
+                    "failed to clear visual conflict tracking", t);
+        }
         return new RollbackResult(restored, releasedWithoutWrite, listenersRemoved);
     }
 
@@ -168,12 +179,14 @@ final class VisualScaler {
                 break;
             case RESTORE_AND_RELEASE:
                 OWNED.remove(node);
-                restoreIfStillOwned(node, owned);
+                restoreOwnedAxes(node, owned);
                 break;
             case RELEASE_CONFLICT:
-                // SystemUI or an animation changed scale while we owned it. Do not overwrite
-                // that new state; release ownership and skip this leaf until visuals are reset.
+                // Restore any axis that still has the value this module applied before
+                // releasing the leaf. If SystemUI/animation changed only one axis, the
+                // untouched axis remains module-owned and must not be left scaled.
                 OWNED.remove(node);
+                restoreOwnedAxes(node, owned);
                 CONFLICTED.put(node, Boolean.TRUE);
                 break;
             case SKIP:
@@ -195,16 +208,43 @@ final class VisualScaler {
                 && approximately(view.getScaleY(), owned.appliedY);
     }
 
-    private static boolean restoreIfStillOwned(View view, OwnedScale owned) {
-        if (owned == null || !matchesApplied(view, owned)) return false;
-        if (!approximately(view.getScaleX(), owned.originalX)) view.setScaleX(owned.originalX);
-        if (!approximately(view.getScaleY(), owned.originalY)) view.setScaleY(owned.originalY);
-        return true;
+    private static boolean restoreOwnedAxes(View view, OwnedScale owned) {
+        if (owned == null) return false;
+        boolean restoredAny = false;
+
+        if (owned.ownsX) {
+            float currentX = view.getScaleX();
+            if (approximately(currentX, owned.appliedX)) {
+                if (!approximately(currentX, owned.originalX)) view.setScaleX(owned.originalX);
+                restoredAny = true;
+            } else {
+                owned.ownsX = false;
+            }
+        }
+
+        if (owned.ownsY) {
+            float currentY = view.getScaleY();
+            if (approximately(currentY, owned.appliedY)) {
+                if (!approximately(currentY, owned.originalY)) view.setScaleY(owned.originalY);
+                restoredAny = true;
+            } else {
+                owned.ownsY = false;
+            }
+        }
+
+        return restoredAny;
     }
 
     private static void restoreTree(View node, boolean clearConflicts) {
         OwnedScale owned = OWNED.remove(node);
-        if (owned != null) restoreIfStillOwned(node, owned);
+        if (owned != null) {
+            try {
+                restoreOwnedAxes(node, owned);
+            } catch (Throwable t) {
+                RateLimitedLog.error("visual-restore-tree",
+                        "failed to restore one owned visual", t);
+            }
+        }
         if (clearConflicts) CONFLICTED.remove(node);
         if (node instanceof ViewGroup) {
             ViewGroup group = (ViewGroup) node;
@@ -228,6 +268,10 @@ final class VisualScaler {
             this.releasedWithoutWrite = releasedWithoutWrite;
             this.listenersRemoved = listenersRemoved;
         }
+
+        static RollbackResult empty() {
+            return new RollbackResult(0, 0, 0);
+        }
     }
 
     private static final class RootBinding {
@@ -240,6 +284,8 @@ final class VisualScaler {
         final float originalY;
         float appliedX;
         float appliedY;
+        boolean ownsX = true;
+        boolean ownsY = true;
 
         OwnedScale(float originalX, float originalY) {
             this.originalX = originalX;

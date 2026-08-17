@@ -39,7 +39,8 @@ su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh visual-off'
 ```
 
 For the historical 1280 px full-width StatusBar and 55 px right nav inset, the
-20% default should be **x=960..1216**. Test app controls and downward gestures at:
+20% default should be **x=960..1215** (half-open `[960,1216)`). Test app controls
+and downward gestures at:
 
 ```text
 64, 400, 800, 950, 960, 1000, 1100, 1200, 1215, 1216, 1224, 1240
