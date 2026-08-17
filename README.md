@@ -14,7 +14,8 @@ keeps three authorities separate:
    containers unchanged.
 
 The right-side navigation bar is deliberately not modified by the current
-implementation.
+implementation. v0.4 can observe its live hierarchy when explicitly armed, but
+does not add, remove, resize or make any right-nav view clickable.
 
 ## Hard input boundary
 
@@ -37,11 +38,11 @@ right nav:                                               1225..1279
 drag strip (256px):                              960..1215
 ```
 
-So the maximum default geometry is **x=960..1216** (right coordinate exclusive),
-256 px wide. A configured `touch_fraction` may be reduced as far as `0.01`; any
-request above `0.20` is clamped to `0.20`. A configured corner gap below `64` is
-clamped to `64`. If the physical-to-window coordinate mapping or collapsed state
-cannot be established safely, the hook leaves stock SystemUI behaviour intact.
+So the maximum default geometry is half-open **[960,1216)**, 256 px wide. A
+configured `touch_fraction` may be reduced as far as `0.01`; any request above
+`0.20` is clamped to `0.20`. A configured corner gap below `64` is clamped to
+`64`. If the physical-to-window coordinate mapping or collapsed state cannot be
+established safely, the hook leaves stock SystemUI behaviour intact.
 
 ## Why two components
 
@@ -53,16 +54,16 @@ SystemUI child rendering belong to the SystemUI process. This repository builds:
   module supported by LSPosed.
 
 The framework RRO is the **only** status-bar height owner in this project. The
-LSPosed module no longer rewrites `WindowManager.LayoutParams.height`.
+LSPosed module does not rewrite `WindowManager.LayoutParams.height`.
 
 Install and validate geometry first. Only then install the LSPosed component.
 See [`docs/INSTALL.md`](docs/INSTALL.md).
 
 ## Runtime defaults and staged arming
 
-The LSPosed APK is intentionally **observation-only on first run**. Its master,
-input and visual mutations all default to off. This lets hook installation be
-confirmed before a protected SystemUI window is changed.
+The LSPosed APK is intentionally **observation-only on first run**. Its compact
+master/input/visual mutations all default to off. Right-nav observation is also
+off until explicitly requested.
 
 | Setting | Default / hard limit |
 |---|---:|
@@ -76,14 +77,36 @@ confirmed before a protected SystemUI window is changed.
 | right navigation inset | excluded |
 | optional visual scaling | **off** |
 | configured visual scale | `0.75` |
+| right-nav hierarchy probe | **off** |
+| right-nav mutation | **off / not implemented** |
+| right-nav production touch target | `56dp` |
 | LSPosed scope | main `com.android.systemui` process only |
 
-Use `tools/ts18-statusbar-config.sh` under root to enter observation mode, arm
-input, optionally arm visuals, or disarm all runtime mutations. **Upgrade safety:**
-v0.3 requires `ts18_statusbar_policy_version=3`; the configuration helper clears
-all mutation flags before publishing that generation, so persisted v0.2 globals
-cannot silently reactivate the new hook. The recommended sequence is documented
-in `docs/INSTALL.md` and `docs/VALIDATION.md`.
+Use `tools/ts18-statusbar-config.sh` under root to enter compact observation mode,
+arm input, optionally arm visuals, or enter the separate right-nav observation
+mode. v0.3+ compact settings require `ts18_statusbar_policy_version=3`; v0.4
+right-nav settings use their own policy generation
+`ts18_statusbar_nav_policy_version=1`.
+
+## Right-navigation observation
+
+The v0.4 source can recognise the live `TYPE_NAVIGATION_BAR` root through the
+existing exact WindowManager hooks and emit a bounded public View hierarchy
+snapshot after `nav-observe` is enabled.
+
+This is an **evidence collection feature only**. It provides the data needed to
+identify stock controls, occupied/free bounds and reinflation behaviour without
+mutating the navigation bar.
+
+```sh
+su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh nav-status'
+su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh nav-observe'
+```
+
+Clickable Previous / Play-Pause / Next controls remain blocked until the exact
+current full `com.android.systemui` APK and physical observation gates are
+satisfied. See
+[`docs/RIGHT-NAV-MEDIA-ROADMAP.md`](docs/RIGHT-NAV-MEDIA-ROADMAP.md).
 
 ## LSPosed API compatibility
 
@@ -110,11 +133,9 @@ because a filename label is not itself a class/API contract.
 
 ## Roadmap
 
-Adding **Previous / Play-Pause / Next** controls to the right navigation strip is
-technically plausible without creating another playback authority. It is not in
-the current runtime build because the right navigation bar is a protected,
-separate SystemUI surface and must not be displaced blindly. The evidence-gated
-plan is in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+The compact roadmap is in [`docs/ROADMAP.md`](docs/ROADMAP.md). The detailed
+right-navigation product contract, evidence gates and implementation phases are
+in [`docs/RIGHT-NAV-MEDIA-ROADMAP.md`](docs/RIGHT-NAV-MEDIA-ROADMAP.md).
 
 ## Build
 
@@ -155,4 +176,5 @@ between builds can make Android reject the replacement.
 
 Source/static/CI validation is not physical TS18 validation. The required staged
 SystemUI restart, reboot, cold-boot and ACC acceptance sequence is in
-[`docs/VALIDATION.md`](docs/VALIDATION.md).
+[`docs/VALIDATION.md`](docs/VALIDATION.md). Right-nav physical observation is a
+separate stage and does not constitute permission to enable clickable controls.

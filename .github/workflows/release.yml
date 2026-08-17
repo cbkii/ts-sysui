@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag; must exactly match version.properties, e.g. v0.3.0'
+        description: 'Release tag; must exactly match version.properties, e.g. v0.4.0'
         required: true
-        default: 'v0.3.0'
+        default: 'v0.4.0'
 
 permissions:
   contents: write
@@ -74,6 +74,7 @@ jobs:
           bash -n tools/*.sh
           sh -n magisk/customize.sh
           bash tools/test-geometry.sh
+          bash tools/test-nav-observation-contract.sh
           bash tools/test-xposed-stubs.sh
           bash tools/test-source-manifest.sh
           bash tools/bootstrap-gradle-wrapper.sh

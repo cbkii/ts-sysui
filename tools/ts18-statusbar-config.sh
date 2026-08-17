@@ -52,7 +52,17 @@ get() {
     key="$1"
     run_timeout 10 settings get global "$key"
 }
-show() {
+show_key() {
+    key="$1"
+    value="$(get "$key" 2>/dev/null)"
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
+        echo "$key=${value:-null}"
+    else
+        echo "$key=<read-failed:$rc>"
+    fi
+}
+show_compact() {
     for key in \
         ts18_statusbar_policy_version \
         ts18_statusbar_enabled \
@@ -64,16 +74,25 @@ show() {
         ts18_statusbar_right_inset_px \
         ts18_statusbar_debug
     do
-        value="$(get "$key" 2>/dev/null)"
-        rc=$?
-        if [ "$rc" -eq 0 ]; then
-            echo "$key=${value:-null}"
-        else
-            echo "$key=<read-failed:$rc>"
-        fi
+        show_key "$key"
     done
-    echo "required_policy_version=3; without it runtime defaults remain observation-only"
-    echo "defaults: master=off input=off visual=off fraction=0.20 corner_gap=64 visual_scale=0.75"
+    echo "required_policy_version=3; without it compact runtime defaults remain observation-only"
+    echo "compact defaults: master=off input=off visual=off fraction=0.20 corner_gap=64 visual_scale=0.75"
+}
+show_nav() {
+    for key in \
+        ts18_statusbar_nav_policy_version \
+        ts18_statusbar_nav_enabled \
+        ts18_statusbar_nav_probe_enabled \
+        ts18_statusbar_nav_actions \
+        ts18_statusbar_nav_min_touch_dp \
+        ts18_statusbar_nav_debug
+    do
+        show_key "$key"
+    done
+    echo "required_nav_policy_version=1"
+    echo "nav defaults: mutation=off probe=off actions=previous,play_pause,next min_touch_dp=56 debug=off"
+    echo "nav mutation status: NOT IMPLEMENTED / evidence-gated; nav-enable intentionally refuses"
 }
 
 prepare_policy_generation() {
@@ -87,13 +106,28 @@ prepare_policy_generation() {
         return 0
     fi
 
-    # Migration guard: v0.2 values may still be present in Settings.Global. Clear every
-    # mutation flag first and publish policy_version=3 LAST so stale values cannot become
-    # live between sequential SettingsProvider writes.
+    # Migration guard: clear mutation flags first and publish generation LAST.
     put ts18_statusbar_enabled 0
     put ts18_statusbar_input_enabled 0
     put ts18_statusbar_visual_enabled 0
     put ts18_statusbar_policy_version 3
+}
+
+prepare_nav_policy_generation() {
+    current="$(get ts18_statusbar_nav_policy_version 2>/dev/null)"
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+        echo "STOP: cannot read current right-nav policy generation (status=$rc)." >&2
+        exit 4
+    fi
+    if [ "$current" = "1" ]; then
+        return 0
+    fi
+
+    # Publish the nav generation only after all mutation/observation flags are safe.
+    put ts18_statusbar_nav_enabled 0
+    put ts18_statusbar_nav_probe_enabled 0
+    put ts18_statusbar_nav_policy_version 1
 }
 
 valid_fraction() {
@@ -127,15 +161,50 @@ valid_gap() {
     [ "$1" -ge 64 ] 2>/dev/null && [ "$1" -le 2048 ] 2>/dev/null
 }
 
+valid_nav_touch_dp() {
+    case "$1" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    [ "$1" -ge 48 ] 2>/dev/null && [ "$1" -le 96 ] 2>/dev/null
+}
+
+valid_nav_actions() {
+    value="$1"
+    [ "$value" = "none" ] && return 0
+    case "$value" in
+        ''|,*|*,|*,,*|*[!a-z_,]*) return 1 ;;
+    esac
+
+    old_ifs="$IFS"
+    IFS=,
+    set -- $value
+    IFS="$old_ifs"
+    seen=","
+    for token in "$@"; do
+        case "$token" in
+            previous|play_pause|next) ;;
+            *) return 1 ;;
+        esac
+        case "$seen" in
+            *,"$token",*) return 1 ;;
+        esac
+        seen="${seen}${token},"
+    done
+    return 0
+}
+
 case "$cmd" in
-    status) show ;;
+    status)
+        show_compact
+        show_nav
+        ;;
     observe)
         prepare_policy_generation
         put ts18_statusbar_enabled 0
         put ts18_statusbar_input_enabled 0
         put ts18_statusbar_visual_enabled 0
         put ts18_statusbar_debug 1
-        echo "Observation-only mode configured. Restart SystemUI/reboot to confirm hook load before arming input."
+        echo "Compact observation-only mode configured. Restart SystemUI/reboot to confirm hook load before arming input."
         ;;
     enable) prepare_policy_generation; put ts18_statusbar_enabled 1 ;;
     disable) prepare_policy_generation; put ts18_statusbar_enabled 0 ;;
@@ -144,7 +213,7 @@ case "$cmd" in
         put ts18_statusbar_input_enabled 0
         put ts18_statusbar_visual_enabled 0
         put ts18_statusbar_enabled 0
-        echo "All runtime mutations disarmed. Restart SystemUI/reboot for immediate visual-state reset."
+        echo "All compact runtime mutations disarmed. Restart SystemUI/reboot for immediate visual-state reset."
         ;;
     input-on)
         prepare_policy_generation
@@ -194,8 +263,64 @@ case "$cmd" in
         ;;
     debug-on) prepare_policy_generation; put ts18_statusbar_debug 1 ;;
     debug-off) prepare_policy_generation; put ts18_statusbar_debug 0 ;;
+    nav-status)
+        show_nav
+        ;;
+    nav-observe)
+        prepare_nav_policy_generation
+        put ts18_statusbar_nav_enabled 0
+        put ts18_statusbar_nav_probe_enabled 1
+        put ts18_statusbar_nav_debug 1
+        echo "Right-nav observation armed. No nav mutation path exists in this build. Restart SystemUI/reboot, collect Stage N0 evidence, then nav-probe-off."
+        ;;
+    nav-probe-off)
+        prepare_nav_policy_generation
+        put ts18_statusbar_nav_probe_enabled 0
+        echo "Right-nav hierarchy probe disabled. Restart SystemUI/reboot if an immediate listener teardown cannot be observed."
+        ;;
+    nav-enable)
+        echo "STOP: functional right-nav mutation is not implemented and remains evidence-gated by docs/RIGHT-NAV-MEDIA-ROADMAP.md." >&2
+        exit 4
+        ;;
+    nav-disable)
+        prepare_nav_policy_generation
+        put ts18_statusbar_nav_enabled 0
+        ;;
+    nav-actions)
+        if ! valid_nav_actions "$arg"; then
+            echo "STOP: nav actions must be a unique comma-separated subset/order of previous,play_pause,next, or 'none'." >&2
+            exit 4
+        fi
+        prepare_nav_policy_generation
+        put ts18_statusbar_nav_actions "$arg"
+        ;;
+    nav-min-touch-dp)
+        if ! valid_nav_touch_dp "$arg"; then
+            echo "STOP: right-nav touch target must be an integer from 48 through 96 dp; production target is 56 dp." >&2
+            exit 4
+        fi
+        prepare_nav_policy_generation
+        put ts18_statusbar_nav_min_touch_dp "$arg"
+        ;;
+    nav-debug-on)
+        prepare_nav_policy_generation
+        put ts18_statusbar_nav_debug 1
+        ;;
+    nav-debug-off)
+        prepare_nav_policy_generation
+        put ts18_statusbar_nav_debug 0
+        ;;
+    nav-reset)
+        prepare_nav_policy_generation
+        put ts18_statusbar_nav_enabled 0
+        put ts18_statusbar_nav_probe_enabled 0
+        put ts18_statusbar_nav_actions previous,play_pause,next
+        put ts18_statusbar_nav_min_touch_dp 56
+        put ts18_statusbar_nav_debug 0
+        echo "Right-nav settings reset to observation/mutation off defaults."
+        ;;
     *)
-        echo "Usage: $0 {status|observe|enable|disable|disarm|input-on|input-off|strict|touch-fraction 0.01..0.20|corner-gap >=64|visual-on|visual-off|visual-scale 0.50..1.00|debug-on|debug-off}" >&2
+        echo "Usage: $0 {status|observe|enable|disable|disarm|input-on|input-off|strict|touch-fraction 0.01..0.20|corner-gap >=64|visual-on|visual-off|visual-scale 0.50..1.00|debug-on|debug-off|nav-status|nav-observe|nav-probe-off|nav-enable|nav-disable|nav-actions <list|none>|nav-min-touch-dp 48..96|nav-debug-on|nav-debug-off|nav-reset}" >&2
         exit 3
         ;;
 esac
