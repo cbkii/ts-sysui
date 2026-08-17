@@ -3,10 +3,8 @@ package au.com.cb.ts18.statusbar.input;
 import android.view.View;
 import android.view.ViewGroup;
 
-import java.util.Set;
-
 import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
+import de.robv.android.xposed.XposedHelpers;
 
 final class WindowHooks {
     private WindowHooks() {}
@@ -14,8 +12,8 @@ final class WindowHooks {
     static void install(ClassLoader classLoader, HookRegistry registry) throws ClassNotFoundException {
         Class<?> impl = Class.forName("android.view.WindowManagerImpl", false, classLoader);
 
-        Set<XC_MethodHook.Unhook> addViewHooks = XposedBridge.hookAllMethods(
-                impl, "addView", new XC_MethodHook() {
+        XC_MethodHook.Unhook addViewHook = XposedHelpers.findAndHookMethod(
+                impl, "addView", View.class, ViewGroup.LayoutParams.class, new XC_MethodHook() {
                     @Override protected void afterHookedMethod(MethodHookParam param) {
                         try {
                             if (!HookRuntime.isOperational()
@@ -31,16 +29,17 @@ final class WindowHooks {
                                 VisualScaler.detach(previous, true);
                                 SystemBarDimensions.clearCache();
                             }
-                            VisualScaler.attach(root);
+                            // Do not keep a layout listener alive in observation-only mode.
+                            VisualScaler.sync(root);
                         } catch (Throwable t) {
                             CircuitBreaker.recordFailure("window-add-view", t);
                         }
                     }
                 });
-        registry.addRequired("WindowManagerImpl.addView", addViewHooks);
+        registry.addRequired("WindowManagerImpl.addView", addViewHook);
 
-        Set<XC_MethodHook.Unhook> updateHooks = XposedBridge.hookAllMethods(
-                impl, "updateViewLayout", new XC_MethodHook() {
+        XC_MethodHook.Unhook updateHook = XposedHelpers.findAndHookMethod(
+                impl, "updateViewLayout", View.class, ViewGroup.LayoutParams.class, new XC_MethodHook() {
                     @Override protected void afterHookedMethod(MethodHookParam param) {
                         try {
                             if (!HookRuntime.isOperational()
@@ -50,12 +49,14 @@ final class WindowHooks {
                                     || !(param.args[1] instanceof ViewGroup.LayoutParams)) return;
                             View view = (View) param.args[0];
                             if (StatusBarState.root() != view) return;
-                            StatusBarState.updateIfTracked(view, (ViewGroup.LayoutParams) param.args[1]);
+                            StatusBarState.updateIfTracked(
+                                    view, (ViewGroup.LayoutParams) param.args[1]);
+                            VisualScaler.sync(view);
                         } catch (Throwable t) {
                             CircuitBreaker.recordFailure("window-update-layout", t);
                         }
                     }
                 });
-        registry.addRequired("WindowManagerImpl.updateViewLayout", updateHooks);
+        registry.addRequired("WindowManagerImpl.updateViewLayout", updateHook);
     }
 }

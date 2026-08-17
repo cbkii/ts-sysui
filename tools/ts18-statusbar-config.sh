@@ -76,7 +76,23 @@ show() {
     echo "defaults: master=off input=off visual=off fraction=0.20 corner_gap=64 visual_scale=0.75"
 }
 
-arm_policy_generation() {
+prepare_policy_generation() {
+    current="$(get ts18_statusbar_policy_version 2>/dev/null)"
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+        echo "STOP: cannot read current TS18 status-bar policy generation (status=$rc)." >&2
+        exit 4
+    fi
+    if [ "$current" = "3" ]; then
+        return 0
+    fi
+
+    # Migration guard: v0.2 values may still be present in Settings.Global. Clear every
+    # mutation flag first and publish policy_version=3 LAST so stale values cannot become
+    # live between sequential SettingsProvider writes.
+    put ts18_statusbar_enabled 0
+    put ts18_statusbar_input_enabled 0
+    put ts18_statusbar_visual_enabled 0
     put ts18_statusbar_policy_version 3
 }
 
@@ -114,30 +130,30 @@ valid_gap() {
 case "$cmd" in
     status) show ;;
     observe)
-        arm_policy_generation
+        prepare_policy_generation
         put ts18_statusbar_enabled 0
         put ts18_statusbar_input_enabled 0
         put ts18_statusbar_visual_enabled 0
         put ts18_statusbar_debug 1
         echo "Observation-only mode configured. Restart SystemUI/reboot to confirm hook load before arming input."
         ;;
-    enable) arm_policy_generation; put ts18_statusbar_enabled 1 ;;
-    disable) arm_policy_generation; put ts18_statusbar_enabled 0 ;;
+    enable) prepare_policy_generation; put ts18_statusbar_enabled 1 ;;
+    disable) prepare_policy_generation; put ts18_statusbar_enabled 0 ;;
     disarm)
-        arm_policy_generation
+        prepare_policy_generation
         put ts18_statusbar_input_enabled 0
         put ts18_statusbar_visual_enabled 0
         put ts18_statusbar_enabled 0
         echo "All runtime mutations disarmed. Restart SystemUI/reboot for immediate visual-state reset."
         ;;
     input-on)
-        arm_policy_generation
+        prepare_policy_generation
         put ts18_statusbar_enabled 1
         put ts18_statusbar_input_enabled 1
         ;;
-    input-off) arm_policy_generation; put ts18_statusbar_input_enabled 0 ;;
+    input-off) prepare_policy_generation; put ts18_statusbar_input_enabled 0 ;;
     strict)
-        arm_policy_generation
+        prepare_policy_generation
         put ts18_statusbar_touch_fraction 0.20
         put ts18_statusbar_corner_gap_px 64
         ;;
@@ -146,7 +162,7 @@ case "$cmd" in
             echo "STOP: touch fraction must be between 0.01 and 0.20 inclusive." >&2
             exit 4
         fi
-        arm_policy_generation
+        prepare_policy_generation
         put ts18_statusbar_touch_fraction "$arg"
         ;;
     corner-gap)
@@ -154,17 +170,17 @@ case "$cmd" in
             echo "STOP: corner gap must be an integer >=64 and <=2048 px." >&2
             exit 4
         fi
-        arm_policy_generation
+        prepare_policy_generation
         put ts18_statusbar_corner_gap_px "$arg"
         ;;
     visual-on)
-        arm_policy_generation
+        prepare_policy_generation
         put ts18_statusbar_enabled 1
         put ts18_statusbar_visual_enabled 1
         echo "Visual scaling armed. Restart SystemUI/reboot for the cleanest application."
         ;;
     visual-off)
-        arm_policy_generation
+        prepare_policy_generation
         put ts18_statusbar_visual_enabled 0
         echo "Visual scaling disarmed. Restart SystemUI/reboot if no layout pass restores immediately."
         ;;
@@ -173,11 +189,11 @@ case "$cmd" in
             echo "STOP: visual scale must be between 0.50 and 1.00 inclusive." >&2
             exit 4
         fi
-        arm_policy_generation
+        prepare_policy_generation
         put ts18_statusbar_visual_scale "$arg"
         ;;
-    debug-on) arm_policy_generation; put ts18_statusbar_debug 1 ;;
-    debug-off) arm_policy_generation; put ts18_statusbar_debug 0 ;;
+    debug-on) prepare_policy_generation; put ts18_statusbar_debug 1 ;;
+    debug-off) prepare_policy_generation; put ts18_statusbar_debug 0 ;;
     *)
         echo "Usage: $0 {status|observe|enable|disable|disarm|input-on|input-off|strict|touch-fraction 0.01..0.20|corner-gap >=64|visual-on|visual-off|visual-scale 0.50..1.00|debug-on|debug-off}" >&2
         exit 3

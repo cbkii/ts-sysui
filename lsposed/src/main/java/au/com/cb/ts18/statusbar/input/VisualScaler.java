@@ -17,10 +17,27 @@ final class VisualScaler {
             Collections.synchronizedMap(new WeakHashMap<>());
     private static final Map<View, RootBinding> ROOTS =
             Collections.synchronizedMap(new WeakHashMap<>());
+    private static final ThreadLocal<int[]> ROOT_LOCATION =
+            ThreadLocal.withInitial(() -> new int[2]);
     private static final ThreadLocal<int[]> VIEW_LOCATION =
             ThreadLocal.withInitial(() -> new int[2]);
 
     private VisualScaler() {}
+
+    static void sync(View root) {
+        if (root == null) return;
+        Config.Snapshot cfg = Config.get(root.getContext());
+        if (cfg.enabled && cfg.visualEnabled) {
+            attach(root);
+            return;
+        }
+        // Observation-only mode should not walk the SystemUI tree on every
+        // WindowManager update. Restore only if this root was actually armed.
+        synchronized (ROOTS) {
+            if (!ROOTS.containsKey(root)) return;
+        }
+        detach(root, true);
+    }
 
     static void attach(View root) {
         if (root == null) return;
@@ -91,7 +108,10 @@ final class VisualScaler {
             if (!HookRuntime.isOperational()) return;
             Config.Snapshot cfg = Config.get(root.getContext());
             if (!cfg.enabled || !cfg.visualEnabled) {
-                restoreTree(root, true);
+                // Do not leave an observation-only listener traversing SystemUI forever.
+                // A later explicit visual-on is applied on the next tracked window update
+                // or, as documented, after a SystemUI restart/reboot.
+                detach(root, true);
                 return;
             }
             int barHeight = SystemBarDimensions.statusBarHeight(root);
@@ -100,17 +120,16 @@ final class VisualScaler {
                 return;
             }
 
-            int[] rootLocation = new int[2];
+            int[] rootLocation = ROOT_LOCATION.get();
             root.getLocationOnScreen(rootLocation);
             int[] viewLocation = VIEW_LOCATION.get();
-            scaleLeaves(root, root, rootLocation[1], viewLocation, barHeight, cfg.visualScale);
+            scaleLeaves(root, rootLocation[1], viewLocation, barHeight, cfg.visualScale);
         } catch (Throwable t) {
             CircuitBreaker.recordFailure("visual-scale", t);
         }
     }
 
-    private static void scaleLeaves(View root,
-                                    View node,
+    private static void scaleLeaves(View node,
                                     int rootY,
                                     int[] viewLocation,
                                     int barHeight,
@@ -122,7 +141,7 @@ final class VisualScaler {
         if (node instanceof ViewGroup) {
             ViewGroup group = (ViewGroup) node;
             for (int i = 0; i < group.getChildCount(); i++) {
-                scaleLeaves(root, group.getChildAt(i), rootY, viewLocation, barHeight, factor);
+                scaleLeaves(group.getChildAt(i), rootY, viewLocation, barHeight, factor);
             }
             return;
         }
@@ -152,6 +171,8 @@ final class VisualScaler {
                 restoreIfStillOwned(node, owned);
                 break;
             case RELEASE_CONFLICT:
+                // SystemUI or an animation changed scale while we owned it. Do not overwrite
+                // that new state; release ownership and skip this leaf until visuals are reset.
                 OWNED.remove(node);
                 CONFLICTED.put(node, Boolean.TRUE);
                 break;

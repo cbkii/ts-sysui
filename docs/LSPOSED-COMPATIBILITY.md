@@ -9,7 +9,9 @@ Runtime contract:
 - entry interface: `IXposedHookLoadPackage`;
 - declared minimum legacy bridge version: `82`;
 - LSPosed scope: `com.android.systemui` main process only;
-- local `xposed-stubs` module: compile-only, never packaged into the APK.
+- local `xposed-stubs` module: compile-only, never packaged into the APK;
+- hook registration uses legacy `XposedHelpers.findAndHookMethod` with exact
+  Android 10 method signatures instead of broad method-name hooks.
 
 The local stub surface is documented in `xposed-stubs/API_CONTRACT.md` and checked
 by `tools/test-xposed-stubs.sh`. CI also inspects the assembled APK to ensure

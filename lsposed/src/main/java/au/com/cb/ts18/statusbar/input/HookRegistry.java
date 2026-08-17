@@ -2,18 +2,17 @@ package au.com.cb.ts18.statusbar.input;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 import de.robv.android.xposed.XC_MethodHook;
 
 final class HookRegistry {
     private final List<XC_MethodHook.Unhook> handles = new ArrayList<>();
 
-    void addRequired(String name, Set<XC_MethodHook.Unhook> registered) {
-        if (registered == null || registered.isEmpty()) {
-            throw new IllegalStateException("no methods hooked for " + name);
+    void addRequired(String name, XC_MethodHook.Unhook registered) {
+        if (registered == null) {
+            throw new IllegalStateException("no method hooked for " + name);
         }
-        handles.addAll(registered);
+        handles.add(registered);
     }
 
     int size() { return handles.size(); }

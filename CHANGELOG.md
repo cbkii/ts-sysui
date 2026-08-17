@@ -5,7 +5,7 @@
 - made LSPosed first-run observation-only: master/input/visual mutations default off;
 - removed the speculative SystemUI window-height normaliser so framework RRO is
   the sole geometry authority;
-- made hook registration idempotent and partial installation rollbackable;
+- made hook registration idempotent and partial installation rollbackable, and replaced broad method-name hooks with exact API29 signatures;
 - strengthened the circuit breaker to deactivate mutation, detach visual listeners
   and restore only transforms still provably owned by the module;
 - restricted touch-region mutation to a recognised full-width collapsed REGION

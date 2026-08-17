@@ -20,9 +20,12 @@ Install `TS18-StatusBar-Input-LSPosed-*.apk`. Scope it to **only** the main
 `com.android.systemui` process. Do not scope Android Framework/system_server,
 DoFun, launcher, or other packages.
 
-The APK is inert by default even after SystemUI restarts. Reboot/restart SystemUI
-and confirm the `TS18StatusBar` installation line appears without a crash loop.
-Optionally make the observation state explicit:
+The APK is inert by default even after SystemUI restarts. v0.3 also requires
+`ts18_statusbar_policy_version=3`, so stale v0.2 Settings.Global values are ignored.
+The configuration helper migrates safely by clearing master/input/visual flags
+before writing policy generation 3. Reboot/restart SystemUI and confirm the
+`TS18StatusBar` installation line appears without a crash loop. Optionally make
+the observation state explicit:
 
 ```sh
 su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh observe'

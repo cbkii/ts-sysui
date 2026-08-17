@@ -79,8 +79,11 @@ confirmed before a protected SystemUI window is changed.
 | LSPosed scope | main `com.android.systemui` process only |
 
 Use `tools/ts18-statusbar-config.sh` under root to enter observation mode, arm
-input, optionally arm visuals, or disarm all runtime mutations. The recommended
-sequence is documented in `docs/INSTALL.md` and `docs/VALIDATION.md`.
+input, optionally arm visuals, or disarm all runtime mutations. **Upgrade safety:**
+v0.3 requires `ts18_statusbar_policy_version=3`; the configuration helper clears
+all mutation flags before publishing that generation, so persisted v0.2 globals
+cannot silently reactivate the new hook. The recommended sequence is documented
+in `docs/INSTALL.md` and `docs/VALIDATION.md`.
 
 ## LSPosed API compatibility
 

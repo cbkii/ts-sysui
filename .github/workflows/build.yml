@@ -29,16 +29,6 @@ jobs:
           echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
           echo "$SDK_ROOT/build-tools/35.0.0" >> "$GITHUB_PATH"
       - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
-        with:
-          gradle-version: '8.9'
-      - name: Generate canonical Gradle wrapper for hardening branch
-        shell: bash
-        run: |
-          gradle --no-daemon wrapper --gradle-version 8.9 --distribution-type bin
-          printf '\ndistributionSha256Sum=d725d707bfabd4dfdc958c624003b3c80accc03f7037b5122c4b1d0ef15cecab\n' >> gradle/wrapper/gradle-wrapper.properties
-          chmod +x gradlew
-          bash tools/test-gradle-wrapper.sh
-          ./gradlew --version
       - name: Host policy and contract checks
         shell: bash
         run: |
@@ -47,6 +37,7 @@ jobs:
           bash tools/test-geometry.sh
           bash tools/test-xposed-stubs.sh
           bash tools/test-gradle-wrapper.sh
+          ./gradlew --version
       - name: Android compile, unit tests and lint
         shell: bash
         run: |
@@ -60,14 +51,4 @@ jobs:
         with:
           name: ts18-statusbar-debug
           path: dist/*
-          if-no-files-found: error
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
-        if: always()
-        with:
-          name: ts18-gradle-wrapper
-          path: |
-            gradlew
-            gradlew.bat
-            gradle/wrapper/gradle-wrapper.jar
-            gradle/wrapper/gradle-wrapper.properties
           if-no-files-found: error

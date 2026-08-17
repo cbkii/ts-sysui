@@ -8,10 +8,9 @@ import android.view.View;
 import android.view.ViewTreeObserver;
 
 import java.lang.reflect.Field;
-import java.util.Set;
 
 import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
+import de.robv.android.xposed.XposedHelpers;
 
 final class TouchableInsetsHook {
     private static final ThreadLocal<Rect> BOUNDS = ThreadLocal.withInitial(Rect::new);
@@ -23,8 +22,10 @@ final class TouchableInsetsHook {
 
     static void install(ClassLoader classLoader, HookRegistry registry) throws ClassNotFoundException {
         Class<?> observerClass = Class.forName("android.view.ViewTreeObserver", false, classLoader);
-        Set<XC_MethodHook.Unhook> registered = XposedBridge.hookAllMethods(
-                observerClass, "dispatchOnComputeInternalInsets", new XC_MethodHook() {
+        Class<?> infoClass = Class.forName(
+                "android.view.ViewTreeObserver$InternalInsetsInfo", false, classLoader);
+        XC_MethodHook.Unhook registered = XposedHelpers.findAndHookMethod(
+                observerClass, "dispatchOnComputeInternalInsets", infoClass, new XC_MethodHook() {
                     @Override protected void afterHookedMethod(MethodHookParam param) {
                         try {
                             if (!HookRuntime.isOperational()
