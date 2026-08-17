@@ -14,6 +14,10 @@
 - added independent navbar policy-generation/settings and root helper commands;
 - added a detailed evidence-gated functional media-controls roadmap and physical
   observation validation stage;
+- added `ts18-right-nav-evidence.sh` to copy/hash the current SystemUI APK and
+  collect bounded package/window/display/probe evidence on the exact device;
+- included configuration, validation and right-nav evidence helpers in packaged
+  bundles;
 - kept all right-nav mutation disabled: no views are added/removed/resized and no
   media command path exists in this milestone.
 
