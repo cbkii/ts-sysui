@@ -34,7 +34,7 @@ d0ae7294cb281d4dd249c7a19c1c906713e0f91edb28f5a09bce42712922ec6a  ./lsposed/src/
 33de279492c200c5a3387b52e323361f851186577a3b448d61deddc7d98b91d5  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/NavBarState.java
 099417cf24bea3059f67fb735af5ec1be5e2c224918f04d9a887e44ed43b7efc  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/NavConfig.java
 de69a431b20ae24b39719fc8c8b88470f815ebe6b33c1997e1759da54a786ac1  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/NavFeatureRuntime.java
-30c61dc767dd2e8af30415c2da4fa3eaf7fa48e874694ea70abd591918f54328  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/NavHierarchyProbe.java
+abc05179ad49aad131f4011586ade95843bacd502c7c27f7a20fe5c65df06cc3  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/NavHierarchyProbe.java
 1bce347ab784a7fd42bb1771fc50e2be2abe4ec669ecc003fbf692b53baac197  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/NavLayoutPolicy.java
 bd675198acf0950b8322ff880249a7dcd8968447b8ba5858fd7a1b3614f03783  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/RateLimitedLog.java
 c8c70f84574ccfbf9c4cd87d099b3358e53528cc429b6730f0f696655e323034  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/StatusBarState.java
@@ -45,7 +45,7 @@ c8c70f84574ccfbf9c4cd87d099b3358e53528cc429b6730f0f696655e323034  ./lsposed/src/
 3cf5c4078ff06ce86e0f23631ca633324783a371f95a9815f9f477a0654b6980  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/Ts18StatusBarModule.java
 7fa09db212d533ad02afabfe88815a20dc0b216b28c19f9eb837dde2187e4337  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/VisualScalePolicy.java
 0466426400f25d0d32fab4fb0b169df80f3aae50315b952d751c67a54438fa8a  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/VisualScaler.java
-a9e8fb66bd3800118129fa8510eaa165fb7cee846d377c6f6ab4f7e2b0cda3c9  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/WindowHooks.java
+bcc02f0bd8f19e172c89515ede5644d462c4c698fd21b3e96facd9ccb9240934  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/WindowHooks.java
 261155f54a21b2452ee5c90c02924a5c57e6d9d307422f1aa7e5a126153ecf60  ./lsposed/src/main/res/values/arrays.xml
 cf3f0bd2a7ca1606cf2b8553efa33ee7f2cb87fba11b9075e64abde75a17dd4f  ./lsposed/src/main/res/values/strings.xml
 5c75d2d22d0e8ab4f04b21f237cd4c9b12a862dc9bf86df7f68080ab28fb7ff7  ./lsposed/src/test/java/au/com/cb/ts18/statusbar/input/CoordinateSpacePolicyTest.java
@@ -73,7 +73,7 @@ ba2a73b9abbb7f72c1ee5386d47a2e6114205dcd3a4196383a7f163971b34b57  ./settings.gra
 41fed45a2952784a9c393fd32c04cb9efaaa58a742cb73bb5c6724ac56d4e410  ./tools/test-apk-contract.sh
 3c08d83f731cf2c0642e96ffd6bb9fd1321c9d35467c56ec563a84e21c7b6dbc  ./tools/test-geometry.sh
 94d2ae29e476e999f9694257266c66fb70eadfd5dadf4ccfb01e9433db313d13  ./tools/test-gradle-wrapper.sh
-277e2f9e9af254919e1efe864cb7669cfcd0fdac07f345ea8c725b06d8bb78ca  ./tools/test-nav-observation-contract.sh
+b2ac1b5c4d392042f278f1cbedd153d31f3ab29071434d13529ddf1372d960dd  ./tools/test-nav-observation-contract.sh
 237af416e1f21d14ca67088725fbf64f5515f507958aa384c2ee27295bdaac61  ./tools/test-source-manifest.sh
 cc596059929522179a01df74bf922546b75af0c5c5d1d04c5384ca395fed36e2  ./tools/test-xposed-stubs.sh
 8e9e5ae1752a53feb2f725de32070861ae8e7be188b050b28373b5af437c6ba3  ./tools/ts18-right-nav-evidence.sh
