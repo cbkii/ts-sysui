@@ -29,10 +29,27 @@ Any collapsed shade/touch interception implemented by this repository must:
 These are product requirements, not tuneable defaults. Configuration may make
 the region smaller or move it farther from a corner, never larger/closer.
 
+## Right-navigation contract
+
+- The v0.4 right-nav milestone is observation-only. It may identify and log the
+  live `TYPE_NAVIGATION_BAR` hierarchy but must not add/remove/resize/reorder
+  views or install click/touch behaviour.
+- Keep right-nav settings and failure state independent from compact status-bar
+  input/visual settings; navbar feature failures must not open the compact
+  status-bar circuit breaker.
+- Do not enable an inert marker or clickable nav control until the exact current
+  full `com.android.systemui` APK and a fresh physical hierarchy/lifecycle
+  capture establish the host and genuinely unused space.
+- Future media controls must command an existing MediaSession/MediaController;
+  they must not introduce playback, queue, notification or audio-focus authority.
+- Never hide, replace or move an existing stock navigation/volume/vehicle
+  function to make room.
+
 ## Change discipline
 
 1. Change one layer at a time: geometry RRO first, SystemUI hook second.
-2. Preserve the stock right navigation bar in the current release.
+2. Preserve the stock right navigation bar until the explicit right-nav evidence
+   gate for a later phase is satisfied.
 3. Any hook failure must leave stock behaviour intact; rollback only state the
    module can still prove it owns.
 4. LSPosed first execution must remain observation-only: master/input/visual
@@ -44,6 +61,5 @@ the region smaller or move it farther from a corner, never larger/closer.
 7. Validate SystemUI restart, reboot, cold boot and ACC sleep/wake before
    considering a release physically proven.
 8. Never claim CI/static success is physical TS18 validation.
-9. Future right-nav media controls must be optional, evidence-gated and command
-   an existing MediaSession; they must not introduce playback authority or
-   displace stock navigation functions.
+9. Follow `docs/RIGHT-NAV-MEDIA-ROADMAP.md` for all navbar progression and STOP
+   conditions.
