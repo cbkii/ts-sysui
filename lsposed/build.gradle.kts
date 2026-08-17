@@ -13,7 +13,7 @@ android {
         val keyPasswordValue = System.getenv("TS18_KEY_PASSWORD")
         require(!storePasswordValue.isNullOrBlank()) { "TS18_KEYSTORE_PASSWORD is required when TS18_KEYSTORE_PATH is set" }
         require(!keyAliasValue.isNullOrBlank()) { "TS18_KEY_ALIAS is required when TS18_KEYSTORE_PATH is set" }
-        require(!keyPasswordValue.isNullOrBlank()) { "TS18_KEYSTORE_PASSWORD is required when TS18_KEYSTORE_PATH is set" }
+        require(!keyPasswordValue.isNullOrBlank()) { "TS18_KEY_PASSWORD is required when TS18_KEYSTORE_PATH is set" }
         signingConfigs.create("ts18Release") {
             storeFile = file(releaseKeystorePath)
             storePassword = storePasswordValue
@@ -41,6 +41,9 @@ android {
     lint {
         abortOnError = true
         checkReleaseBuilds = true
+        // This private exact-device module deliberately targets Android 10/API 29;
+        // it is not a Google Play application and must preserve API29 target behaviour.
+        disable += "ExpiredTargetSdkVersion"
     }
 
     buildTypes {
