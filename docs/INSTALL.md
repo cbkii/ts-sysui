@@ -85,8 +85,17 @@ su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh nav-status'
 su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh nav-observe'
 ```
 
-Restart SystemUI/reboot, reproduce the states in Stage N0 of `VALIDATION.md`, and
-collect the bounded `right-nav probe` log output.
+Restart SystemUI/reboot and reproduce a Stage N0 state. The bundled bounded
+collector is the preferred way to retain current SystemUI identity, package/window
+state, right-nav probe output and the exact current SystemUI APK hash/copy:
+
+```sh
+su -c 'sh /storage/emulated/0/Download/ts18-right-nav-evidence.sh'
+```
+
+It writes under `/storage/emulated/0/Download/TS18-StatusBar/`. Repeat the capture
+after materially different UI/lifecycle states listed in Stage N0 rather than
+assuming one snapshot represents every state.
 
 Disable probing when the capture is complete:
 
