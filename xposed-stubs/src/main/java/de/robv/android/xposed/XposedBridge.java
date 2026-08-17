@@ -1,0 +1,16 @@
+package de.robv.android.xposed;
+
+import java.util.Set;
+
+public final class XposedBridge {
+    private XposedBridge() {}
+    public static Set<?> hookAllMethods(Class<?> hookClass, String methodName, XC_MethodHook callback) {
+        throw new UnsupportedOperationException("compile-only stub");
+    }
+    public static void log(String text) {
+        throw new UnsupportedOperationException("compile-only stub");
+    }
+    public static void log(Throwable throwable) {
+        throw new UnsupportedOperationException("compile-only stub");
+    }
+}

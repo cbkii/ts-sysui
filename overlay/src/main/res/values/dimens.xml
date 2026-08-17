@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Supplied active TS18 sysbar RRO (export-renamed): 58dp. 58 * .75 = 43.5dp.
+         43dp maps to about 41px at the device's last-observed 153dpi override,
+         which is closest to 75% of the observed 55px status bar. -->
+    <dimen name="status_bar_height">43dp</dimen>
+    <dimen name="status_bar_height_landscape">43dp</dimen>
+    <dimen name="status_bar_height_portrait">43dp</dimen>
+</resources>
