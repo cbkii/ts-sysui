@@ -113,8 +113,7 @@ jobs:
           keytool -list \
             -keystore "$RUNNER_TEMP/ts18-release.jks" \
             -storepass "$STORE_PASSWORD" \
-            -alias "$KEY_ALIAS" \
-            -noprompt >/dev/null || {
+            -alias "$KEY_ALIAS" >/dev/null || {
               echo '::error::Keystore password or alias validation failed.'
               exit 1
             }
@@ -122,8 +121,7 @@ jobs:
             -keystore "$RUNNER_TEMP/ts18-release.jks" \
             -storepass "$STORE_PASSWORD" \
             -alias "$KEY_ALIAS" \
-            -file "$RUNNER_TEMP/ts18-release-cert.der" \
-            -noprompt >/dev/null
+            -file "$RUNNER_TEMP/ts18-release-cert.der" >/dev/null
           signer_sha256="$(sha256sum "$RUNNER_TEMP/ts18-release-cert.der" | awk '{print toupper($1)}')"
           [[ "$signer_sha256" =~ ^[0-9A-F]{64}$ ]] || { echo '::error::Unable to derive signer SHA-256.'; exit 1; }
           echo "signer_sha256=$signer_sha256" >> "$GITHUB_OUTPUT"
@@ -175,7 +173,7 @@ jobs:
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
         run: |
           set -euo pipefail
-          title="$(printf '%s' "$INPUT_NAME" | tr '\r\n' '  ' | xargs)"
+          title="$(python3 -c 'import os; print(" ".join(os.environ.get("INPUT_NAME", "").replace("\r", " ").replace("\n", " ").split()))')"
           [ -n "$title" ] || title="TS18 System UI $RELEASE_TAG"
           [ "${#title}" -le 200 ] || { echo '::error::Release title must be 200 characters or fewer.'; exit 1; }
           echo "title=$title" >> "$GITHUB_OUTPUT"
