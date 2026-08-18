@@ -1,40 +1,189 @@
-name: Release
+name: Manual Release
 
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Release tag; must exactly match version.properties, e.g. v0.4.0'
+      version_tag:
+        description: 'Optional version, e.g. v0.4.1. Blank resumes prepared metadata or selects the next patch.'
+        required: false
+        default: ''
+        type: string
+      name:
+        description: 'Optional release title. Blank defaults to TS18 System UI <resolved tag>.'
+        required: false
+        default: ''
+        type: string
+      draft:
+        description: 'Create/update the GitHub release as a draft.'
         required: true
-        default: 'v0.4.0'
+        default: false
+        type: boolean
+      prerelease:
+        description: 'Mark the GitHub release as a prerelease.'
+        required: true
+        default: false
+        type: boolean
+
+run-name: Release ${{ inputs.version_tag || 'auto-version' }}
 
 permissions:
   contents: write
 
+concurrency:
+  group: ts-sysui-manual-release
+  cancel-in-progress: false
+
 jobs:
   release:
+    name: Version, build, tag, and publish
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
+    environment: release
+
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+      - name: Checkout full default-branch history
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: true
+          token: ${{ github.token }}
+
+      - name: Validate release context
+        shell: bash
+        run: |
+          set -euo pipefail
+          default_branch='${{ github.event.repository.default_branch }}'
+          [ "${GITHUB_REF_TYPE}" = branch ] || { echo '::error::Manual release must be dispatched from a branch.'; exit 1; }
+          [ "${GITHUB_REF_NAME}" = "$default_branch" ] || {
+            echo "::error::Dispatch Manual Release from $default_branch, not ${GITHUB_REF_NAME}."
+            exit 1
+          }
+          git fetch --force --tags origin "+refs/heads/${GITHUB_REF_NAME}:refs/remotes/origin/${GITHUB_REF_NAME}"
+          [ "$(git rev-parse HEAD)" = "$(git rev-parse "origin/${GITHUB_REF_NAME}")" ] || {
+            echo '::error::Release checkout is stale relative to the remote branch.'
+            exit 1
+          }
+
+      - name: Set up Java 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: '17'
-      - name: Validate requested release version
+          check-latest: false
+
+      - name: Validate KEYSTORE_* release signing secrets
+        id: signing
         shell: bash
         env:
-          RELEASE_TAG: ${{ inputs.tag }}
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          VERSION_NAME="$(sed -n 's/^versionName=//p' version.properties | head -n 1)"
-          test -n "$VERSION_NAME" || { echo 'FAILED: version.properties has no versionName' >&2; exit 2; }
-          if [ "$RELEASE_TAG" != "v$VERSION_NAME" ]; then
-            echo "STOPPED FOR SAFETY: release tag $RELEASE_TAG does not match canonical v$VERSION_NAME" >&2
-            exit 4
+          set -euo pipefail
+          missing=()
+          [ -n "$KEYSTORE_B64" ] || missing+=(KEYSTORE_BASE64)
+          [ -n "$STORE_PASSWORD" ] || missing+=(KEYSTORE_PASSWORD)
+          [ -n "$KEY_ALIAS" ] || missing+=(KEY_ALIAS)
+          [ -n "$KEY_PASSWORD" ] || missing+=(KEY_PASSWORD)
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf '::error::Missing required release secrets: %s\n' "${missing[*]}"
+            {
+              echo '## Release preflight failed'
+              echo
+              echo 'The `release` environment must expose these exact secrets:'
+              printf -- '- `%s`\n' KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
           fi
+
+          echo "::add-mask::$STORE_PASSWORD"
+          echo "::add-mask::$KEY_ALIAS"
+          echo "::add-mask::$KEY_PASSWORD"
+          umask 077
+          printf '%s' "$KEYSTORE_B64" | tr -d '[:space:]' | base64 --decode > "$RUNNER_TEMP/ts18-release.jks" || {
+            echo '::error::KEYSTORE_BASE64 is not valid base64.'
+            rm -f -- "$RUNNER_TEMP/ts18-release.jks"
+            exit 1
+          }
+          [ -s "$RUNNER_TEMP/ts18-release.jks" ] || { echo '::error::Decoded keystore is empty.'; exit 1; }
+          chmod 600 "$RUNNER_TEMP/ts18-release.jks"
+
+          keytool -list \
+            -keystore "$RUNNER_TEMP/ts18-release.jks" \
+            -storepass "$STORE_PASSWORD" \
+            -alias "$KEY_ALIAS" \
+            -noprompt >/dev/null || {
+              echo '::error::Keystore password or alias validation failed.'
+              exit 1
+            }
+          keytool -exportcert \
+            -keystore "$RUNNER_TEMP/ts18-release.jks" \
+            -storepass "$STORE_PASSWORD" \
+            -alias "$KEY_ALIAS" \
+            -file "$RUNNER_TEMP/ts18-release-cert.der" \
+            -noprompt >/dev/null
+          signer_sha256="$(sha256sum "$RUNNER_TEMP/ts18-release-cert.der" | awk '{print toupper($1)}')"
+          [[ "$signer_sha256" =~ ^[0-9A-F]{64}$ ]] || { echo '::error::Unable to derive signer SHA-256.'; exit 1; }
+          echo "signer_sha256=$signer_sha256" >> "$GITHUB_OUTPUT"
+          echo 'KEYSTORE_* secrets and signing certificate validated.'
+
+      - name: Resolve version and prepare local source metadata
+        id: version
+        shell: bash
+        env:
+          INPUT_TAG: ${{ inputs.version_tag }}
+        run: |
+          set -euo pipefail
+          base_sha="$(git rev-parse HEAD)"
+          branch="$(git symbolic-ref --quiet --short HEAD || true)"
+          [ -n "$branch" ] || { echo '::error::Release metadata requires a writable branch checkout.'; exit 1; }
+
+          bash tools/resolve-release-version.sh --tag "$INPUT_TAG" --ref "$branch" --apply > "$RUNNER_TEMP/release-version.out"
+          cat "$RUNNER_TEMP/release-version.out" >> "$GITHUB_OUTPUT"
+          # shellcheck disable=SC1090
+          source "$RUNNER_TEMP/release-version.out"
+
+          unexpected="$(git diff --name-only | awk '$0 != "version.properties" && $0 != "SOURCE_MANIFEST.sha256"')"
+          [ -z "$unexpected" ] || {
+            echo '::error::Release metadata preparation changed unexpected tracked files:'
+            printf '%s\n' "$unexpected"
+            exit 1
+          }
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add version.properties SOURCE_MANIFEST.sha256
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(release): prepare $tag"
+          fi
+
+          {
+            echo "base_sha=$base_sha"
+            echo "branch=$branch"
+            echo "commit=$(git rev-parse HEAD)"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Resolved $tag / versionCode $version_code (auto=$auto, recovered=$recovered_metadata)."
+
+      - name: Resolve release title
+        id: title
+        shell: bash
+        env:
+          INPUT_NAME: ${{ inputs.name }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          title="$(printf '%s' "$INPUT_NAME" | tr '\r\n' '  ' | xargs)"
+          [ -n "$title" ] || title="TS18 System UI $RELEASE_TAG"
+          [ "${#title}" -le 200 ] || { echo '::error::Release title must be 200 characters or fewer.'; exit 1; }
+          echo "title=$title" >> "$GITHUB_OUTPUT"
+
       - name: Provision Android SDK packages
         shell: bash
         run: |
+          set -euo pipefail
           SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
           test -x "$SDKMANAGER" || { echo "FAILED: sdkmanager not found at $SDKMANAGER" >&2; exit 3; }
@@ -42,53 +191,148 @@ jobs:
           echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
           echo "$SDK_ROOT/build-tools/35.0.0" >> "$GITHUB_PATH"
-      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
         with:
           validate-wrappers: false
-      - name: Validate signing inputs and restore keystore
-        shell: bash
-        env:
-          KEYSTORE_B64: ${{ secrets.TS18_KEYSTORE_B64 }}
-          STORE_PASSWORD: ${{ secrets.TS18_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.TS18_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.TS18_KEY_PASSWORD }}
-        run: |
-          test -n "$KEYSTORE_B64" || { echo 'STOPPED FOR SAFETY: TS18_KEYSTORE_B64 is missing' >&2; exit 4; }
-          test -n "$STORE_PASSWORD" || { echo 'STOPPED FOR SAFETY: TS18_KEYSTORE_PASSWORD is missing' >&2; exit 4; }
-          test -n "$KEY_ALIAS" || { echo 'STOPPED FOR SAFETY: TS18_KEY_ALIAS is missing' >&2; exit 4; }
-          test -n "$KEY_PASSWORD" || { echo 'STOPPED FOR SAFETY: TS18_KEY_PASSWORD is missing' >&2; exit 4; }
-          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/ts18-release.jks" || {
-            echo 'FAILED: cannot decode TS18_KEYSTORE_B64' >&2
-            rm -f -- "$RUNNER_TEMP/ts18-release.jks"
-            exit 2
-          }
-          chmod 600 "$RUNNER_TEMP/ts18-release.jks"
+
       - name: Validate and build signed release
         shell: bash
         env:
           TS18_KEYSTORE_PATH: ${{ runner.temp }}/ts18-release.jks
-          TS18_KEYSTORE_PASSWORD: ${{ secrets.TS18_KEYSTORE_PASSWORD }}
-          TS18_KEY_ALIAS: ${{ secrets.TS18_KEY_ALIAS }}
-          TS18_KEY_PASSWORD: ${{ secrets.TS18_KEY_PASSWORD }}
+          TS18_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          TS18_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          TS18_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
+          set -euo pipefail
           bash -n tools/*.sh
           sh -n magisk/customize.sh
           bash tools/test-geometry.sh
           bash tools/test-nav-observation-contract.sh
           bash tools/test-xposed-stubs.sh
+          bash tools/test-release-tools.sh
           bash tools/test-source-manifest.sh
           bash tools/bootstrap-gradle-wrapper.sh
           bash tools/test-gradle-wrapper.sh
           ./gradlew --no-daemon clean test :overlay:lintRelease :lsposed:lintRelease :overlay:assembleRelease :lsposed:assembleRelease
           bash tools/test-apk-contract.sh lsposed/build/outputs/apk/release/lsposed-release.apk
           bash tools/package-release.sh release
-      - name: Remove signing keystore before publication
-        if: always()
+          (cd dist && sha256sum -c SHA256SUMS.txt)
+
+      - name: Verify release APK signer identity
         shell: bash
-        run: rm -f -- "$RUNNER_TEMP/ts18-release.jks"
-      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
-        if: success()
+        env:
+          EXPECTED_SIGNER: ${{ steps.signing.outputs.signer_sha256 }}
+        run: |
+          set -euo pipefail
+          for apk in overlay/build/outputs/apk/release/overlay-release.apk lsposed/build/outputs/apk/release/lsposed-release.apk; do
+            output="$(apksigner verify --print-certs "$apk")"
+            actual="$(printf '%s\n' "$output" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+            [ -n "$actual" ] || { echo "::error::Could not read signer SHA-256 from $apk"; exit 1; }
+            [ "$actual" = "$EXPECTED_SIGNER" ] || {
+              echo "::error::Signer mismatch for $apk: $actual != $EXPECTED_SIGNER"
+              exit 1
+            }
+          done
+          echo 'Both release APKs match the configured release certificate.'
+
+      - name: Upload validated recovery bundle
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
-          tag_name: ${{ inputs.tag }}
+          name: ts18-sysui-${{ steps.version.outputs.tag }}-release-assets
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Publish validated source metadata to default branch
+        id: source
+        shell: bash
+        env:
+          RELEASE_BRANCH: ${{ steps.version.outputs.branch }}
+          BASE_SHA: ${{ steps.version.outputs.base_sha }}
+          METADATA_CHANGED: ${{ steps.version.outputs.metadata_changed }}
+        run: |
+          set -euo pipefail
+          target="$(git rev-parse HEAD)"
+          remote_before="$(git ls-remote origin "refs/heads/$RELEASE_BRANCH" | awk 'NR == 1 { print $1}')"
+          [ -n "$remote_before" ] || { echo "::error::Could not resolve remote branch $RELEASE_BRANCH."; exit 1; }
+
+          if [ "$METADATA_CHANGED" = true ]; then
+            [ "$remote_before" = "$BASE_SHA" ] || {
+              echo "::error::Remote branch moved from $BASE_SHA to $remote_before during release; rerun from latest main."
+              exit 1
+            }
+            git push origin "HEAD:refs/heads/$RELEASE_BRANCH"
+          else
+            [ "$remote_before" = "$target" ] || {
+              echo '::error::Selected release branch moved during the run; rerun from its latest commit.'
+              exit 1
+            }
+          fi
+
+          remote_after="$(git ls-remote origin "refs/heads/$RELEASE_BRANCH" | awk 'NR == 1 { print $1}')"
+          [ "$remote_after" = "$target" ] || { echo '::error::Remote branch does not contain validated release source.'; exit 1; }
+          echo "commit=$target" >> "$GITHUB_OUTPUT"
+
+      - name: Create immutable release tag when needed
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          target="$(git rev-parse HEAD)"
+          git fetch --tags --force
+          if git rev-parse -q --verify "refs/tags/$RELEASE_TAG" >/dev/null; then
+            existing="$(git rev-list -n 1 "$RELEASE_TAG")"
+            [ "$existing" = "$target" ] || {
+              echo "::error::Tag $RELEASE_TAG points to $existing, not validated release commit $target."
+              exit 1
+            }
+            echo "Tag $RELEASE_TAG already points to the validated release commit."
+          else
+            git tag -a "$RELEASE_TAG" "$target" -m "Release $RELEASE_TAG"
+            git push origin "refs/tags/$RELEASE_TAG"
+            echo "Created $RELEASE_TAG at $target."
+          fi
+
+      - name: Create or update GitHub Release
+        id: publish
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ steps.source.outputs.commit }}
+          name: ${{ steps.title.outputs.title }}
+          draft: ${{ inputs.draft }}
+          prerelease: ${{ inputs.prerelease }}
+          generate_release_notes: true
+          overwrite_files: true
           fail_on_unmatched_files: true
           files: dist/*
+
+      - name: Release summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## TS18 System UI release'
+            echo "Job status: ${{ job.status }}"
+            echo "Tag/version/versionCode: ${{ steps.version.outputs.tag || 'not resolved' }} / ${{ steps.version.outputs.version || 'not resolved' }} / ${{ steps.version.outputs.version_code || 'not resolved' }}"
+            echo "Automatic selection: ${{ steps.version.outputs.auto || 'unknown' }}"
+            echo "Recovered prepared metadata: ${{ steps.version.outputs.recovered_metadata || 'false' }}"
+            echo "Source metadata changed: ${{ steps.version.outputs.metadata_changed || 'unknown' }}"
+            echo "Validated release commit: ${{ steps.source.outputs.commit || steps.version.outputs.commit || 'not published' }}"
+            echo "Signer SHA-256: ${{ steps.signing.outputs.signer_sha256 || 'not validated' }}"
+            echo "Draft/prerelease: ${{ inputs.draft }} / ${{ inputs.prerelease }}"
+            echo "Release URL: ${{ steps.publish.outputs.url || 'not published' }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove signing material
+        if: always()
+        shell: bash
+        run: |
+          rm -f -- \
+            "$RUNNER_TEMP/ts18-release.jks" \
+            "$RUNNER_TEMP/ts18-release-cert.der" \
+            "$RUNNER_TEMP/release-version.out"
