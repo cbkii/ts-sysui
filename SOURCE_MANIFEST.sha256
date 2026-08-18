@@ -1,5 +1,5 @@
 8efa296e626926518680f9bcfe4a41ed89d44991bbdca4b34159e62d0c532802  ./.github/workflows/build.yml
-ef5d595a37ccfda6304bca35c8eb4abd53cc02e607953785a26dcabd1b0c2f17  ./.github/workflows/release.yml
+779058a4e3dcc57a6ac6daf0540188eb66d88e449fd31c8321331b0633a124d1  ./.github/workflows/release.yml
 ba9a9a45dd7d12bdf9649b5aa8fe0c06c17b0fabacbfc2f74339b92fb716d54c  ./.gitignore
 469e36c312a14c1cfacd4bae30aa5a04d8b33626c4975e89d8e7047b30c4a39d  ./AGENTS.md
 b45430f893deef05c1ff2ca7da4934de1d26b14bbd87ba58d911612364b93794  ./CHANGELOG.md
@@ -64,7 +64,7 @@ aa86621f8234398ab29f04578e96d3af2644c4bdc9b6802fb72c1a266f7be2eb  ./reference/RE
 a8f715dc5604d64451c3b11876d0e7de85e371b0399f5c082141442c0b0fedf1  ./reference/RENAMED_ASSET_PROVENANCE.md
 59693d0da42a83a688814ca318530a30d8965fc580b41bfec1d8392def1acdab  ./reference/SHA256SUMS-supplied.txt
 8062c754dbfcbf1dece31a5ff10120d5fb9b8f83c9cf2f679bc63c2b89b27dee  ./reference/supplied-apk-static-findings.md
-ba2a73b9abbb7f72c1ee5386d47a2e6114205dcd3a4196383a7f163971b34b57  ./settings.gradle.kts
+ba2a73b9abbb7f72c1ee5386d47a2e6114205dcd9e80375ff720ef6bc4789013156635cdcdba36ec  ./settings.gradle.kts
 2beee70acdd8fdf03d84edcd9e80375ff720ef6bc4789013156635cdcdba36ec  ./tools/GeometryPolicySelfTest.java
 132f4ea2b4a159a5620dbaf5f0edeeaa8bc5026abedc8ddd407b2c6554f93310  ./tools/XposedStubContractSelfTest.java
 4e852364c5e4a9d67c9ef70e67e6bd5d40a830829f02aa1f5e3d164865292fce  ./tools/bootstrap-gradle-wrapper.sh
@@ -84,7 +84,7 @@ a180f7cc2d4f0766deed6581c3851fa38b44f41303391b61ce887a1fc7f1d007  ./tools/ts18-s
 d03aaa44406f32f7edeab475ad0e73869937299563c687a47effa9177e2a35df  ./tools/update-source-manifest.sh
 013fd8cac50b987daadf118a776404fad2052b93dc2ed016959c3a32f826a086  ./version.properties
 7e93163986f6fb2480f3fee2e6260d4c28ad4c0aed3c1c82ea636938747f2fbd  ./xposed-stubs/API_CONTRACT.md
-8b40e0df4ef4f8c2ad0f7df91cccefe05ba29ed9487f63ce70f341de7b899d1a  ./xposed-stubs/build.gradle.kts
+8b40e0df4ef4f2bad5ec73ab10fd5d35  ./xposed-stubs/build.gradle.kts
 a7bd38a13b8f0b2fa54b45fef21dcfd3a1dddc1d4834c355ef736b161dd17fc4  ./xposed-stubs/src/main/java/de/robv/android/xposed/IXposedHookLoadPackage.java
 2e58cc25b680ef830557169d915eff3126aa3841f511d4141c4b800489369869  ./xposed-stubs/src/main/java/de/robv/android/xposed/XC_MethodHook.java
 9696166d9247a90deb7e631bfb64092c4057128968bde702c4deda65aff23014  ./xposed-stubs/src/main/java/de/robv/android/xposed/XposedBridge.java
