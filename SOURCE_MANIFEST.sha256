@@ -42,8 +42,8 @@ c8c70f84574ccfbf9c4cd87d099b3358e53528cc429b6730f0f696655e323034  ./lsposed/src/
 39a1c48db4dea9c2f9e9c588e97380f0112ff8dbc1fdf05fe16d2461ee39c520  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/TouchStripGeometry.java
 2fcdb6e32219b76407f1f767daabbe29d629ef7bc0b7b34ecf109614ae90682c  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/TouchableInsetsHook.java
 839a83d4efa41750ec8bfccaa81deb6c278ac7a063e909086ef307c1e9b404ea  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/TouchableStatePolicy.java
-3cf5c4078ff06ce86e0f23631ca633324783a371f95a9815f9eb837dde2187e4337  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/Ts18StatusBarModule.java
-7fa09db21287fe8893815a20dc0b216b28c19f9eb837dde2187e4337  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/VisualScalePolicy.java
+3cf5c4078ff06ce86e0f23631ca633324783a371f95a9815f9f477a0654b6980  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/Ts18StatusBarModule.java
+7fa09db212d533ad02afabfe88815a20dc0b216b28c19f9eb837dde2187e4337  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/VisualScalePolicy.java
 0466426400f25d0d32fab4fb0b169df80f3aae50315b952d751c67a54438fa8a  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/VisualScaler.java
 bcc02f0bd8f19e172c89515ede5644d462c4c698fd21b3e96facd9ccb9240934  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/WindowHooks.java
 261155f54a21b2452ee5c90c02924a5c57e6d9d307422f1aa7e5a126153ecf60  ./lsposed/src/main/res/values/arrays.xml
@@ -73,7 +73,7 @@ ba2a73b9abbb7f72c1ee5386d47a2e6114205dcd3a4196383a7f163971b34b57  ./settings.gra
 9af847483ea1fd3e4634a255f339ef7eddc63dfcc4815dd7fb047d8c5856bc81  ./tools/resolve-release-version.sh
 41fed45a2952784a9c393fd32c04cb9efaaa58a742cb73bb5c6724ac56d4e410  ./tools/test-apk-contract.sh
 3c08d83f731cf2c0642e96ffd6bb9fd1321c9d35467c56ec563a84e21c7b6dbc  ./tools/test-geometry.sh
-94d2ae29e476e999f9694257266c66fb70eadfd5dadf4ccfb01e9433db313d13  ./tools/test-gradle-wrapper.sh
+94d2ae29e476e999f9694257266c66fb70eadfd5dadf4cc6b42a9f  ./tools/test-gradle-wrapper.sh
 b2ac1b5c4d392042f278f1cbedd153d31f3ab29071434d13529ddf1372d960dd  ./tools/test-nav-observation-contract.sh
 d1fdcb429cf0c98841f7bae6c189b91c2dcfbd67cda22d25de8ae6515c7682f8  ./tools/test-release-tools.sh
 237af416e1f21d14ca67088725fbf64f5515f507958aa384c2ee27295bdaac61  ./tools/test-source-manifest.sh
