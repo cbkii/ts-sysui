@@ -7,6 +7,8 @@ import de.robv.android.xposed.XposedHelpers;
 
 /** Exact lifecycle hook for the decoded TS18 NavigationBarView contract. */
 final class ExactTopwayNavAdapter {
+    private static volatile boolean installed;
+
     private ExactTopwayNavAdapter() {}
 
     static boolean installSafely(ClassLoader classLoader, HookRegistry registry) {
@@ -24,14 +26,20 @@ final class ExactTopwayNavAdapter {
                         }
                     });
             registry.addRequired("exact Topway NavigationBarView.onFinishInflate", hook);
+            installed = true;
             RateLimitedLog.always(
                     "exact TS18 right-nav lifecycle installed; mutation awaits identity and policy gates");
             return true;
         } catch (Throwable t) {
+            installed = false;
             RateLimitedLog.error("exact-nav-contract",
                     "exact navbar contract mismatch; no navbar mutation installed", t);
             return false;
         }
+    }
+
+    static boolean isInstalled() {
+        return installed;
     }
 
     static void failOpen() {
