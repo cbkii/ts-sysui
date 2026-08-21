@@ -34,5 +34,12 @@ final class BrightnessState {
                 dayLevel, nightLevel, effectiveNight);
     }
 
-    synchronized void clear() { modeKnown = false; levelsKnown = false; }
+    synchronized void clear() {
+        modeKnown = false;
+        topwayMode = 0;
+        levelsKnown = false;
+        dayLevel = 0;
+        nightLevel = 0;
+        effectiveNight = false;
+    }
 }
