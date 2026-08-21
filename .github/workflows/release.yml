@@ -208,6 +208,8 @@ jobs:
           sh -n magisk/customize.sh
           bash tools/test-geometry.sh
           bash tools/test-nav-observation-contract.sh
+          bash tools/test-exact-systemui-contract.sh
+          bash tools/test-proprietary-artifacts.sh
           bash tools/test-xposed-stubs.sh
           bash tools/test-release-tools.sh
           bash tools/test-source-manifest.sh
