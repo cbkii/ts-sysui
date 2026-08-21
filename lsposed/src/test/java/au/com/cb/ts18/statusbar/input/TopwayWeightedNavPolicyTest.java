@@ -16,6 +16,7 @@ public final class TopwayWeightedNavPolicyTest {
         assertTrue(result.safe);
         assertEquals(80, result.projectedCellPx);
         assertEquals(3f, result.mediaGroupWeight, 0f);
+        assertTrue(result.horizontalPreferredMet);
     }
 
     @Test public void visibleAppSlotStillProjectsAboveProductionTarget() {
@@ -26,7 +27,18 @@ public final class TopwayWeightedNavPolicyTest {
         assertEquals(72, result.projectedCellPx);
     }
 
-    @Test public void fortyEightDpIsAStopFloorNotProductionFallback() {
+    @Test public void stockWidthBetween48And56DpIsAllowedButReportedAsBelowPreferred() {
+        TopwayWeightedNavPolicy.Result result = TopwayWeightedNavPolicy.evaluate(
+                50, 720, 1f,
+                Arrays.asList(1f, 1f, 1f, 1f, 1f, 1f), 3, 56);
+        assertTrue(result.safe);
+        assertFalse(result.horizontalPreferredMet);
+        assertEquals(48, result.minimumHorizontalPx);
+        assertEquals(56, result.preferredHorizontalPx);
+        assertEquals(50, result.hostWidthPx);
+    }
+
+    @Test public void fortyEightDpIsAStopFloorNotProductionVerticalFallback() {
         TopwayWeightedNavPolicy.Result result = TopwayWeightedNavPolicy.evaluate(
                 55, 720, 153f / 160f,
                 Arrays.asList(1f, 1f, 1f, 1f, 1f, 1f), 3, 48);
@@ -42,9 +54,13 @@ public final class TopwayWeightedNavPolicyTest {
                 55, 720, 1f, Arrays.asList(0f, 0f), 3, 56).safe);
     }
 
-    @Test public void insufficientWidthOrHeightFailsOpen() {
-        assertFalse(TopwayWeightedNavPolicy.evaluate(
-                40, 720, 1f, Arrays.asList(1f, 1f, 1f, 1f, 1f, 1f), 3, 56).safe);
+    @Test public void below48DpWidthOrInsufficientHeightFailsOpen() {
+        TopwayWeightedNavPolicy.Result width = TopwayWeightedNavPolicy.evaluate(
+                47, 720, 1f, Arrays.asList(1f, 1f, 1f, 1f, 1f, 1f), 3, 56);
+        assertFalse(width.safe);
+        assertEquals(TopwayWeightedNavPolicy.FailureReason.WIDTH_BELOW_ABSOLUTE_FLOOR,
+                width.failureReason);
+
         assertFalse(TopwayWeightedNavPolicy.evaluate(
                 56, 400, 1f, Arrays.asList(1f, 1f, 1f, 1f, 1f, 1f), 3, 56).safe);
     }
