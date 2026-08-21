@@ -11,6 +11,8 @@ import de.robv.android.xposed.XposedHelpers;
 
 /** Optional private-SystemUI hooks. Any mismatch disables brightness only. */
 final class BrightnessHooks {
+    private static volatile int installedCount;
+
     private BrightnessHooks() {}
 
     static int installSafely(ClassLoader classLoader) {
@@ -52,10 +54,12 @@ final class BrightnessHooks {
             for (XC_MethodHook.Unhook hook : installed) {
                 if (hook == null) throw new IllegalStateException("brightness hook registration returned null");
             }
+            installedCount = installed.size();
             XposedBridge.log("TS18Brightness: " + installed.size()
                     + " observation/lifecycle hooks installed; exact-binary verification and persistent enable gate mutation");
             return installed.size();
         } catch (Throwable t) {
+            installedCount = 0;
             for (int i = installed.size() - 1; i >= 0; i--) {
                 try { if (installed.get(i) != null) installed.get(i).unhook(); }
                 catch (Throwable ignored) { }
@@ -65,5 +69,9 @@ final class BrightnessHooks {
             XposedBridge.log("TS18Brightness: hook installation failed open without affecting compact/nav features: " + t);
             return 0;
         }
+    }
+
+    static int installedCount() {
+        return installedCount;
     }
 }
