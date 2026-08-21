@@ -3,7 +3,7 @@
 A systemless, reversible Android 10/API 29 implementation for CB's exact
 Topway TS18 (`s9863a1h10`). It is not a generic TS10/TS18 modification.
 
-The project keeps four authorities separate:
+The project keeps five authorities separate:
 
 1. **Geometry** — a framework RRO reduces the OEM 58dp status-bar height to
    43dp. It does not change right-navigation dimensions.
@@ -16,6 +16,9 @@ The project keeps four authorities separate:
 4. **Right-nav media** — the same narrowly scoped LSPosed APK can add one
    reversible weighted media group to the exact Topway `navbar_left` host and
    command an existing Android `MediaController`.
+5. **Brightness** — an independently gated controller uses the recovered current
+   Topway Day/Night brightness and mode contracts without replacing the stock
+   transport or using Android brightness/sysfs as the actuator.
 
 The implementation never replaces `SystemUI.apk`, writes an Android partition,
 hooks `system_server`, creates a playback service/session/queue/notification, or
@@ -87,6 +90,33 @@ The exact weighted fit is a static/runtime expectation, not physical proof. At
 153dpi and 720px height, six visible stock cells plus three media cells project
 to about 80px each; seven stock cells project to about 72px.
 
+## Exact Topway brightness controller
+
+The current exact-device evidence identifies these semantic surfaces:
+
+```text
+command/callback 516: separate Day/Night brightness slots, stock range 0..10
+command 258: mode 0=Auto, 1=Day, 2=Night
+```
+
+The optional controller offers **Auto (stock)**, **Day**, **Night**, and
+**Set auto (scheduled)**. Set auto uses user-selected local clock transitions and
+explicitly chooses Day or Night instead of relying on the stock Auto/ILL decision.
+Day and Night levels can be left untouched or managed from **1..10**. Managed
+level 0 is deliberately blocked until an exact-device timed no-backlight
+recovery test proves it safe.
+
+Brightness mutation defaults off, uses the same exact SystemUI SHA gate, waits
+for stock `TWSystemUI.init()` or a valid Topway callback before querying/writing,
+and has an independent process circuit breaker. The launcher configuration
+request is sender-signature-permission protected and its acknowledgement returns
+through a private framework `ResultReceiver` Binder callback. A root helper
+writes the same `Settings.Global` policy as a recovery/configuration fallback.
+
+See [`docs/BRIGHTNESS-CONTROLLER.md`](docs/BRIGHTNESS-CONTROLLER.md). Android
+`screen_brightness`, backlight sysfs, Factory Backlight Current, panel data and
+screen-power command `33281` are intentionally separate from this controller.
+
 ## Deliverables and defaults
 
 Release packaging produces independently recoverable artifacts:
@@ -109,19 +139,24 @@ Release packaging produces independently recoverable artifacts:
 | nav mutation/probe | off / off |
 | nav actions | `previous,play_pause,next` |
 | production nav target | `>=56dp` (`48dp` is STOP-only) |
+| brightness policy generation | `1` |
+| brightness mutation | off |
+| managed brightness levels | `1..10`; `0` blocked |
 | LSPosed scope | main `com.android.systemui` process only |
 
-Use the root helper rather than editing `Settings.Global` by hand:
+Use the root helpers rather than editing `Settings.Global` by hand:
 
 ```sh
 su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh status'
 su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh input-on'
 su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh nav-observe'
 su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh nav-enable'
+su -c 'sh /storage/emulated/0/Download/ts18-brightness-config.sh status'
 ```
 
 `input-on` and `nav-enable` verify the installed SystemUI contract first.
-Runtime topology/state gates may still retain stock behaviour.
+Runtime topology/state gates may still retain stock behaviour. Brightness has its
+own exact compatibility and transport-readiness gates.
 
 ## Build and trust
 
@@ -144,13 +179,13 @@ ALLOW_DEBUG_SIGNING=1 bash tools/package-release.sh debug
 
 See [`docs/INSTALL.md`](docs/INSTALL.md),
 [`docs/VALIDATION.md`](docs/VALIDATION.md) and
-[`docs/RECOVERY.md`](docs/RECOVERY.md). The complete implementation record is
-[`docs/EXACT-TS18-SYSTEMUI-FINALISATION.md`](docs/EXACT-TS18-SYSTEMUI-FINALISATION.md).
+[`docs/RECOVERY.md`](docs/RECOVERY.md). The complete SystemUI finalisation record
+is [`docs/EXACT-TS18-SYSTEMUI-FINALISATION.md`](docs/EXACT-TS18-SYSTEMUI-FINALISATION.md).
 
 ## Validation status
 
 Source/static/CI success proves neither touch delivery nor on-device RRO/idmap,
-SystemUI restart, reboot, cold-boot, ACC sleep/wake, reverse-camera, projection,
-call, keyguard or media-session behaviour. Those remain explicitly unverified
-until recorded on the exact unit. Android 16 and generic FYT/UIS devices are not
-targets.
+right-nav measurement/media behaviour, Topway brightness mutation, SystemUI
+restart, reboot, cold-boot, ACC sleep/wake, reverse-camera, projection, call or
+keyguard behaviour. Those remain explicitly unverified until recorded on the
+exact unit. Android 16 and generic FYT/UIS devices are not targets.
