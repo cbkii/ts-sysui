@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:allowBackup="false"
+        android:hasCode="false"
+        android:label="TS18 Status Bar Visuals" />
+
+    <!-- Exact Android-10 SystemUI visual resources only. The independent module
+         remains optional because current idmap/overlay policy must be qualified
+         on the device; rejection leaves stock visuals. -->
+    <overlay
+        android:isStatic="true"
+        android:priority="10"
+        android:targetPackage="com.android.systemui" />
+</manifest>

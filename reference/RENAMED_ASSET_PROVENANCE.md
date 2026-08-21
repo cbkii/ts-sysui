@@ -17,15 +17,17 @@ orientation overlay because its exported package/filename contains `720x1280`.
 The installed-path evidence uses `framework-res_sysbar_rro_1280x720.apk`; the
 exporter name is not authoritative for the original partition basename.
 
-## SystemUI naming caution
+## SystemUI identity
 
 `com.android.systemui.plugins_10.apk` decodes as package
 `com.android.systemui.plugins`; it is a plugin-interface APK and must not be
 renamed conceptually to `SystemUI.apk` merely because the string contains
 `systemui`.
 
-The user has supplied the relevant extracted artefacts, but the accessible
-sixteen-APK manifest does not itself map a decoded package `com.android.systemui`
-to an export filename. Until that binary identity is recorded with package name,
-original path and SHA-256, this repository intentionally uses Android framework
-window/insets surfaces rather than private SystemUI implementation classes.
+The later exact export `System UI_10.apk` establishes package
+`com.android.systemui`, installed role `/system/priv-app/SystemUI/SystemUI.apk`
+and SHA-256
+`668dec9ac14fbabd76ae73d693dcdd1518190f7941b6ac0b00d16587d6c4bd3f`.
+That exact binary, not the plugin-interface name, is the static authority for the
+private API29 touch and Topway navbar fixtures. Runtime use still requires a
+fresh installed-APK hash match.

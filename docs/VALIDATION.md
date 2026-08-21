@@ -1,199 +1,143 @@
-# Physical validation plan
+# Exact-device validation matrix
 
-CI/static validation is not physical TS18 proof. Change one variable at a time
-and capture before/after state on the exact device.
+Repository/CI validation and physical qualification are different evidence
+classes. Record timestamps, build fingerprint, installed artifact hashes,
+settings, overlay state and bounded logs for every physical stage.
 
-## Stage A — geometry only
-
-Keep the LSPosed component disabled.
-
-1. cold boot with Magisk geometry enabled;
-2. verify the top bar/insets are about 75% of stock and the right nav is unchanged;
-3. check normal/fullscreen apps, DoFun home, Settings, notification shade and input surfaces;
-4. confirm app content starts at the reduced top inset rather than an invisible
-   55 px reservation;
-5. repeat after SystemUI/launcher restart, reboot and an ACC sleep/wake boundary.
-
-If visual bar and app inset disagree, **STOP**. Do not compensate with density,
-overscan or another blind overlay.
-
-## Stage B0 — LSPosed observation only
-
-Install/scope the LSPosed APK to only `com.android.systemui`, but keep compact
-runtime settings disarmed/default. After restart/reboot verify:
-
-- SystemUI remains stable;
-- one `TS18StatusBar` hook-install line appears;
-- no compact touch/visual behaviour changes while settings are absent/off;
-- no repeated circuit-breaker failures occur.
-
-This proves hook attachment only, not runtime correctness.
-
-## Stage B1 — compact input only
-
-Arm input while leaving visual scaling off:
+Run the read-only collector before and after each change:
 
 ```sh
-su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh input-on'
-su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh visual-off'
+su -c 'sh /storage/emulated/0/Download/ts18-statusbar-validate.sh'
 ```
 
-For the historical 1280 px full-width StatusBar and 55 px right nav inset, the
-20% default should be **x=960..1215** (half-open `[960,1216)`). Test app controls
-and downward gestures at:
+Use `ts18-right-nav-evidence.sh` for the bounded nav hierarchy/lifecycle report.
 
-```text
-64, 400, 800, 950, 960, 1000, 1100, 1200, 1215, 1216, 1224, 1240
-```
+## Universal acceptance conditions
 
-Expected collapsed result:
+- Exact SystemUI contract reports `SUPPORTED` with the expected APK SHA-256.
+- No SystemUI crash loop, ANR, input lockout or repeated circuit-breaker opening.
+- Status/shade, keyguard, HUN, bubbles, calls, reverse camera and projection keep
+  their intended stock behaviour unless a tested feature explicitly changes it.
+- Collapsed changed strip is no wider than 20% of full physical width, at least
+  64px from both top corners and does not overlap the right nav.
+- Every OEM nav function remains present and correct; every enabled media cell
+  measures at least 56dp.
+- Disabling a layer restores only that layer without partition changes.
 
-- x < 960: app receives the gesture; shade does not start;
-- x = 960..1215: shade can start;
-- x >= 1216: this hook does not claim the gesture;
-- no claimed point is within 64 px of either physical top corner;
-- trigger width never exceeds 256 px at physical width 1280;
-- right navigation remains stock;
-- expanded shade remains fully touchable.
+At last-observed 1280px width, the maximum changed touch strip is 256px. With a
+55px right nav and 64px corner gap, expected half-open x bounds are [960,1216).
+Treat these numbers as a measurement check, not a hardcoded runtime assumption.
 
-Also test keyguard and a heads-up notification. They must stay stock. Enable debug
-briefly if needed and confirm ordinary collapsed state is classified as
-`collapsed-full-width-region`. If debug reports coordinate-space or state-policy
-rejection, do **not** weaken the guard to make the test pass; capture current
-`dumpsys window`/`dumpsys input` first.
+## Stage 0 — stock baseline
 
-Repeat with a smaller width such as `touch-fraction 0.10`, then `0.01`, to prove
-the old 5% floor is gone without weakening the 20% maximum.
+All project artifacts disabled. Capture contract, overlay/package/window/input,
+density, nav hierarchy and logs. Exercise shade, app top-edge input, every OEM
+nav control, media, keyguard, call, reverse camera and projection.
 
-If any point outside the strip still opens the shade, capture the exact event
-before considering a second gesture authority. No `system_server` hook is
-pre-emptively included.
+Acceptance: stable stock reference and a known recovery route.
 
-## Stage C — optional visuals
+## Stage 1 — geometry RRO only
 
-Only after Stage B succeeds, arm visuals:
+Enable only `ts18_statusbar_geometry`, reboot and measure status height/insets.
 
-```sh
-su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh visual-on'
-```
+Acceptance: about 43dp status geometry, right nav unchanged, no clipping/input
+or lifecycle regression. Repeat SystemUI restart and full reboot.
 
-Inspect clock, signal/battery/notification icons and any Topway leaves. Verify:
+## Stage 2 — visual RRO
 
-- no clipping/overlap/baseline damage;
-- an animated/scaled SystemUI leaf is not fought by the module;
-- a leaf moving outside the compact bar returns to its original scale when still
-  module-owned;
-- `visual-off` restores owned transforms after a layout pass/restart;
-- circuit-breaker or module disable leaves stock behaviour after SystemUI restart.
+Keep geometry enabled, add only `ts18_statusbar_visuals`, reboot and inspect
+overlay/idmap state plus status icons/clock in all ordinary and special states.
 
-If any custom control misbehaves, leave visuals off; geometry/input are independent.
+Acceptance: only approved status visuals shrink; nav/shared layout does not
+change. Rejection or missing target resources is a clean STOP with stock visuals.
 
-## Stage D — compact lifecycle boundaries
+## Stage 3 — LSPosed hook load, mutations off
 
-After A/B/C are individually accepted, validate the enabled compact combination
-across:
+Install/scope the APK only to main `com.android.systemui`. Compact generation 4
+and nav generation 2 remain disabled.
 
-1. SystemUI restart;
-2. launcher restart;
-3. warm reboot;
-4. cold boot;
-5. ACC sleep/wake and full power cycle as applicable.
+Acceptance: exact identity resolves asynchronously, hooks load once, no view or
+touch mutation occurs, restart/reboot stable.
 
-Capture `tools/ts18-statusbar-validate.sh` before/after material failures. Never
-promote CI/emulator/static evidence to physical validation.
+## Stage 4 — exact collapsed touch
 
-## Stage N0 — right-navigation observation only
+Arm exact input, preferably below 20% first. Test shade gestures inside the
+strip and app gestures immediately outside it. Measure input/window reports.
+Repeat for expanded shade, keyguard/bouncer, HUN, bubbles, rotation if supported
+and immersive transitions.
 
-This stage is independent of clickable media controls. v0.4 must not mutate the
-right nav.
+Acceptance: ordinary collapsed routing changes only inside bounds; special
+states retain stock behaviour; `input-off` restores stock routing.
 
-Before starting:
+## Stage 5 — nav observation, mutation off
 
-1. record current Android build identity;
-2. record current Magisk/Zygisk/LSPosed/module state and any other SystemUI writer;
-3. obtain and retain the current full `com.android.systemui` APK identity;
-4. arm only the read-only hierarchy probe.
+Arm only `nav-observe`, capture hierarchy through attach/detach/reinflation and
+normal/immersive/keyguard/reverse-camera/call/projection transitions.
 
-```sh
-su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh nav-observe'
-```
+Acceptance: exact vertical `navbar_left`, seven known direct functions, uniform
+weighted stock cells and no unknown/duplicate host. Probe disable removes its
+listener and changes no view.
 
-For each material test state, run the bundled bounded collector:
+## Stage 6 — Play/Pause only
 
-```sh
-su -c 'sh /storage/emulated/0/Download/ts18-right-nav-evidence.sh'
-```
+Set `nav-actions play_pause`, 56dp minimum and `nav-enable`. Restart SystemUI.
+Measure all stock and owned cells and record their order, bounds, IDs/listeners
+where observable and press feedback.
 
-The collector writes only to shared Download plus a short-lived root scratch
-directory. It captures current build/display/package/window/nav settings and
-bounded right-nav logs, resolves `pm path com.android.systemui`, copies the
-current SystemUI APK(s) into the evidence directory and records SHA-256 values.
-Its `EVIDENCE_GATE=PARTIAL` result means binary identity was captured; it does
-**not** mean hierarchy/lifecycle qualification is complete.
+Test no session, one playing session, one paused session, two simultaneous
+sessions, session destruction and unsupported action.
 
-Expected behaviour while the probe is active:
+Acceptance: stock functions unchanged; cell >=56dp; no-session/unsupported is
+disabled; icon follows selected state; one tap yields exactly one play or pause;
+disable/reinflation removes only the owned group.
 
-- navigation bar looks and behaves exactly as before;
-- no new clickable/non-clickable view appears;
-- no stock bounds move;
-- logs contain bounded `right-nav probe generation=...` snapshots;
-- root replacement increments generation rather than duplicating observation
-  listeners;
-- navbar-specific failures do not open the compact `CircuitBreaker`.
+## Stage 7 — Previous / Play-Pause / Next
 
-Capture each state that is available:
+Enable all three in the configured order. Repeat measurements and multi-session
+tests. At the historical 720px host, expected projected cells are about 80px for
+six visible OEM cells or 72px when the app slot is visible.
 
-```text
-launcher/home
-ordinary app
-IME visible
-immersive/fullscreen
-keyguard
-reverse camera
-phone call
-projection
-```
+Acceptance: every visible stock and media cell remains >=56dp; each tap maps to
+one supported transport command; no media-key/vendor fallback or duplicate
+dispatch is observed.
 
-Then repeat the observation around:
+## Stage 8 — operational state matrix
 
-```text
-SystemUI restart
-launcher restart
-warm reboot
-cold boot
-ACC sleep/wake
-```
+With intended features enabled, exercise:
 
-For every materially different snapshot record:
+- ordinary launcher/app use and rapid shade gestures;
+- keyguard, screen off/on and power button;
+- pinned/departing HUN and bubbles if present;
+- calls and audio route changes;
+- reverse camera and parking/vehicle UI;
+- CarPlay/Android Auto/projection and immersive apps;
+- volume up/down, mute/power, Home, Back, Recents and app slot;
+- media app switching, paused background session, no session and app death.
 
-- navigation root class and screen bounds;
-- stock child class/resource IDs;
-- occupied vertical bounds;
-- click/long-click semantics exposed by View state;
-- layout-param classes;
-- candidate genuinely unused intervals;
-- reinflation/root-generation behaviour.
+Acceptance: no OEM-function regression, overlap, stale controller, duplicate
+command or SystemUI instability.
 
-Disable the probe after capture:
+## Stage 9 — lifecycle qualification
 
-```sh
-su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh nav-probe-off'
-```
+Perform in order, collecting a fresh report after each:
 
-Stage N0 **does not authorise an inert marker or media button**. Compare the
-captures against `RIGHT-NAV-MEDIA-ROADMAP.md`; if the host, free space, stock
-semantics or lifecycle remain ambiguous, STOP at observation-only.
+1. proven SystemUI restart;
+2. normal Android reboot;
+3. cold boot after full power removal where safe;
+4. multiple ACC sleep/wake cycles; and
+5. representative long-duration drive/standby interval.
 
-## Future right-navigation mutation stages
+Acceptance: overlays persist, identity resolves, exactly one owned group exists,
+settings remain intended, stock recovery works and no repeated exception/ANR
+appears.
 
-The later progression is strictly:
+## STOP evidence
 
-```text
-N1 inert non-clickable marker
-N2 Play/Pause only
-N3 Previous/Next + configured order
-N4 state-aware presentation
-```
+On a failure, record the smallest exact reproduction, settings, contract output,
+overlay list, validator/nav report and bounded logs. Disable only the affected
+layer. Do not broaden hashes/topology, reduce production target below 56dp,
+replace SystemUI, add a system-server hook or infer a vendor command as a fix.
 
-Each stage requires the previous stage's evidence and rollback criteria. No
-functional nav stage may be inferred from successful CI or Stage N0 alone.
+Only after every applicable stage passes may the result be labelled physically
+qualified. Until then use `source-validated`, `CI-validated` or `unverified on
+physical TS18` precisely.

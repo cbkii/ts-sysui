@@ -5,6 +5,20 @@
 The repository design starts from APKs supplied from the exact TS18 project
 corpus, not from a generic phone/SystemUI assumption.
 
+### `System UI_10.apk`
+
+- SHA-256: `668dec9ac14fbabd76ae73d693dcdd1518190f7941b6ac0b00d16587d6c4bd3f`;
+- installed role: `/system/priv-app/SystemUI/SystemUI.apk`;
+- package/version: `com.android.systemui`, Android 10/versionCode 29;
+- shared UID: `android.uid.systemui`;
+- platform signer SHA-256:
+  `AA:6F:9F:B3:07:05:12:AC:96:24:25:79:7C:D6:5A:A5:85:CF:62:02:93:7E:E3:CE:EF:B1:4B:58:02:EA:BD:F3`;
+- exact static analysis establishes Android-Q
+  `StatusBarTouchableRegionManager`, Topway `NavigationBarView` additions, the
+  weighted `navbar_left` host and `MEDIA_CONTENT_CONTROL` authority;
+- private member/resource use remains gated by the machine-readable fixture and
+  a fresh installed-APK hash check.
+
 ### `android.overlay.sysbar_720x1280_10.apk`
 
 - SHA-256: `93a51dd6f10605191607ae76d6b05ad175ac1b58473550c6955520c0203a9767`
@@ -44,7 +58,8 @@ navigation-bar class hooks.
 
 ## Design consequence
 
-Use Topway's exact supplied framework-RRO mechanism for height, but keep input
-control on Android framework window/insets surfaces inside `com.android.systemui`
-until a decoded full SystemUI implementation is explicitly mapped. Do not invent
-private Topway class names from plugin interfaces or exported filenames.
+Use Topway's exact supplied framework-RRO mechanism for height. Prefer the
+verified exact SystemUI touch-region and navbar contracts over broad framework
+hooks, while keeping every mutating private adapter off after an identity/member
+mismatch. Plugin interfaces and exporter filenames remain insufficient evidence
+for private implementation details.

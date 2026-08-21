@@ -7,17 +7,11 @@ import android.graphics.Region;
 import android.view.View;
 import android.view.ViewTreeObserver;
 
-import java.lang.reflect.Field;
-
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedHelpers;
 
 final class TouchableInsetsHook {
     private static final ThreadLocal<Rect> BOUNDS = ThreadLocal.withInitial(Rect::new);
-    private static volatile Field touchableRegionField;
-    private static volatile Field touchableInsetsField;
-    private static volatile Integer touchableInsetsRegionConstant;
-
     private TouchableInsetsHook() {}
 
     static void install(ClassLoader classLoader, HookRegistry registry) throws ClassNotFoundException {
@@ -45,7 +39,8 @@ final class TouchableInsetsHook {
 
     private static void apply(View root, Object info) throws Exception {
         Config.Snapshot cfg = Config.get(root.getContext());
-        if (!cfg.enabled || !cfg.inputEnabled) return;
+        if (!cfg.enabled || !cfg.inputEnabled
+                || cfg.adapterMode != Config.AdapterMode.COMPATIBILITY) return;
 
         int barHeight = SystemBarDimensions.statusBarHeight(root);
         int width = root.getWidth();
@@ -61,13 +56,12 @@ final class TouchableInsetsHook {
             return;
         }
 
-        Class<?> infoClass = info.getClass();
-        Field regionField = resolveRegionField(infoClass);
-        Region stock = (Region) regionField.get(info);
+        InternalInsetsAccess.Snapshot insets = InternalInsetsAccess.read(info);
+        Region stock = insets.region;
         if (stock == null) return;
 
-        int mode = readTouchableInsetsMode(infoClass, info);
-        int regionMode = resolveRegionMode(infoClass);
+        int mode = insets.mode;
+        int regionMode = insets.regionMode;
         Rect stockBounds = BOUNDS.get();
         stock.getBounds(stockBounds);
         boolean keyguardLocked = isKeyguardLocked(root.getContext());
@@ -115,49 +109,6 @@ final class TouchableInsetsHook {
                         + " width=" + geometry.stripWidth() + "px bar=" + barHeight
                         + "px cornerGap=" + geometry.cornerGapPx
                         + "px insetRight=" + geometry.rightInset);
-    }
-
-    private static Field resolveRegionField(Class<?> infoClass) throws NoSuchFieldException {
-        Field field = touchableRegionField;
-        if (field != null && field.getDeclaringClass() == infoClass) return field;
-        try {
-            field = infoClass.getField("touchableRegion");
-        } catch (NoSuchFieldException e) {
-            field = infoClass.getDeclaredField("touchableRegion");
-            field.setAccessible(true);
-        }
-        touchableRegionField = field;
-        return field;
-    }
-
-    private static int readTouchableInsetsMode(Class<?> infoClass, Object info) {
-        try {
-            Field field = touchableInsetsField;
-            if (field == null || field.getDeclaringClass() != infoClass) {
-                field = infoClass.getDeclaredField("mTouchableInsets");
-                field.setAccessible(true);
-                touchableInsetsField = field;
-            }
-            return field.getInt(info);
-        } catch (Throwable ignored) {
-            return Integer.MIN_VALUE;
-        }
-    }
-
-    private static int resolveRegionMode(Class<?> infoClass) {
-        Integer cached = touchableInsetsRegionConstant;
-        if (cached != null) return cached;
-        try {
-            Field f = infoClass.getField("TOUCHABLE_INSETS_REGION");
-            int value = f.getInt(null);
-            touchableInsetsRegionConstant = value;
-            return value;
-        } catch (Throwable ignored) {
-            // Android 10 framework constant. If this fallback is wrong, the mode equality check
-            // fails and the hook leaves stock behaviour intact rather than forcing a setter.
-            touchableInsetsRegionConstant = 3;
-            return 3;
-        }
     }
 
     private static boolean isKeyguardLocked(Context context) {

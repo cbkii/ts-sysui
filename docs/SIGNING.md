@@ -1,6 +1,6 @@
 # Signing
 
-Use one durable release signer for both APK packages once device qualification
+Use one durable release signer for all three APK packages once device qualification
 moves beyond disposable debug builds. Do not commit private keys or passwords.
 
 `Manual Release` runs in the GitHub `release` environment and expects these exact
@@ -14,8 +14,8 @@ secret names (repository-level secrets with the same names are also compatible):
 The workflow validates all four before any release build, strips harmless
 whitespace from `KEYSTORE_BASE64`, decodes the keystore under the runner temporary
 directory with mode 0600, verifies the configured alias, derives the certificate
-SHA-256 fingerprint, and then proves both built release APKs use that same signer.
-Signing material is removed in an `always()` cleanup step.
+SHA-256 fingerprint, and then proves the geometry RRO, visual RRO and LSPosed APK
+use that same signer. Signing material is removed in an `always()` cleanup step.
 
 The Gradle build still receives its existing internal `TS18_KEYSTORE_*`
 environment variables, but those are populated from the standard `KEYSTORE_*`

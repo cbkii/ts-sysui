@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "packageName": "com.android.systemui",
+    "installedPath": "/system/priv-app/SystemUI/SystemUI.apk",
+    "versionCode": 29,
+    "versionName": "10",
+    "minSdk": 29,
+    "targetSdk": 29,
+    "sharedUserId": "android.uid.systemui",
+    "apkSha256": "668dec9ac14fbabd76ae73d693dcdd1518190f7941b6ac0b00d16587d6c4bd3f",
+    "signerSha256": "AA:6F:9F:B3:07:05:12:AC:96:24:25:79:7C:D6:5A:A5:85:CF:62:02:93:7E:E3:CE:EF:B1:4B:58:02:EA:BD:F3",
+    "requiredPermission": "android.permission.MEDIA_CONTENT_CONTROL"
+  },
+  "provenance": {
+    "class": "APK-STATIC",
+    "source": "user-supplied exact TS18 SystemUI analysis",
+    "temporalStatus": "historical exact-firmware contract; installed hash must be reverified before mutation",
+    "aospReference": "aosp-mirror/platform_frameworks_base@android-10.0.0_r47"
+  },
+  "classes": [
+    {
+      "name": "com.android.systemui.SystemUIApplication",
+      "required": true,
+      "methods": [
+        { "name": "onCreate", "parameters": [], "returns": "void", "purpose": "start non-blocking exact APK identity verification" }
+      ]
+    },
+    {
+      "name": "com.android.systemui.statusbar.phone.StatusBarTouchableRegionManager",
+      "required": true,
+      "constructors": [
+        {
+          "parameters": [
+            "android.content.Context",
+            "com.android.systemui.statusbar.phone.HeadsUpManagerPhone",
+            "com.android.systemui.statusbar.phone.StatusBar",
+            "android.view.View"
+          ]
+        }
+      ],
+      "methods": [
+        { "name": "onComputeInternalInsets", "parameters": ["android.view.ViewTreeObserver$InternalInsetsInfo"], "returns": "void", "purpose": "stock touch-region authority" },
+        { "name": "updateTouchableRegion", "parameters": [], "returns": "void", "purpose": "keep module listener ordered after stock listener changes" }
+      ],
+      "fields": [
+        { "name": "mStatusBarWindowView", "type": "android.view.View", "required": true },
+        { "name": "mStatusBarHeight", "type": "int", "required": true },
+        { "name": "mIsStatusBarExpanded", "type": "boolean", "required": true },
+        { "name": "mForceCollapsedUntilLayout", "type": "boolean", "required": true },
+        { "name": "mStatusBar", "type": "com.android.systemui.statusbar.phone.StatusBar", "required": true },
+        { "name": "mHeadsUpManager", "type": "com.android.systemui.statusbar.phone.HeadsUpManagerPhone", "required": true },
+        { "name": "mBubbleController", "type": "com.android.systemui.bubbles.BubbleController", "required": true }
+      ]
+    },
+    {
+      "name": "com.android.systemui.statusbar.phone.StatusBar",
+      "required": true,
+      "methods": [
+        { "name": "isBouncerShowing", "parameters": [], "returns": "boolean", "purpose": "preserve bouncer touch handling" }
+      ]
+    },
+    {
+      "name": "com.android.systemui.statusbar.phone.HeadsUpManagerPhone",
+      "required": true,
+      "methods": [
+        { "name": "hasPinnedHeadsUp", "parameters": [], "returns": "boolean", "purpose": "preserve pinned heads-up handling" },
+        { "name": "isHeadsUpGoingAway", "parameters": [], "returns": "boolean", "purpose": "preserve transient heads-up handling" }
+      ]
+    },
+    {
+      "name": "com.android.systemui.bubbles.BubbleController",
+      "required": true,
+      "methods": [
+        { "name": "hasBubbles", "parameters": [], "returns": "boolean", "purpose": "preserve bubble touch regions" },
+        { "name": "getTouchableRegion", "parameters": [], "returns": "android.graphics.Rect", "purpose": "confirm bubble-region authority" }
+      ]
+    },
+    {
+      "name": "com.android.systemui.statusbar.phone.StatusBarWindowController",
+      "required": false
+    },
+    {
+      "name": "com.android.systemui.statusbar.phone.StatusBarWindowView",
+      "required": false
+    },
+    {
+      "name": "com.android.systemui.statusbar.phone.PhoneStatusBarView",
+      "required": true
+    },
+    {
+      "name": "com.android.systemui.statusbar.phone.NavigationBarView",
+      "required": true,
+      "methods": [
+        { "name": "onFinishInflate", "parameters": [], "returns": "void", "purpose": "exact navbar lifecycle host discovery" }
+      ]
+    },
+    {
+      "name": "com.android.systemui.statusbar.policy.KeyButtonView2",
+      "required": false,
+      "purpose": "Topway stock command button; never instantiated or replaced by this module"
+    },
+    {
+      "name": "com.android.systemui.tw.TWSystemUI",
+      "required": true,
+      "purpose": "existing Topway authority retained for stock controls; media commands do not use guessed vendor writes"
+    },
+    {
+      "name": "com.android.systemui.tw.StatusBarViewInit",
+      "required": true,
+      "purpose": "exact Topway SystemUI static contract fixture"
+    }
+  ],
+  "resources": {
+    "layouts": [
+      "com.android.systemui:layout/status_bar",
+      "com.android.systemui:layout/navigation_bar",
+      "com.android.systemui:layout/navigation_bar_app_item"
+    ],
+    "navbarHost": "com.android.systemui:id/navbar_left",
+    "knownNavbarChildren": [
+      "com.android.systemui:id/navbar_guanping",
+      "com.android.systemui:id/home",
+      "com.android.systemui:id/back",
+      "com.android.systemui:id/recent_apps",
+      "com.android.systemui:id/app",
+      "com.android.systemui:id/navbar_volume_plus",
+      "com.android.systemui:id/navbar_volume_reduce"
+    ],
+    "statusVisualAllowList": [
+      "status_bar_icon_size",
+      "status_bar_icon_drawing_size",
+      "status_bar_clock_size"
+    ],
+    "forbiddenVisualOverrides": [
+      "navigation_bar_width",
+      "navigation_bar_height",
+      "navigation_bar_height_landscape",
+      "navigation_bar_frame_height",
+      "navigation_bar_frame_height_landscape",
+      "navigation_key_width"
+    ]
+  },
+  "failureContract": {
+    "identityMismatch": "STOP: unsupported SystemUI contract",
+    "reflectionMismatch": "install no mutating exact adapter",
+    "ambiguousRuntimeState": "leave stock touch and navbar behaviour unchanged"
+  }
+}

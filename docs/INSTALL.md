@@ -1,140 +1,127 @@
-# Installation
+# Installation and staged arming
 
-## 0. Recovery prerequisite
+This procedure targets only the exact Topway `s9863a1h10` Android 10/API 29
+unit. Do not install on a generic TS10/TS18 or Android 16 system.
 
-Before enabling SystemUI hooks, confirm you can disable both the LSPosed APK and
-the Magisk geometry module after a bad boot. Do not proceed without a recovery
-route.
+## 1. Prepare recovery before changing SystemUI
 
-Right-nav observation is independently gated and must remain optional. A
-right-nav observation failure must not be worked around by widening LSPosed scope
-or adding Android Framework/system_server.
+- Confirm a working Magisk module disable/remove path from recovery or adb.
+- Confirm LSPosed safe mode/module-disable access.
+- Retain the stock boot image and a current list of enabled modules.
+- Copy the bundle scripts to `/storage/emulated/0/Download/`.
+- Do not remove an OEM RRO, replace `SystemUI.apk` or write a partition.
 
-## 1. Geometry first
+Record the untouched baseline:
 
-Install `TS18-StatusBar-Geometry-Magisk-*.zip` in Magisk and reboot with the
-LSPosed component still disabled. Verify the RRO is active, the top bar/inset is
-about 43 dp, the right navigation bar is unchanged, and normal apps receive the
-smaller top inset. If geometry did not change cleanly, disable the Magisk module
-and reboot; do not stack additional overlays blindly.
+```sh
+su -c 'sh /storage/emulated/0/Download/ts18-systemui-contract.sh'
+su -c 'sh /storage/emulated/0/Download/ts18-statusbar-validate.sh'
+su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh status'
+```
 
-## 2. Install LSPosed in observation-only mode
+STOP if the contract script does not report `SUPPORTED` with the exact SHA-256.
 
-Install `TS18-StatusBar-Input-LSPosed-*.apk`. Scope it to **only** the main
-`com.android.systemui` process. Do not scope Android Framework/system_server,
-DoFun, launcher, or other packages.
+## 2. Install geometry only
 
-The APK is inert by default even after SystemUI restarts. Compact status-bar
-v0.3+ also requires `ts18_statusbar_policy_version=3`, so stale v0.2
-Settings.Global values are ignored. The configuration helper migrates safely by
-clearing compact master/input/visual flags before writing policy generation 3.
+Install `TS18-StatusBar-Geometry-Magisk-*.zip`, reboot and verify that its
+framework RRO is present and the status region is approximately 43dp (about
+41px at the last-observed 153dpi). The right nav must remain unchanged.
 
-Reboot/restart SystemUI and confirm the `TS18StatusBar` installation line appears
-without a crash loop. Optionally make the compact observation state explicit:
+Run the validator, then exercise shade expansion, notifications, keyguard,
+heads-up, rotation if supported, reverse camera, projection and calls. Disable
+the geometry module immediately if SystemUI/boot stability regresses.
+
+## 3. Qualify the independent visual RRO
+
+Only after geometry is stable, install
+`TS18-StatusBar-Visuals-Magisk-*.zip` and reboot. Inspect:
+
+```sh
+su -c 'cmd overlay list --user 0'
+su -c 'dumpsys package com.android.systemui | grep -E "resourceDirs|overlay paths"'
+su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh visual-status'
+```
+
+It may change only status icon/clock size. Any idmap rejection, missing overlay,
+nav/layout change or unreadable content is a STOP: disable this visual module
+and retain stock visuals. Do not bypass overlay policy by replacing/resigning
+SystemUI.
+
+## 4. Install LSPosed APK inertly
+
+Install `TS18-StatusBar-Input-LSPosed-*.apk`. In LSPosed, select only
+`com.android.systemui`; do not select Android Framework or `system_server`.
+Reboot with all settings still off and confirm logs show hook installation plus
+the asynchronous exact contract result without a crash loop.
+
+Enter compact observation mode:
 
 ```sh
 su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh observe'
 ```
 
-Do not arm compact input until this baseline is stable.
+Reboot or restart SystemUI using the unit's already-proven method. Do not use an
+unverified force-stop sequence on the protected package.
 
-## 3. Arm compact input only
+## 5. Arm exact collapsed input
+
+The default maximum is 20%; configure a smaller value first if desired:
 
 ```sh
+su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh touch-adapter exact'
+su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh touch-fraction 0.10'
+su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh corner-gap 64'
 su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh input-on'
 ```
 
-Restart SystemUI/reboot, then perform Stage B1 in `VALIDATION.md`. The default
-strip is at most 20% of the physical width, at least 64 px from both top corners,
-and excludes the current right navigation inset. Smaller widths down to 1% are
-allowed.
+`input-on` re-verifies the installed APK. The process adapter may still keep the
+stock region for special/ambiguous states. Validate that apps receive the top
+edge outside the strip while the shade works inside it. Restore immediately
+with `input-off` if either side fails.
 
-If the live StatusBar window does not map 1:1 to the physical top edge, or stock
-insets do not look like an ordinary collapsed bar, the hook deliberately leaves
-stock input unchanged.
+The `compatibility` touch adapter is a labelled diagnostic choice only. Do not
+use it to bypass an exact reflection/identity STOP.
 
-## 4. Arm optional visual scaling separately
+## 6. Observe the exact right nav
 
-Only after compact input is qualified:
-
-```sh
-su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh visual-on'
-```
-
-Visual scaling remains experimental and defaults to `0.75`. Disable it
-independently if any clock/icon/animation behaviour is wrong:
+Keep nav mutation off first:
 
 ```sh
-su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh visual-off'
-```
-
-A SystemUI restart/reboot is the cleanest way to force immediate visual-state
-reapplication/restoration after a setting change.
-
-## 5. Optional right-nav observation
-
-v0.4 can collect a bounded read-only hierarchy for the live
-`TYPE_NAVIGATION_BAR`. This stage **does not add media buttons or alter the
-navigation bar**.
-
-Before using it, re-check current Magisk/Zygisk/LSPosed state and other SystemUI
-writers. Then:
-
-```sh
-su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh nav-status'
 su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh nav-observe'
-```
-
-Restart SystemUI/reboot and reproduce a Stage N0 state. The bundled bounded
-collector is the preferred way to retain current SystemUI identity, package/window
-state, right-nav probe output and the exact current SystemUI APK hash/copy:
-
-```sh
 su -c 'sh /storage/emulated/0/Download/ts18-right-nav-evidence.sh'
 ```
 
-It writes under `/storage/emulated/0/Download/TS18-StatusBar/`. Repeat the capture
-after materially different UI/lifecycle states listed in Stage N0 rather than
-assuming one snapshot represents every state.
-
-Disable probing when the capture is complete:
+Confirm the exact `navbar_left` host, all OEM functions, weighted direct-child
+topology and reinflation behaviour. Then disable the probe:
 
 ```sh
 su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh nav-probe-off'
 ```
 
-`nav-enable` intentionally stops with a safety error in this milestone. A
-clickable right-nav feature remains blocked by the exact SystemUI APK and physical
-evidence gates in `RIGHT-NAV-MEDIA-ROADMAP.md`.
+## 7. Arm media controls incrementally
 
-## Runtime configuration
+Start with Play/Pause only and a production target of 56dp:
 
 ```sh
-su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh status'
-su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh touch-fraction 0.10'
-su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh corner-gap 80'
-su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh visual-scale 0.75'
-su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh nav-actions next,play_pause,previous'
+su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh nav-actions play_pause'
 su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh nav-min-touch-dp 56'
-su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh disarm'
+su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh nav-enable'
 ```
 
-`disarm` is the preferred persistent compact fail-open state: compact
-master/input/visual are all off. Right-nav probe state is independent; use
-`nav-reset` or `nav-probe-off` to return it to defaults.
-
-## Local build wrapper bootstrap
-
-The repository does not trust or commit a generated `gradle-wrapper.jar`. Before
-the first local `./gradlew` invocation, provision the official Gradle 8.9 wrapper
-JAR and verify it against Gradle's published SHA-256:
+After restart, confirm every OEM control remains present/correct, the added cell
+is at least 56dp, no-session state is disabled, one tap causes one action and
+disable/reinflation restores stock exactly. Only then add actions:
 
 ```sh
-bash tools/bootstrap-gradle-wrapper.sh
-bash tools/test-gradle-wrapper.sh
-./gradlew --version
+su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh nav-actions previous,play_pause,next'
 ```
 
-The bootstrap refuses to overwrite a wrapper JAR whose checksum is unknown.
-Delete a suspect local JAR manually before retrying rather than silently replacing
-an executable binary.
+Restart/revalidate after action-order changes. `nav-enable` refuses `none`, an
+invalid list or a configured target below 56dp even though 48dp remains the hard
+STOP floor for diagnostics.
+
+## 8. Acceptance sequence
+
+Complete the staged matrix in `VALIDATION.md`: SystemUI restart, reboot, cold
+boot, ACC sleep/wake and operational states. A source/CI pass or one successful
+tap is not release qualification.

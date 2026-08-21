@@ -12,6 +12,8 @@ APK. The contract exercised by `tools/test-xposed-stubs.sh` is:
 - `XC_LoadPackage.LoadPackageParam.packageName/processName/classLoader`;
 - `XposedHelpers.findAndHookMethod(Class, String, Object...)` returning
   `XC_MethodHook.Unhook` for exact API29 method signatures;
+- `XposedHelpers.findAndHookConstructor(Class, Object...)` returning
+  `XC_MethodHook.Unhook` for the exact Android-Q touch-manager constructor;
 - `XC_MethodHook.MethodHookParam.thisObject/args/getThrowable()`;
 - `XC_MethodHook.Unhook.unhook()`;
 - `XposedBridge.log(String)` and `XposedBridge.log(Throwable)`.

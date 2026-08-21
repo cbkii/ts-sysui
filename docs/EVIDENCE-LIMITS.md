@@ -1,70 +1,72 @@
 # Evidence limits and unresolved items
 
-## Established by supplied static/project evidence
+## Established exact/static evidence
 
-- Target firmware family is Android 10/API 29.
-- Last-observed physical/base layout is 1280×720 with about 55 px top and 55 px
-  right reserved regions and density override 153.
-- The exported active sysbar RRO targets `android` and encodes 58 dp for the three
-  status-bar height resources; this project overrides only those heights to 43 dp.
-- `Android System_10.apk` is the renamed framework resource export, not executable
-  SystemUI; `com.android.systemui.plugins_10.apk` is an interface library.
-- Historical WindowManager evidence showed the TS18 StatusBar spanning full 1280
-  px at physical top-left, but present runtime evidence still outranks that baseline.
+- The target is Topway `s9863a1h10`, Android 10/API 29; last-observed base
+  display is 1280x720 at density override 153 with about 55px top/right regions.
+- Exact installed-name SystemUI is `/system/priv-app/SystemUI/SystemUI.apk`,
+  package `com.android.systemui`, version/min/target SDK 29, shared UID
+  `android.uid.systemui`, platform-signed, and declares
+  `android.permission.MEDIA_CONTENT_CONTROL`.
+- The supplied exact SystemUI APK SHA-256 is
+  `668dec9ac14fbabd76ae73d693dcdd1518190f7941b6ac0b00d16587d6c4bd3f`.
+- Its Android-Q touch authority has the required
+  `StatusBarTouchableRegionManager` fields/methods used by the exact adapter.
+- Its Topway `navigation_bar.xml` has vertical weighted `navbar_left` with the
+  seven known stock functions recorded in the contract fixture.
+- The exact SystemUI resource-use review allows only the three status visual
+  dimensions in `reference/exact-ts18-systemui-resource-matrix.md`.
+- AOSP Android 10 source is a secondary cross-check for the stock touch-manager
+  semantics; analogous UIS7862/FYT APKs are context only.
 
-## Safety assumptions enforced in compact-status code
+The repository retains derived contract data and hashes, not proprietary APK
+binaries or decoded firmware.
 
-The LSPosed input hook does not assume historical geometry is still current. It
-mutates only when live runtime data shows:
+## Enforced rather than assumed
 
-- window-local origin `(0,0)`;
-- StatusBar width exactly equals physical display width;
-- stock touchable mode is REGION;
-- stock region is non-empty, rectangular and full-width;
-- region/window heights both match the compact bar within a small tolerance;
-- keyguard is not locked.
+At runtime, exact behavioural adapters still verify:
 
-A heads-up/custom/expanded/offset/partial-width or otherwise ambiguous surface is
-left stock. Visual scaling and input mutation are both disabled by default.
+- API/device/package APK hash;
+- reflection members before hook installation;
+- full-width physical coordinate mapping and ordinary stock touch region;
+- absence of special shade/keyguard/HUN/bubble/layout states;
+- exact direct seven-child nav topology;
+- uniform positive OEM weights and no unknown child; and
+- a measured projected nav cell of at least 56dp.
 
-## Right-navigation evidence preparation
+A mismatch leaves stock behaviour. Historical 1280x720/55px measurements are
+never used as hardcoded permission to mutate.
 
-v0.4 can recognise a live `TYPE_NAVIGATION_BAR` root and, only when explicitly
-armed, emit a bounded read-only hierarchy snapshot. This establishes an
-instrument to collect missing evidence; it does **not** establish that any part
-of the right nav is safe to mutate.
+## Proven by repository validation
 
-The observation code:
+Host policies and Android CI can prove source invariants, compilation, unit
+tests, Lint, allow-lists, packaging, signature checks and absence of prohibited
+tracked artifacts. They can prove that source contains no playback authority,
+media-key fallback, guessed Topway command or broad `system_server` hook.
 
-- retains the root weakly;
-- logs bounded public View metadata/bounds only after meaningful changes;
-- has an independent feature breaker;
-- performs no hierarchy, visibility, layout, click or touch mutation;
-- leaves `ts18_statusbar_nav_enabled` unused/off.
+They cannot prove what an exact physical unit rendered, touched or dispatched.
 
-## Still uncertain / requires physical evidence
+## Still requires exact-device evidence
 
-1. Current RRO/idmap policy may reject a non-platform-signed product overlay.
-2. Exact current SystemUI collapsed `InternalInsetsInfo` shape is not statically
-   proven; the compact policy may intentionally fail open until captured.
-3. No separate `system_server` transient-bar gesture has been proven or disproven
-   on the current firmware. No framework-process hook is included.
-4. Current Magisk/Zygisk/LSPosed versions and other SystemUI writers should be
-   re-read before installation.
-5. Optional 0.75 leaf scaling remains generic/experimental; exact resource-based
-   visual sizing needs current SystemUI hierarchy/resources.
-6. The exact current full `com.android.systemui` APK is still not mapped in the
-   retained supplied APK manifest. Its current path/version/SHA-256 is required
-   before private SystemUI classes or a functional right-nav host are relied on.
-7. Right-nav occupied/free space, stock control semantics and reinflation
-   lifecycle must be captured on-device across normal, immersive, keyguard,
-   reverse-camera, call and projection states.
-8. SystemUI's current ability to select/control the intended active
-   `MediaController` on this API 29 firmware is not yet physically proven.
-9. This repository intentionally remains a legacy Xposed bridge module. A modern
-   libxposed migration requires the exact installed LSPosed capability to be
-   established first.
+1. Current framework and SystemUI RRO/idmap acceptance, overlay precedence and
+   post-reboot persistence.
+2. Exact touch delivery to apps outside the strip and shade delivery inside it
+   across portrait/landscape if supported, keyguard, HUN, bubbles and expanded
+   states.
+3. Whether an additional OEM/system-server transient-bar gesture competes with
+   the SystemUI window on this firmware. No framework-process hook is included.
+4. Current Magisk/Zygisk/LSPosed versions, module scope and interaction with
+   other SystemUI writers.
+5. Measured right-nav child sizes, padding, press feedback, reinflation and
+   enable/disable restoration on the unit.
+6. Active-session selection and exactly-once Previous/Play/Pause/Next behaviour
+   for each intended media app, including no-session and unsupported-action
+   states.
+7. Reverse camera, call, projection/CarPlay/Android Auto, immersive, keyguard and
+   power-off/screen-off behaviour.
+8. SystemUI restart, reboot, cold boot and ACC sleep/wake reliability and logs.
+9. Long-duration stability and absence of SystemUI crash loops or input lockout.
 
-These gaps do not justify replacing SystemUI, writing partitions, changing global
-density/overscan, altering right-nav framework dimensions or adding
-`system_server` hooks pre-emptively.
+Android 16 is not a target. These gaps do not justify partition writes,
+SystemUI replacement/resigning, global density/overscan changes, nav-dimension
+overrides, guessed vendor commands or a `system_server` hook.

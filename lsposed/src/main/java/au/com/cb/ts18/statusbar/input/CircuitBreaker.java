@@ -23,13 +23,12 @@ final class CircuitBreaker {
             disabledForProcess = true;
             HookRuntime.deactivate();
 
-            VisualScaler.RollbackResult rollback = VisualScaler.RollbackResult.empty();
             try {
-                rollback = VisualScaler.failOpen();
-            } catch (Throwable rollbackFailure) {
-                RateLimitedLog.error("breaker-visual-rollback",
-                        "visual fail-open cleanup threw; continuing breaker cleanup",
-                        rollbackFailure);
+                ExactTs18TouchableRegionAdapter.failOpen();
+            } catch (Throwable touchFailure) {
+                RateLimitedLog.error("breaker-exact-touch",
+                        "exact touch fail-open cleanup threw; continuing breaker cleanup",
+                        touchFailure);
             }
             try {
                 StatusBarState.clear();
@@ -40,10 +39,7 @@ final class CircuitBreaker {
             }
             try {
                 RateLimitedLog.always("Circuit breaker opened at stage=" + stage
-                        + "; further mutations are disabled until SystemUI restarts; "
-                        + "visual rollback restored=" + rollback.restored
-                        + " released=" + rollback.releasedWithoutWrite
-                        + " listeners=" + rollback.listenersRemoved + ".");
+                        + "; further compact mutations are disabled until SystemUI restarts.");
             } catch (Throwable ignored) {
                 // The breaker must remain non-throwing even if logging itself fails.
             }

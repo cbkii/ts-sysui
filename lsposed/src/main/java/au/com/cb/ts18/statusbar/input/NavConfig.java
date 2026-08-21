@@ -14,7 +14,7 @@ final class NavConfig {
     private static final long CACHE_MS = 2000L;
     private static final String PREFIX = "ts18_statusbar_nav_";
     private static final String KEY_POLICY_VERSION = PREFIX + "policy_version";
-    private static final String POLICY_VERSION = "1";
+    private static final String POLICY_VERSION = "2";
     private static final String KEY_ENABLED = PREFIX + "enabled";
     private static final String KEY_PROBE = PREFIX + "probe_enabled";
     private static final String KEY_ACTIONS = PREFIX + "actions";
