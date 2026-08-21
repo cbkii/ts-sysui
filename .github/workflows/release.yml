@@ -207,11 +207,13 @@ jobs:
           bash -n tools/*.sh
           sh -n magisk/customize.sh
           sh -n magisk-visual/customize.sh
+          sh -n magisk-combined/customize.sh
           bash tools/test-geometry.sh
           bash tools/test-nav-observation-contract.sh
           bash tools/test-exact-systemui-contract.sh
           bash tools/test-visual-overlay-contract.sh
           bash tools/test-proprietary-artifacts.sh
+          bash tools/test-remediation-contract.sh
           bash tools/test-xposed-stubs.sh
           bash tools/test-release-tools.sh
           bash tools/test-source-manifest.sh
@@ -241,7 +243,7 @@ jobs:
           echo 'All three release APKs match the configured release certificate.'
 
       - name: Upload validated recovery bundle
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: ts18-sysui-${{ steps.version.outputs.tag }}-release-assets
           path: dist/*
