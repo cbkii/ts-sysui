@@ -48,6 +48,11 @@ final class ExactSystemUiIdentity {
         state = State.CHECKING;
         detail = "hashing";
 
+        // Register the signature-protected diagnostics bridge before hashing so
+        // the companion UI can report CHECKING/UNSUPPORTED instead of timing out.
+        // Mutating bridge requests still require SUPPORTED below.
+        SystemUiBridge.install(verificationContext);
+
         Thread worker = new Thread(() -> verify(verificationContext),
                 "TS18-SystemUI-contract");
         worker.setDaemon(true);
