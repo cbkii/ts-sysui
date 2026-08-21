@@ -31,7 +31,7 @@ cdd8719547a0dffd338d0f2a445a2d51790baa59d01f7f999f41b24759fad8c2  ./lsposed/src/
 453ca4afea7f8899394689b2df495b8bf9dd0383d7e54a6645288f22676a6bab  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/CoordinateSpaceVerifier.java
 261e7f537caf18910dd9afa0b0dab1b04d3c28bcc73d527af774ff93609fd555  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactSystemUiIdentity.java
 b2a93eea0a471a089288d63b966fa218cd2182ef1a394e3b537cd4566e129da5  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactTopwayNavAdapter.java
-b8c37357edbbb774d4d5e66729c1d5ec7dcd202663139b11b9ab855acde896ce  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactTopwayNavController.java
+85be7ae7dd83f1f414a8082168a3bbce902e65d9caca1a9aedebb3120e7194a8  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactTopwayNavController.java
 d84ff88e68498781c6e2c578516b401fe48aa227e6de3fdc30dea05c0fe02490  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactTouchSafetyPolicy.java
 0f1f0156f270520ba3e25479241cf9327d4695a5b4a0f30c062aee091073f90a  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactTs18TouchableRegionAdapter.java
 d55b76c9491e31e9b5a93f120327dd44f29152cc7fedd71951b58a4ee82d0e61  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/HookRegistry.java
@@ -97,7 +97,7 @@ a74719166fa02c9990c05b1a77a317aa778946654b06dd02106dab40c12a8700  ./tools/packag
 082ac6f8603d496e82366fd24a40201a56fe4d50e61ba2d5a2187f4d627d3da7  ./tools/test-exact-systemui-contract.sh
 af44839a40a5b36d443425aaf05276477db2692dbf247d7acc8984bc58ac8bbc  ./tools/test-geometry.sh
 94d2ae29e476e999f9694257266c66fb70eadfd5dadf4ccfb01e9433db313d13  ./tools/test-gradle-wrapper.sh
-7e4798f9f28db613754b66bc2832706313ad6cd9f0bc06ce24f43dddc0146a17  ./tools/test-nav-observation-contract.sh
+eff69f9201a651d1129d94196ad31f8d19be7cb685e05ebfea406a5001c71d28  ./tools/test-nav-observation-contract.sh
 84988fe8f4c2fbfca20f3fa4d1fc02ac4b9263ad89e44004a967f7795d3092b7  ./tools/test-packaged-artifacts.sh
 02b51adab1f556955b8f5148c9fde8656fd2132fe57a52746589ba974ac08bee  ./tools/test-proprietary-artifacts.sh
 d1fdcb429cf0c98841f7bae6c189b91c2dcfbd67cda22d25de8ae6515c7682f8  ./tools/test-release-tools.sh
@@ -105,7 +105,7 @@ d1fdcb429cf0c98841f7bae6c189b91c2dcfbd67cda22d25de8ae6515c7682f8  ./tools/test-r
 88602294ba9b2b4ba451badfc088cc071f2338d51336911cd3159c01df8fdeb1  ./tools/test-visual-overlay-contract.sh
 cc596059929522179a01df74bf922546b75af0c5c5d1d04c5384ca395fed36e2  ./tools/test-xposed-stubs.sh
 8e9e5ae1752a53feb2f725de32070861ae8e7be188b050b28373b5af437c6ba3  ./tools/ts18-right-nav-evidence.sh
-ae69a3e44995f5ebd8e0335a35803ca52aeb74bb3d86f18e1a5ffd98e3972478  ./tools/ts18-statusbar-config.sh
+c2f603ebd65f7decc5ce7b838ed5db32fe631539b50c3957efd024f4a0c3dd40  ./tools/ts18-statusbar-config.sh
 d1ed24f756eb8c95aa2769bad89c2c8ac7d3be9215f179ed46712c1cdebd18c6  ./tools/ts18-statusbar-validate.sh
 136f7ab7b746ead1830e76fc5430983dc01224b275addd0c89b41b070d3b2add  ./tools/ts18-systemui-contract.sh
 d03aaa44406f32f7edeab475ad0e73869937299563c687a47effa9177e2a35df  ./tools/update-source-manifest.sh

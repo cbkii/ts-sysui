@@ -76,6 +76,8 @@ for token in \
     'TopwayWeightedNavPolicy.evaluate' \
     'R.id.ts18_nav_owner_tag' \
     'View.generateViewId()' \
+    'CONFIGURATION_POLL_MS' \
+    'root.removeCallbacks(configurationPoll)' \
     'removeOwnedGroup()'
 do
     grep -F "$token" "$CONTROLLER" >/dev/null 2>&1 || {

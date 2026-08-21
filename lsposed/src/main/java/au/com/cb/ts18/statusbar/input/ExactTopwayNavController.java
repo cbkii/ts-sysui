@@ -25,6 +25,7 @@ import java.util.Set;
 final class ExactTopwayNavController {
     private static final String SYSTEM_UI_PACKAGE = "com.android.systemui";
     private static final String MODULE_PACKAGE = "au.com.cb.ts18.statusbar.input";
+    private static final long CONFIGURATION_POLL_MS = 2500L;
     private static final Object OWNER = new Object();
     private static final String[] STOCK_IDS = {
             "navbar_guanping", "home", "back", "recent_apps", "app",
@@ -71,6 +72,8 @@ final class ExactTopwayNavController {
         boolean reconciling;
         boolean detached;
         String lastStopReason = "";
+        final Runnable reconcileRunnable = this::reconcile;
+        final Runnable configurationPoll = this::reconcile;
 
         Binding(View root) {
             this.root = root;
@@ -89,6 +92,8 @@ final class ExactTopwayNavController {
             detached = true;
             root.removeOnAttachStateChangeListener(this);
             root.removeOnLayoutChangeListener(this);
+            root.removeCallbacks(reconcileRunnable);
+            root.removeCallbacks(configurationPoll);
             removeOwnedGroup();
             NavHierarchyProbe.detach(root);
             if (NavBarState.root() == root) NavBarState.clear();
@@ -99,6 +104,8 @@ final class ExactTopwayNavController {
         }
 
         @Override public void onViewDetachedFromWindow(View view) {
+            root.removeCallbacks(reconcileRunnable);
+            root.removeCallbacks(configurationPoll);
             removeOwnedGroup();
             NavHierarchyProbe.detach(root);
         }
@@ -112,15 +119,17 @@ final class ExactTopwayNavController {
 
         void reconcileSoon() {
             if (detached) return;
-            root.post(this::reconcile);
+            root.removeCallbacks(reconcileRunnable);
+            root.post(reconcileRunnable);
         }
 
         void reconcile() {
             if (detached || reconciling || !NavFeatureRuntime.isOperational()) return;
             reconciling = true;
+            NavConfig.Snapshot config = null;
             try {
                 NavBarState.Capture capture = NavBarState.capture(root, root.getLayoutParams());
-                NavConfig.Snapshot config = NavConfig.get(root.getContext());
+                config = NavConfig.get(root.getContext());
                 if (config.probeEnabled) {
                     NavHierarchyProbe.sync(root, capture.generation);
                 } else {
@@ -167,6 +176,14 @@ final class ExactTopwayNavController {
                 NavFeatureRuntime.recordFailure("reconcile", t);
             } finally {
                 reconciling = false;
+                root.removeCallbacks(configurationPoll);
+                if (!detached && config != null
+                        && (config.enabled || config.probeEnabled)) {
+                    // Settings.Global is intentionally observed only while a nav
+                    // feature is armed. This makes disablement converge without
+                    // a permanent SystemUI poll when the feature is off.
+                    root.postDelayed(configurationPoll, CONFIGURATION_POLL_MS);
+                }
             }
         }
 

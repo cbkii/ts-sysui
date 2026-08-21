@@ -317,6 +317,7 @@ case "$cmd" in
     nav-disable)
         prepare_nav_policy_generation
         put ts18_statusbar_nav_enabled 0
+        echo "Right-nav mutation disabled. The armed-only configuration observer removes the owned group; restart SystemUI/reboot if immediate convergence cannot be confirmed."
         ;;
     nav-actions)
         if ! valid_nav_actions "$arg"; then
