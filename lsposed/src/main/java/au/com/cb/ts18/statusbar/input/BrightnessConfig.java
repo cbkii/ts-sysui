@@ -64,25 +64,14 @@ final class BrightnessConfig {
             int dayStart = readIntStrict(context, KEY_DAY_START_MINUTE, 7 * 60);
             int nightStart = readIntStrict(context, KEY_NIGHT_START_MINUTE, 19 * 60);
 
-            if (!validManagedLevel(dayLevel) || !validManagedLevel(nightLevel)) {
-                throw new IllegalArgumentException("persisted brightness level is outside preserve-current/1..10");
-            }
-            if (!validMinute(dayStart) || !validMinute(nightStart)) {
-                throw new IllegalArgumentException("persisted transition minute is outside 0..1439");
-            }
-
-            BrightnessPolicy.Config config = new BrightnessPolicy.Config(
+            return validate(new BrightnessPolicy.Config(
                     readBoolean(context, KEY_ENABLED, false),
                     mode,
                     dayLevel,
                     nightLevel,
                     dayStart,
                     nightStart,
-                    readBoolean(context, KEY_DEBUG, false));
-            if (config.mode == BrightnessPolicy.ControlMode.SET_AUTO && !config.scheduleValid()) {
-                throw new IllegalArgumentException("persisted Set auto transition times are equal");
-            }
-            return config;
+                    readBoolean(context, KEY_DEBUG, false)));
         } catch (Throwable t) {
             android.util.Log.e("TS18Brightness", "configuration invalid/unreadable; failing open", t);
             return defaults(false);
@@ -99,26 +88,23 @@ final class BrightnessConfig {
         if (intent == null || !ACTION_APPLY.equals(intent.getAction())) {
             throw new IllegalArgumentException("unexpected configuration action");
         }
-        String rawMode = intent.getStringExtra(EXTRA_MODE);
-        BrightnessPolicy.ControlMode mode = parseStrictMode(rawMode);
-        int dayLevel = intent.getIntExtra(EXTRA_DAY_LEVEL, Integer.MIN_VALUE);
-        int nightLevel = intent.getIntExtra(EXTRA_NIGHT_LEVEL, Integer.MIN_VALUE);
-        int dayStart = intent.getIntExtra(EXTRA_DAY_START_MINUTE, -1);
-        int nightStart = intent.getIntExtra(EXTRA_NIGHT_START_MINUTE, -1);
-        if (!validManagedLevel(dayLevel) || !validManagedLevel(nightLevel)) {
-            throw new IllegalArgumentException("brightness levels must be preserve-current or 1..10");
-        }
-        if (!validMinute(dayStart) || !validMinute(nightStart)) {
-            throw new IllegalArgumentException("transition minutes must be 0..1439");
-        }
-        BrightnessPolicy.Config config = new BrightnessPolicy.Config(
-                intent.getBooleanExtra(EXTRA_ENABLED, false), mode,
-                dayLevel, nightLevel, dayStart, nightStart,
+        return fromValues(
+                intent.getBooleanExtra(EXTRA_ENABLED, false),
+                intent.getStringExtra(EXTRA_MODE),
+                intent.getIntExtra(EXTRA_DAY_LEVEL, Integer.MIN_VALUE),
+                intent.getIntExtra(EXTRA_NIGHT_LEVEL, Integer.MIN_VALUE),
+                intent.getIntExtra(EXTRA_DAY_START_MINUTE, -1),
+                intent.getIntExtra(EXTRA_NIGHT_START_MINUTE, -1),
                 intent.getBooleanExtra(EXTRA_DEBUG, false));
-        if (config.mode == BrightnessPolicy.ControlMode.SET_AUTO && !config.scheduleValid()) {
-            throw new IllegalArgumentException("scheduled Day and Night times must differ");
-        }
-        return config;
+    }
+
+    static BrightnessPolicy.Config fromValues(boolean enabled, String rawMode,
+                                              int dayLevel, int nightLevel,
+                                              int dayStart, int nightStart,
+                                              boolean debug) {
+        BrightnessPolicy.ControlMode mode = parseStrictMode(rawMode);
+        return validate(new BrightnessPolicy.Config(enabled, mode,
+                dayLevel, nightLevel, dayStart, nightStart, debug));
     }
 
     static ResultReceiver resultReceiver(Intent intent) {
@@ -131,15 +117,30 @@ final class BrightnessConfig {
      * enable bit last so an interrupted update cannot expose a partial policy.
      */
     static void persistFromSystemUi(Context context, BrightnessPolicy.Config config) {
+        BrightnessPolicy.Config safe = validate(config);
         putRequired(context, KEY_ENABLED, "0");
-        putRequired(context, KEY_MODE, config.mode.persisted);
-        putRequired(context, KEY_DAY_LEVEL, Integer.toString(config.dayLevel));
-        putRequired(context, KEY_NIGHT_LEVEL, Integer.toString(config.nightLevel));
-        putRequired(context, KEY_DAY_START_MINUTE, Integer.toString(config.dayStartMinute));
-        putRequired(context, KEY_NIGHT_START_MINUTE, Integer.toString(config.nightStartMinute));
-        putRequired(context, KEY_DEBUG, config.debug ? "1" : "0");
+        putRequired(context, KEY_MODE, safe.mode.persisted);
+        putRequired(context, KEY_DAY_LEVEL, Integer.toString(safe.dayLevel));
+        putRequired(context, KEY_NIGHT_LEVEL, Integer.toString(safe.nightLevel));
+        putRequired(context, KEY_DAY_START_MINUTE, Integer.toString(safe.dayStartMinute));
+        putRequired(context, KEY_NIGHT_START_MINUTE, Integer.toString(safe.nightStartMinute));
+        putRequired(context, KEY_DEBUG, safe.debug ? "1" : "0");
         putRequired(context, KEY_POLICY_VERSION, POLICY_VERSION);
-        putRequired(context, KEY_ENABLED, config.enabled ? "1" : "0");
+        putRequired(context, KEY_ENABLED, safe.enabled ? "1" : "0");
+    }
+
+    private static BrightnessPolicy.Config validate(BrightnessPolicy.Config config) {
+        if (config == null) throw new IllegalArgumentException("brightness config missing");
+        if (!validManagedLevel(config.dayLevel) || !validManagedLevel(config.nightLevel)) {
+            throw new IllegalArgumentException("brightness levels must be preserve-current or 1..10");
+        }
+        if (!validMinute(config.dayStartMinute) || !validMinute(config.nightStartMinute)) {
+            throw new IllegalArgumentException("transition minutes must be 0..1439");
+        }
+        if (config.mode == BrightnessPolicy.ControlMode.SET_AUTO && !config.scheduleValid()) {
+            throw new IllegalArgumentException("scheduled Day and Night times must differ");
+        }
+        return config;
     }
 
     private static BrightnessPolicy.ControlMode parseStrictMode(String raw) {
