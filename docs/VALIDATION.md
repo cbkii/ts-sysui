@@ -53,11 +53,11 @@ change. Rejection or missing target resources is a clean STOP with stock visuals
 
 ## Stage 3 — LSPosed hook load, mutations off
 
-Install/scope the APK only to main `com.android.systemui`. Compact generation 4
-and nav generation 2 remain disabled.
+Install/scope the APK only to main `com.android.systemui`. Compact generation 4,
+nav generation 2 and brightness generation 1 remain disabled.
 
-Acceptance: exact identity resolves asynchronously, hooks load once, no view or
-touch mutation occurs, restart/reboot stable.
+Acceptance: exact identity resolves asynchronously, hooks load once, no view,
+touch or brightness mutation occurs, restart/reboot stable.
 
 ## Stage 4 — exact collapsed touch
 
@@ -103,7 +103,7 @@ dispatch is observed.
 
 ## Stage 8 — operational state matrix
 
-With intended features enabled, exercise:
+With intended non-brightness features enabled, exercise:
 
 - ordinary launcher/app use and rapid shade gestures;
 - keyguard, screen off/on and power button;
@@ -117,9 +117,79 @@ With intended features enabled, exercise:
 Acceptance: no OEM-function regression, overlap, stale controller, duplicate
 command or SystemUI instability.
 
-## Stage 9 — lifecycle qualification
+## Brightness BR0 — observation/config bridge only
 
-Perform in order, collecting a fresh report after each:
+Keep `ts18_brightness_enabled=0`. Confirm the exact SystemUI compatibility gate
+passes, brightness lifecycle/callback hooks load, and the configuration Activity
+can receive a valid private acknowledgement without enabling mutation. Capture
+current `258` mode and `516` Day/Night callback state where available.
+
+Acceptance: no Topway brightness write attributable to the controller; config
+request/acknowledgement is bounded; normal stock brightness surfaces still work.
+
+## Brightness BR1 — fixed Day at a safe visible level
+
+Select a conservative non-zero managed Day level and `mode=day`, then enable the
+brightness controller. Change one variable at a time and capture the follow-up
+Topway callback/query state.
+
+Acceptance: the requested Day slot/mode converges without repeated writes;
+disabling brightness returns ownership to stock behaviour immediately.
+
+## Brightness BR2 — fixed Night at a safe visible level
+
+Repeat BR1 for `mode=night` using a clearly visible non-zero Night level.
+
+Acceptance: the Night slot/mode converges, stock slider/CarSetting remains
+usable after disable, and no brightness-only circuit breaker opens.
+
+## Brightness BR3 — Set auto transition in both directions
+
+Choose near-future Day and Night times so each transition can be observed within
+a bounded test window. Test Day -> Night and Night -> Day separately. Record the
+clock, settings and `258`/`516` callback state before and after each transition.
+
+Acceptance: exactly one semantic mode transition is required at each boundary;
+no hot loop or continuous rewrite occurs. Screen-off/on across a boundary must
+also reconcile correctly.
+
+## Brightness BR4 — coexistence and vehicle-state checks
+
+With safe non-zero levels, exercise:
+
+- stock SystemUI brightness slider and CarSetting brightness UI;
+- `ts18_brightness_enabled=0` and the root helper disable path;
+- headlights/ILL on and off while fixed and scheduled modes are tested;
+- reverse-camera entry/exit; and
+- ordinary launcher/app operation.
+
+Acceptance: brightness uses only the recovered Topway semantic path, does not
+fight stock writers while disabled, and does not disturb camera/vehicle UI.
+
+## Brightness BR5 — lifecycle qualification
+
+With an already proven safe brightness policy, test in order:
+
+1. SystemUI restart;
+2. launcher restart;
+3. warm Android reboot;
+4. cold boot after full power removal where safe; and
+5. repeated ACC sleep/wake cycles.
+
+Acceptance: brightness remains fail-open until exact identity and transport
+readiness are re-established; the intended saved policy recovers without a
+SystemUI loop or repeated writes; kill-switch recovery remains available.
+
+**Managed level 0 is not part of BR0–BR5.** It remains blocked until a separate,
+explicitly planned timed no-backlight recovery test proves that this exact panel
+can be restored safely. Do not weaken the 1..10 production guard to complete the
+normal brightness matrix.
+
+## Stage 9 — combined lifecycle qualification
+
+After the applicable brightness BR stages and non-brightness stages have each
+passed independently, exercise the intended combined feature set. Perform in
+order, collecting a fresh report after each:
 
 1. proven SystemUI restart;
 2. normal Android reboot;
@@ -127,16 +197,17 @@ Perform in order, collecting a fresh report after each:
 4. multiple ACC sleep/wake cycles; and
 5. representative long-duration drive/standby interval.
 
-Acceptance: overlays persist, identity resolves, exactly one owned group exists,
-settings remain intended, stock recovery works and no repeated exception/ANR
-appears.
+Acceptance: overlays persist, identity resolves, exactly one owned nav group
+exists, brightness remains bounded and independently recoverable, settings remain
+intended, stock recovery works and no repeated exception/ANR appears.
 
 ## STOP evidence
 
 On a failure, record the smallest exact reproduction, settings, contract output,
 overlay list, validator/nav report and bounded logs. Disable only the affected
-layer. Do not broaden hashes/topology, reduce production target below 56dp,
-replace SystemUI, add a system-server hook or infer a vendor command as a fix.
+layer. Do not broaden hashes/topology, reduce production nav target below 56dp,
+replace SystemUI, add a system-server hook, infer a vendor command as a fix, or
+bypass the brightness level-0 safety gate.
 
 Only after every applicable stage passes may the result be labelled physically
 qualified. Until then use `source-validated`, `CI-validated` or `unverified on

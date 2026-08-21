@@ -21,9 +21,11 @@ public final class Ts18StatusBarModule implements IXposedHookLoadPackage {
             TouchableInsetsHook.install(lpparam.classLoader, registry);
             WindowHooks.install(lpparam.classLoader, registry);
             HookRuntime.activate();
+            int brightnessHooks = BrightnessHooks.installSafely(lpparam.classLoader);
             XposedBridge.log("TS18StatusBar: " + registry.size()
                     + " hook registrations installed in " + lpparam.processName
-                    + "; runtime mutations are inert until explicitly armed; circuit breaker active");
+                    + "; brightness observation hooks=" + brightnessHooks
+                    + "; runtime mutations are inert until explicitly armed; independent circuit breakers active");
         } catch (Throwable t) {
             HookRuntime.deactivate();
             registry.unhookAll();

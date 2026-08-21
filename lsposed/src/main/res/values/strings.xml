@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">TS18 Status Bar Input</string>
-    <string name="xposed_description">Exact TS18 compact status-bar touch and optional right-nav controls; scope only to SystemUI.</string>
+    <string name="app_name">TS18 System UI</string>
+    <string name="brightness_title">TS18 Brightness</string>
+    <string name="xposed_description">Exact TS18 compact status-bar touch, right-nav media controls, and evidence-gated Topway brightness; scope only to SystemUI.</string>
     <string name="ts18_nav_previous">Previous track</string>
     <string name="ts18_nav_play">Play</string>
     <string name="ts18_nav_pause">Pause</string>

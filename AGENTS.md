@@ -68,13 +68,37 @@ Configuration can narrow the strip or increase a gap, never weaken these limits.
 - One tap produces at most one command. Do not combine TransportControls with a
   media-key fallback or guessed `TWSystemUI.write(...)` command.
 
+## Brightness contract
+
+- The current exact-device semantic authority is Topway command/callback `516`
+  for separate Day/Night 0–10 slots and command `258` for mode. The recovered
+  current mode values are `0=Auto`, `1=Day`, `2=Night`.
+- Do not use Android `screen_brightness`, backlight sysfs or panel calibration as
+  the ordinary brightness controller.
+- Active private brightness mutation requires the same exact current SystemUI
+  SHA-256 gate. Unknown/changed binaries fail open; do not weaken the hash check.
+- Brightness has its own policy generation, persistent enable switch and
+  process-local circuit breaker. A brightness failure must not disable compact
+  status-bar or right-nav functionality.
+- All brightness mutation defaults off. Managed level `0` remains unsupported
+  until a timed exact-device no-backlight recovery test proves safe recovery.
+- `set_auto` is a local-clock policy that explicitly selects Day or Night; it
+  must not depend on the stock ILL/headlight Auto decision.
+- Do not issue the first vendor brightness query/write until stock
+  `TWSystemUI.init()` has completed or a valid Topway callback directly proves
+  the existing transport is live.
+- Factory Backlight Current limits, panel files, `DIM_ADJ`/`LED_PWM`, VCOM/AVDD
+  and screen-power command `33281` are separate protected domains.
+
 ## Change discipline
 
-1. Keep geometry, visuals, compact input and nav independently recoverable.
+1. Keep geometry, visuals, compact input, nav and brightness independently
+   recoverable.
 2. Preserve observation-first, mutation-off defaults across policy generations.
 3. Roll back only state whose module ownership is still provable.
 4. Treat CI/static evidence as non-physical.
 5. Validate staged SystemUI restart, reboot, cold boot and ACC sleep/wake before
    describing a release as physically proven.
-6. Follow `docs/EXACT-TS18-SYSTEMUI-FINALISATION.md` and
-   `docs/RIGHT-NAV-MEDIA-ROADMAP.md` for STOP conditions and evidence labels.
+6. Follow `docs/EXACT-TS18-SYSTEMUI-FINALISATION.md`,
+   `docs/RIGHT-NAV-MEDIA-ROADMAP.md` and `docs/BRIGHTNESS-CONTROLLER.md` for STOP
+   conditions and evidence labels.
