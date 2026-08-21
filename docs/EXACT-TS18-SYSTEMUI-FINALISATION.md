@@ -20,6 +20,13 @@ The target is CB's exact Topway TS18 on Android 10/API 29. The milestone must:
 - leave physical TS18 qualification explicitly unverified until it is actually
   run on the unit.
 
+Implementation status on this branch: the contract/verifier, exact collapsed
+touch adapter, independent resource-driven visual RRO, exact weighted Topway nav
+group, existing-session media repository, configuration/recovery paths and
+repository checks are implemented. This document remains the controlling prompt
+and acceptance contract. Overlay/idmap, physical touch/nav/media behaviour and
+restart/reboot/cold-boot/ACC qualification remain unverified on the unit.
+
 This work starts from `main` at
 `f72dd27b3c3166b31f40687d6ac648ea36fb9687`. Re-resolve `main` and any active
 overlapping pull requests before each consequential write. The open brightness

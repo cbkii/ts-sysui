@@ -220,6 +220,7 @@ jobs:
           ./gradlew --no-daemon clean test :overlay:lintRelease :visual-overlay:lintRelease :lsposed:lintRelease :overlay:assembleRelease :visual-overlay:assembleRelease :lsposed:assembleRelease
           bash tools/test-apk-contract.sh lsposed/build/outputs/apk/release/lsposed-release.apk
           bash tools/package-release.sh release
+          bash tools/test-packaged-artifacts.sh release
           (cd dist && sha256sum -c SHA256SUMS.txt)
 
       - name: Verify release APK signer identity

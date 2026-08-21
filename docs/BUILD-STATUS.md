@@ -1,39 +1,32 @@
 # Build and validation status
 
-Updated for the v0.4 right-nav observation branch on 17 August 2026.
+## Implemented in source
 
-## Repository-owned source checks
+- exact-device SystemUI contract fixture and installed-APK verifier;
+- API29 exact `StatusBarTouchableRegionManager` adapter with asynchronous hash,
+  special-state gates and ownership-bounded hidden-listener cleanup;
+- 20% full-width maximum, 64px physical corner exclusions and right-nav inset;
+- independent framework geometry and exact-SystemUI visual RROs;
+- exact Topway `NavigationBarView/navbar_left` weighted media group;
+- existing-session `MediaController.TransportControls` client with deterministic
+  selection and exactly-one dispatch policy;
+- independent compact/nav settings, kill switches and circuit breakers;
+- host policies, JUnit, source contracts, Lint/build/package/signature workflows;
+- proprietary artifact exclusion and source-manifest validation.
 
-The repository provides and CI runs:
+All runtime mutations default off. Release numbering is deferred because the
+concurrent brightness-controller pull request already claims 0.5.0.
 
-- shell syntax checks for host and Android shell scripts;
-- `tools/test-geometry.sh` for compact geometry, coordinate-space,
-  collapsed-state and visual-ownership pure policies;
-- `tools/test-nav-observation-contract.sh` to prevent the observation milestone
-  from adding right-nav mutation/media-control authority or coupling its breaker
-  to the compact status-bar runtime;
-- `tools/test-xposed-stubs.sh` for the declared legacy Xposed compile contract;
-- `tools/test-source-manifest.sh` for tracked-source integrity;
-- Gradle unit tests for compact policies plus right-nav action/order and layout
-  capacity/overlap policies;
-- Android Lint for both APK modules;
-- debug/release APK assembly as appropriate;
-- `tools/test-apk-contract.sh` to ensure local Xposed stubs remain compile-only;
-- packaging with checksums; release packaging additionally verifies APK signatures.
+## Evidence labels
 
-Gradle 8.9 and its distribution checksum are pinned. The generated
-`gradle-wrapper.jar` is not committed or trusted blindly: the bootstrap downloads
-the Gradle v8.9.0 wrapper JAR and verifies its published SHA-256 before any
-`./gradlew` execution.
+Repository checks establish only **source/static/CI** status. They do not make
+the release physically qualified.
 
-## Evidence classes
+The following remain **unverified on the exact TS18** until evidence is
+recorded: overlay/idmap acceptance, touch routing, nav measurement/reflow,
+media-app behaviour, SystemUI restart, reboot, cold boot, ACC sleep/wake,
+reverse camera, calls, projection, keyguard, immersive states and long-duration
+stability.
 
-A successful GitHub `Build` run proves host checks, unit tests, Lint, Android
-compilation/assembly and debug packaging for that exact commit. It does **not**
-prove Magisk RRO activation, SystemUI runtime behaviour, LSPosed compatibility on
-the installed framework, touch pass-through, right-nav hierarchy shape, safe
-right-nav free space, media control authority or physical lifecycle behaviour.
-
-The v0.4 right-nav implementation is observation-only. Physical acceptance
-remains the staged sequence in `VALIDATION.md`; clickable right-nav controls
-remain blocked by `RIGHT-NAV-MEDIA-ROADMAP.md` evidence gates.
+See `VALIDATION.md` for the required progression and
+`EXACT-TS18-SYSTEMUI-FINALISATION.md` for the complete implementation record.

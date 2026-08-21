@@ -1,50 +1,74 @@
 # Architecture
 
-## Controlling layers
+## Layer ownership
 
-### Geometry — framework RRO
+| Layer | Authority | Artifact | Independent recovery |
+|---|---|---|---|
+| status geometry | Android framework resources | geometry Magisk RRO | disable `ts18_statusbar_geometry` |
+| status visuals | exact SystemUI resources | visual Magisk RRO | disable `ts18_statusbar_visuals` |
+| collapsed input | exact SystemUI touch manager | LSPosed APK | `input-off` / compact kill switch |
+| right-nav media | exact Topway navbar + existing media sessions | LSPosed APK | `nav-disable` / nav breaker |
 
-Status-bar frame/insets are framework-owned. The exact supplied active sysbar
-RRO was exported under the extractor name `android.overlay.sysbar_720x1280_10.apk`;
-project evidence associates the installed overlay with
-`/product/overlay/framework-res_sysbar_rro_1280x720.apk`. It targets `android`
-and carries the status/navigation geometry resources.
+No layer rewrites another layer's authority. In particular, the LSPosed code
+does not change status-window height or framework navigation dimensions.
 
-This project follows the OEM mechanism with a narrow systemless RRO that changes
-only:
+## Exact identity gate
 
-- `status_bar_height`
-- `status_bar_height_landscape`
-- `status_bar_height_portrait`
+`ExactSystemUiIdentity` hooks `SystemUIApplication.onCreate`, resolves the
+installed application `sourceDir` and computes SHA-256 on a daemon worker. Its
+state is `UNCHECKED`, `CHECKING`, `SUPPORTED` or `UNSUPPORTED`. Exact touch and
+nav paths require `SUPPORTED`; a read/reflection mismatch leaves them inert.
 
-The right navigation dimensions are not changed. No SystemUI hook attempts to
-normalise the status-bar window height; the framework resource layer is the sole
-owner of geometry unless future physical evidence proves otherwise.
+The current contract is API 29, device/product token `s9863a1h10`, package
+`com.android.systemui` and APK SHA-256
+`668dec9ac14fbabd76ae73d693dcdd1518190f7941b6ac0b00d16587d6c4bd3f`.
+The root pre-arm script verifies the same values before publishing an enabled
+setting.
 
-### Collapsed input — SystemUI process only
+## Geometry RRO
 
-Returning `false` from a status-bar child view is insufficient once WindowManager
-has already selected the SystemUI window as the input target. The input window's
-computed touchable `Region` must exclude the app-facing area.
+The exact OEM sysbar overlay uses framework geometry resources. The project
+follows that mechanism and changes only:
 
-The legacy Xposed module uses framework surfaces only inside the main
-`com.android.systemui` process:
+- `status_bar_height`;
+- `status_bar_height_landscape`; and
+- `status_bar_height_portrait`.
 
-1. `WindowManagerImpl.addView/updateViewLayout` identifies and tracks the actual
-   `TYPE_STATUS_BAR` root after successful stock calls;
-2. `ViewTreeObserver.dispatchOnComputeInternalInsets` is observed **after** stock
-   listeners and only when the observer belongs to that captured root;
-3. the stock region is modified only when a pure safety policy identifies a
-   full-width, rectangular, region-mode, collapsed bar with a matching compact
-   window height;
-4. keyguard, empty/non-rectangular regions, heads-up-like regions, expanded or
-   ambiguous states remain stock.
+Each becomes 43dp. `navigation_bar_*` and `navigation_key_width` are untouched.
 
-Before applying physical corner requirements, the module verifies that the
-status-bar window is located at physical `(0,0)` and that its local width exactly
-matches the real display width. A partial or offset window fails open.
+## SystemUI visual RRO
 
-On an eligible collapsed bar, the final strip obeys:
+The independent static overlay targets `com.android.systemui` and changes only:
+
+- `status_bar_icon_size = 18dp`;
+- `status_bar_icon_drawing_size = 13dp`; and
+- `status_bar_clock_size = 10.5sp`.
+
+These names are the exact static-analysis allow-list. The overlay does not own
+height, padding, navigation dimensions or shared resources. Android 10
+overlay/idmap acceptance is intentionally a device qualification gate. Failure
+retains stock visual resources; no code traversal compensates for it.
+
+## Exact collapsed touch adapter
+
+The Android-Q `StatusBarTouchableRegionManager` is the touch authority. The
+adapter reflection-preflights its exact constructor, methods and fields, then
+hooks after stock:
+
+- constructor `(Context, HeadsUpManagerPhone, StatusBar, View)`;
+- `updateTouchableRegion()`; and
+- `onComputeInternalInsets(InternalInsetsInfo)`.
+
+Because the hidden `OnComputeInternalInsetsListener` is not in public SDK stubs,
+the module attaches a runtime-reflected proxy to the manager's exact root. The
+stock method hook and owned listener are idempotent; cleanup unregisters only
+the owned proxy.
+
+Mutation requires exact identity, armed compact generation 4/exact adapter, an
+attached full-physical-width root at `(0,0)`, ordinary rectangular full-width
+stock region and matching compact height. The safety policy rejects expanded,
+keyguard/bouncer, pinned/departing HUN, bubble and force-collapsed-transition
+states. It then computes:
 
 ```text
 cornerGapPx >= 64
@@ -54,97 +78,59 @@ stripRight <= fullPhysicalWidth - cornerGapPx
 stripRight <= fullPhysicalWidth - rightSystemInset
 ```
 
-Configured width may be **1%–20%**; only the 20% maximum is a product limit. The
-right inset comes from current `WindowInsets` with an Android framework
-`navigation_bar_width` fallback. A root-only override remains available if live
-evidence proves that automatic inset source wrong.
+The explicitly selected compatibility adapter remains isolated in the older
+WindowManager/dispatch observation path. It is never an automatic fallback.
 
-For 1280 px width / 55 px right inset / 64 px corner exclusion, 20% resolves to
-half-open **[960,1216)**.
+## Exact Topway right-nav adapter
 
-### Visual scaling — optional/experimental
+`ExactTopwayNavAdapter` hooks `NavigationBarView.onFinishInflate` after stock.
+`ExactTopwayNavController` owns attach/detach/layout/reinflation reconciliation.
+It resolves `navbar_left` in the SystemUI resource namespace and accepts only:
 
-Visual scaling is **off by default** and must be armed separately after input is
-qualified. The optional implementation scales collapsed leaf views while leaving
-layout/touch containers unchanged.
+- direct vertical `LinearLayout` host;
+- the exact seven direct IDs for power, Home, Back, Recents, app slot, volume up
+  and volume down;
+- no explicit host weight sum and no unknown direct child;
+- visible stock children with height `0` and uniform positive weights; and
+- a live measured cell projection of at least 56dp.
 
-Ownership is conservative:
+One tagged, generated-ID group is inserted before the two stock volume controls.
+Its outer weight is `stockUnitWeight * actionCount`; enabled action children
+have inner weight 1. Stock children are not edited. The owner tag plus retained
+reference makes exactly-once injection and ownership-bounded removal explicit.
 
-- root location is computed once per traversal rather than once per leaf;
-- a leaf leaving the bar is restored immediately if the module still owns its
-  scale;
-- if SystemUI/animation changes one scale axis while the module owns a leaf, the
-  unchanged module-owned axis is restored before ownership is released;
-- disabling visuals, replacing the root, or opening the circuit breaker removes
-  listeners and restores only transforms that are still provably module-owned.
+Nav generation 2 remains mutation/probe off by default. Probe and functional
+state share the exact lifecycle root but the bounded probe is independently
+armed.
 
-Exact SystemUI resource/layout overrides remain preferable if a current runtime
-hierarchy establishes a safer contract.
+## Existing-session media client
 
-### Right-navigation observation — SystemUI process only
+`NavMediaSessionRepository` uses public API29 surfaces available inside the
+already-authorised SystemUI process. A dedicated `HandlerThread` registers an
+active-session listener, chooses a sticky controller deterministically and
+registers one callback on the selected controller. UI snapshots return to the
+main handler.
 
-v0.4 adds **read-only** right-nav observation to the same exact
-`WindowManagerImpl.addView/updateViewLayout` hook registrations. It recognises
-`TYPE_NAVIGATION_BAR`, tracks the root weakly and assigns a generation on
-replacement.
+Selection priority is sticky playing controller, first playing controller,
+sticky usable controller, first paused controller, then first usable controller.
+A click posts once to the worker; pure dispatch policy maps it to at most one
+supported previous/play/pause/next `TransportControls` call. There is no media
+key, vendor command or second playback authority.
 
-`NavHierarchyProbe` is independently armed and bounded. It records public View
-metadata and geometry but never changes visibility, layout params, click
-listeners, touchability or hierarchy contents. Probe listeners are removed on
-root replacement, explicit disable or the right-nav feature breaker.
+Detach/disable stops the repository, unregisters listener/callback, drops main
+callbacks and quits the worker safely.
 
-Navbar configuration uses a separate policy generation:
+## Failure isolation and defaults
 
-```text
-ts18_statusbar_nav_policy_version=1
-ts18_statusbar_nav_enabled=0
-ts18_statusbar_nav_probe_enabled=0
-ts18_statusbar_nav_actions=previous,play_pause,next
-ts18_statusbar_nav_min_touch_dp=56
-ts18_statusbar_nav_debug=0
-```
+Hook registration is transactional. Required hook failure unhooks partial work
+before `HookRuntime` activates. Exact adapter preflight failure installs no
+mutation for that adapter.
 
-`nav_enabled` is reserved; the observation milestone contains no navbar mutation
-path.
+Compact and nav failures have independent three-strike process breakers. The
+compact breaker detaches exact touch listeners and clears compact state. The nav
+breaker removes the owned group, stops media observation, detaches the probe and
+clears nav state. Neither breaker edits persistent settings; a SystemUI restart
+resets only process-local state.
 
-`NavLayoutPolicy` is pure code. It converts measured stock occupied intervals
-into safe candidate slots at the requested touch size. Its output is not applied
-until later evidence gates are satisfied.
-
-### Right-navigation failure isolation
-
-Navbar observation/mutation has its own process-local `NavFeatureRuntime`
-breaker. Three navbar feature failures detach navbar observation and disable only
-that feature until SystemUI restarts.
-
-Navbar failures do **not** call the compact status-bar `CircuitBreaker`. Shared
-hook-installation failure can still fail the whole module open before runtime
-activation.
-
-The future media-control authority is deliberately not implemented yet. When
-evidence-gated functional controls are added, they must act only as clients of an
-existing Android MediaSession/MediaController. See
-[`RIGHT-NAV-MEDIA-ROADMAP.md`](RIGHT-NAV-MEDIA-ROADMAP.md).
-
-## Installation and failure state
-
-Hook registration is idempotent. Registered callbacks stay inert until all
-required hooks are installed. If installation fails part-way, already registered
-hooks are unhooked and no runtime mutation is armed.
-
-Runtime configuration is observation-only by default:
-
-```text
-status master enabled = false
-status input enabled  = false
-status visual enabled = false
-right-nav probe       = false
-right-nav mutation    = false
-```
-
-After three compact status-bar runtime failures, the compact process circuit
-breaker deactivates status-bar mutation, detaches visual listeners, restores
-owned transforms and clears the tracked status root until SystemUI restarts.
-The persistent compact kill switch is `ts18_statusbar_enabled=0`.
-
-No `system_server` hook exists.
+Persistent defaults are compact generation 4 and nav generation 2 with all
+mutation flags off. No `system_server` hook exists.

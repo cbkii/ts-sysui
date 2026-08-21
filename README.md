@@ -1,180 +1,156 @@
-# TS18 compact status bar
+# Exact TS18 System UI
 
-A narrow, reversible Android 10/API 29 solution for CB's exact Topway TS18. It
-keeps three authorities separate:
+A systemless, reversible Android 10/API 29 implementation for CB's exact
+Topway TS18 (`s9863a1h10`). It is not a generic TS10/TS18 modification.
 
-1. **Geometry** — a systemless framework resource overlay reduces the status-bar
-   height from the supplied OEM 58 dp value to **43 dp** (about 75%, and about
-   41 px at the last-observed 153 dpi override).
-2. **Input** — an LSPosed hook can restrict ordinary collapsed notification-shade
-   interception to one bounded top-edge strip so apps can use the rest of the
-   top edge.
-3. **Visuals** — an optional, separately armed SystemUI transform can scale
-   collapsed status-bar leaf views to **75%** while leaving their layout/touch
-   containers unchanged.
+The project keeps four authorities separate:
 
-The right-side navigation bar is deliberately not modified by the current
-implementation. v0.4 can observe its live hierarchy when explicitly armed, but
-does not add, remove, resize or make any right-nav view clickable.
+1. **Geometry** — a framework RRO reduces the OEM 58dp status-bar height to
+   43dp. It does not change right-navigation dimensions.
+2. **Visuals** — an independent SystemUI RRO reduces only three statically
+   approved status icon/clock dimensions. It replaces the former recursive View
+   scaling experiment.
+3. **Collapsed input** — an LSPosed exact adapter runs after the stock Android-Q
+   `StatusBarTouchableRegionManager` and narrows only an ordinary collapsed
+   touch region.
+4. **Right-nav media** — the same narrowly scoped LSPosed APK can add one
+   reversible weighted media group to the exact Topway `navbar_left` host and
+   command an existing Android `MediaController`.
 
-## Hard input boundary
+The implementation never replaces `SystemUI.apk`, writes an Android partition,
+hooks `system_server`, creates a playback service/session/queue/notification, or
+takes audio focus.
 
-Any armed collapsed swipe/drag-down region has two non-negotiable limits:
+## Exact SystemUI gate
 
-- **at least 64 px from either physical top corner**; and
-- **never wider than 20% of the full status-bar/screen width**.
+Every exact behavioural mutation remains inert until the installed SystemUI APK
+matches the controlling contract:
 
-The current right-navigation inset is also excluded. The 64 px rule is a
-horizontal corner exclusion: the strip still starts at y=0 so a normal top-edge
-downward gesture can begin.
+| Field | Required value |
+|---|---|
+| package | `com.android.systemui` |
+| installed path | `/system/priv-app/SystemUI/SystemUI.apk` |
+| Android/API | Android 10 / 29 |
+| device token | `s9863a1h10` |
+| APK SHA-256 | `668dec9ac14fbabd76ae73d693dcdd1518190f7941b6ac0b00d16587d6c4bd3f` |
+| shared UID | `android.uid.systemui` |
+| media authority | `android.permission.MEDIA_CONTENT_CONTROL` |
 
-For the exact last-observed 1280x720 geometry with a 55 px right-navigation
-inset, the 20% policy resolves to:
+`tools/ts18-systemui-contract.sh` performs the same installed-APK check before
+an exact feature can be armed. The process check hashes in a background thread;
+it never reads the protected APK on SystemUI's main thread.
 
-```text
-screen:       x=0................................................1279
-right nav:                                               1225..1279
-64px corner exclusion:                                  1216..1279
-drag strip (256px):                              960..1215
-```
+## Hard collapsed-input boundary
 
-So the maximum default geometry is half-open **[960,1216)**, 256 px wide. A
-configured `touch_fraction` may be reduced as far as `0.01`; any request above
-`0.20` is clamped to `0.20`. A configured corner gap below `64` is clamped to
-`64`. If the physical-to-window coordinate mapping or collapsed state cannot be
-established safely, the hook leaves stock SystemUI behaviour intact.
+An armed collapsed shade strip always:
 
-## Why two components
+- remains at least **64 physical pixels** from both top corners;
+- is no wider than **20%** of full physical status/screen width;
+- excludes the current right-navigation inset; and
+- leaves stock behaviour when coordinates, stock region or special SystemUI
+  state are ambiguous.
 
-The bar height/insets belong to framework resources, while touch ownership and
-SystemUI child rendering belong to the SystemUI process. This repository builds:
+For the last-observed 1280x720 display and 55px right nav, the maximum half-open
+strip is **[960,1216)**: 256px wide and 64px from the right physical corner.
+Configuration may make the strip smaller, never larger or closer to a corner.
 
-- **`TS18-StatusBar-Geometry-Magisk-*.zip`** — a systemless product RRO;
-- **`TS18-StatusBar-Input-LSPosed-*.apk`** — a narrowly scoped legacy-Xposed
-  module supported by LSPosed.
+The exact adapter also keeps stock behaviour for keyguard/bouncer, expanded
+shade, pinned or departing heads-up notifications, bubbles and force-collapsed
+layout transitions. A separately labelled compatibility adapter remains for
+diagnosis; it is not silently selected.
 
-The framework RRO is the **only** status-bar height owner in this project. The
-LSPosed module does not rewrite `WindowManager.LayoutParams.height`.
+## Exact right-navigation contract
 
-Install and validate geometry first. Only then install the LSPosed component.
-See [`docs/INSTALL.md`](docs/INSTALL.md).
+The decoded exact `navigation_bar.xml` contains vertical weighted
+`com.android.systemui:id/navbar_left` children for screen/power, Home, Back,
+Recents, optional app slot, volume up and volume down.
 
-## Runtime defaults and staged arming
+When explicitly enabled, runtime preflight requires that exact seven-child
+topology, direct vertical `LinearLayout` ownership, uniform positive stock
+weights, no unknown direct child, exact APK identity and a measured projected
+cell of at least **56dp**. It then inserts one tagged module-owned group before
+the volume controls. The group weight equals the action count; its Previous,
+Play/Pause and Next cells have equal inner weights. No stock View, ID, listener
+or `LayoutParams` is replaced or edited. Disablement, detach or reinflation
+removes only the owned group.
 
-The LSPosed APK is intentionally **observation-only on first run**. Its compact
-master/input/visual mutations all default to off. Right-nav observation is also
-off until explicitly requested.
+Media selection is deterministic and sticky. Work is performed off the main
+thread through:
 
-| Setting | Default / hard limit |
+`MediaSessionManager -> existing MediaController -> TransportControls`
+
+One click schedules at most one supported command. There is no media-key or
+Topway-private-command fallback for the same tap. Disabled commands remain
+visible but disabled; Play/Pause reflects the selected controller state.
+
+The exact weighted fit is a static/runtime expectation, not physical proof. At
+153dpi and 720px height, six visible stock cells plus three media cells project
+to about 80px each; seven stock cells project to about 72px.
+
+## Deliverables and defaults
+
+Release packaging produces independently recoverable artifacts:
+
+- `TS18-StatusBar-Geometry-Magisk-*.zip`;
+- `TS18-StatusBar-Visuals-Magisk-*.zip`;
+- `TS18-StatusBar-Input-LSPosed-*.apk`; and
+- a combined bundle with configuration, validation and recovery documentation.
+
+| Control | Default / hard policy |
 |---|---:|
-| framework status-bar height | `43dp` |
-| LSPosed master mutation switch | **off** |
-| collapsed input mutation | **off** |
-| configured shade width | `20%` when armed |
-| configurable shade-width range | `1%..20%` |
-| hard maximum shade width | `20%` |
-| top-corner exclusion | `>=64px` |
-| right navigation inset | excluded |
-| optional visual scaling | **off** |
-| configured visual scale | `0.75` |
-| right-nav hierarchy probe | **off** |
-| right-nav mutation | **off / not implemented** |
-| right-nav production touch target | `56dp` |
+| geometry RRO | separate install |
+| visual RRO | separate install |
+| compact policy generation | `4` |
+| compact master/input | off / off |
+| exact touch adapter | selected but inert |
+| touch fraction | `0.20`, configurable `0.01..0.20` |
+| corner gap | `>=64px` |
+| nav policy generation | `2` |
+| nav mutation/probe | off / off |
+| nav actions | `previous,play_pause,next` |
+| production nav target | `>=56dp` (`48dp` is STOP-only) |
 | LSPosed scope | main `com.android.systemui` process only |
 
-Use `tools/ts18-statusbar-config.sh` under root to enter compact observation mode,
-arm input, optionally arm visuals, or enter the separate right-nav observation
-mode. v0.3+ compact settings require `ts18_statusbar_policy_version=3`; v0.4
-right-nav settings use their own policy generation
-`ts18_statusbar_nav_policy_version=1`.
-
-## Right-navigation observation
-
-The v0.4 source can recognise the live `TYPE_NAVIGATION_BAR` root through the
-existing exact WindowManager hooks and emit a bounded public View hierarchy
-snapshot after `nav-observe` is enabled.
-
-This is an **evidence collection feature only**. It provides the data needed to
-identify stock controls, occupied/free bounds and reinflation behaviour without
-mutating the navigation bar.
+Use the root helper rather than editing `Settings.Global` by hand:
 
 ```sh
-su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh nav-status'
+su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh status'
+su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh input-on'
 su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh nav-observe'
+su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh nav-enable'
 ```
 
-Clickable Previous / Play-Pause / Next controls remain blocked until the exact
-current full `com.android.systemui` APK and physical observation gates are
-satisfied. See
-[`docs/RIGHT-NAV-MEDIA-ROADMAP.md`](docs/RIGHT-NAV-MEDIA-ROADMAP.md).
+`input-on` and `nav-enable` verify the installed SystemUI contract first.
+Runtime topology/state gates may still retain stock behaviour.
 
-## LSPosed API compatibility
+## Build and trust
 
-The current APK intentionally uses the **legacy Xposed bridge contract**:
+The APK intentionally uses the legacy Xposed bridge supported by LSPosed:
 `assets/xposed_init`, `IXposedHookLoadPackage`, `XposedBridge` and
-`xposedminversion=82`. It is not a modern libxposed/API-100 implementation. The
-local `xposed-stubs` project is compile-only and CI verifies those bridge classes
-are not packaged into the APK. See
-[`docs/LSPOSED-COMPATIBILITY.md`](docs/LSPOSED-COMPATIBILITY.md).
+`xposedminversion=82`. Local stubs are compile-only and CI verifies they are not
+packaged. No signing private key or proprietary APK is committed.
 
-## Supplied APK provenance
-
-The extractor used for the supplied firmware artefacts renamed installed files.
-Per the supplied provenance this repository treats:
-
-- `android.overlay.sysbar_720x1280_10.apk` as the extracted copy corresponding to
-  the active `/product/overlay/framework-res_sysbar_rro_1280x720.apk`; and
-- `Android System_10.apk` as the renamed extract of
-  `/system/framework/framework-res.apk`.
-
-See [`reference/RENAMED_ASSET_PROVENANCE.md`](reference/RENAMED_ASSET_PROVENANCE.md).
-The runtime code still avoids depending on private Topway SystemUI class names
-because a filename label is not itself a class/API contract.
-
-## Roadmap
-
-The compact roadmap is in [`docs/ROADMAP.md`](docs/ROADMAP.md). The detailed
-right-navigation product contract, evidence gates and implementation phases are
-in [`docs/RIGHT-NAV-MEDIA-ROADMAP.md`](docs/RIGHT-NAV-MEDIA-ROADMAP.md).
-
-## Build
-
-The canonical project version is in `version.properties`; Gradle APK metadata,
-Magisk `module.prop` generation and package filenames all derive from it.
-
-The repository intentionally does not commit a signing private key. CI has two
-lanes:
-
-- `build.yml`: host policy checks, unit tests, Android Lint, debug APK assembly,
-  APK contract validation and debug packaging;
-- `release.yml`: the same relevant checks plus signed release assembly,
-  signature verification, exact tag/version matching and release packaging when
-  repository signing secrets are configured.
-
-The wrapper metadata pins Gradle 8.9 and its official distribution checksum. The
-executable `gradle-wrapper.jar` is deliberately not trusted as a repository
-binary; CI and local builds provision it from Gradle's v8.9.0 source and verify
-the published wrapper-JAR SHA-256 before first execution.
-
-Local build prerequisites are JDK 17, Android SDK platform 35/build-tools 35,
-`curl`, and `sha256sum`. Then:
+Local prerequisites are JDK 17 and Android SDK platform/build-tools 35:
 
 ```bash
 bash tools/bootstrap-gradle-wrapper.sh
 bash tools/test-gradle-wrapper.sh
-./gradlew --no-daemon clean test :overlay:lintDebug :lsposed:lintDebug \
-  :overlay:assembleDebug :lsposed:assembleDebug
+./gradlew --no-daemon clean test \
+  :overlay:lintDebug :visual-overlay:lintDebug :lsposed:lintDebug \
+  :overlay:assembleDebug :visual-overlay:assembleDebug :lsposed:assembleDebug
 bash tools/test-apk-contract.sh lsposed/build/outputs/apk/debug/lsposed-debug.apk
 ALLOW_DEBUG_SIGNING=1 bash tools/package-release.sh debug
 ```
 
-Debug artefacts are suitable for first-device development only. Use one stable
-keystore before repeated long-term installs; changing the overlay package signer
-between builds can make Android reject the replacement.
+See [`docs/INSTALL.md`](docs/INSTALL.md),
+[`docs/VALIDATION.md`](docs/VALIDATION.md) and
+[`docs/RECOVERY.md`](docs/RECOVERY.md). The complete implementation record is
+[`docs/EXACT-TS18-SYSTEMUI-FINALISATION.md`](docs/EXACT-TS18-SYSTEMUI-FINALISATION.md).
 
-## Physical status
+## Validation status
 
-Source/static/CI validation is not physical TS18 validation. The required staged
-SystemUI restart, reboot, cold-boot and ACC acceptance sequence is in
-[`docs/VALIDATION.md`](docs/VALIDATION.md). Right-nav physical observation is a
-separate stage and does not constitute permission to enable clickable controls.
+Source/static/CI success proves neither touch delivery nor on-device RRO/idmap,
+SystemUI restart, reboot, cold-boot, ACC sleep/wake, reverse-camera, projection,
+call, keyguard or media-session behaviour. Those remain explicitly unverified
+until recorded on the exact unit. Android 16 and generic FYT/UIS devices are not
+targets.

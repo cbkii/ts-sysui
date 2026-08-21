@@ -4,6 +4,9 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
@@ -43,9 +46,18 @@ final class ExactTopwayNavController {
         current.attach();
     }
 
-    static synchronized void failOpen() {
-        if (current != null) current.detach();
-        current = null;
+    static void failOpen() {
+        Binding target;
+        synchronized (ExactTopwayNavController.class) {
+            target = current;
+            current = null;
+        }
+        if (target == null) return;
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            target.detach();
+        } else {
+            new Handler(Looper.getMainLooper()).post(target::detach);
+        }
     }
 
     private static final class Binding implements View.OnAttachStateChangeListener,
@@ -195,22 +207,33 @@ final class ExactTopwayNavController {
                         || Float.isNaN(params.weight) || Float.isInfinite(params.weight)) {
                     return Preflight.failure("stock-not-weighted-" + name);
                 }
-                if (child.getVisibility() == View.VISIBLE) visibleWeights.add(params.weight);
+                if (child.getVisibility() != View.GONE) visibleWeights.add(params.weight);
                 if ("navbar_volume_plus".equals(name)
                         || "navbar_volume_reduce".equals(name)) {
                     insertionIndex = Math.min(insertionIndex, exactHost.indexOfChild(child));
                 }
             }
 
+            Set<Integer> seenDirectIds = new HashSet<>();
             for (int i = 0; i < exactHost.getChildCount(); i++) {
                 View child = exactHost.getChildAt(i);
                 if (child == ownedGroup && isOwned(child)) continue;
-                if (!requiredIds.contains(child.getId())) {
-                    return Preflight.failure("unknown-direct-child");
+                if (!requiredIds.contains(child.getId())
+                        || !seenDirectIds.add(child.getId())) {
+                    return Preflight.failure("unknown-or-duplicate-direct-child");
                 }
+            }
+            if (!seenDirectIds.equals(requiredIds)) {
+                return Preflight.failure("missing-direct-child");
             }
             if (insertionIndex == Integer.MAX_VALUE) {
                 return Preflight.failure("volume-anchor-missing");
+            }
+            if (ownedGroup != null && ownedGroup.getParent() == exactHost
+                    && exactHost.indexOfChild(ownedGroup) < insertionIndex) {
+                // Preflight runs before an action-change reinjection. Convert the
+                // live index to the post-removal stock index.
+                insertionIndex--;
             }
 
             int availableWidth = exactHost.getWidth()
@@ -262,7 +285,14 @@ final class ExactTopwayNavController {
             ImageButton button = new ImageButton(root.getContext());
             button.setId(View.generateViewId());
             button.setTag(R.id.ts18_nav_owner_tag, OWNER);
-            button.setBackgroundColor(Color.TRANSPARENT);
+            TypedValue selectable = new TypedValue();
+            if (root.getContext().getTheme().resolveAttribute(
+                    android.R.attr.selectableItemBackgroundBorderless, selectable, true)
+                    && selectable.resourceId != 0) {
+                button.setBackgroundResource(selectable.resourceId);
+            } else {
+                button.setBackgroundColor(Color.TRANSPARENT);
+            }
             button.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
             int padding = Math.max(0, Math.round(8f
                     * root.getResources().getDisplayMetrics().density));

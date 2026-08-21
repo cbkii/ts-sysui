@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased — exact TS18 SystemUI finalisation
+
+- recorded the complete implementation roadmap before code changes and added a
+  machine-readable exact API29 SystemUI contract plus installed-APK verifier;
+- replaced the broad collapsed touch path with an after-stock exact
+  `StatusBarTouchableRegionManager` adapter, asynchronous SHA-256 gate and
+  explicit compatibility mode;
+- replaced recursive View scaling with an independently packaged, three-resource
+  allow-listed exact SystemUI visual RRO;
+- promoted right-nav observation to an exact `NavigationBarView/navbar_left`
+  implementation that preserves all seven OEM children and injects one
+  ownership-tagged weighted media group only after a measured >=56dp preflight;
+- added deterministic existing-session controller selection and exactly-one
+  `TransportControls` dispatch without media authority or vendor/key fallback;
+- added independent generation-2 nav enable/disable/recovery, expanded pure and
+  Android tests, source contract guards and three-artifact packaging;
+- corrected provenance, architecture, install/recovery and physical validation
+  documentation while keeping on-device status explicitly unverified;
+- deferred release numbering until integration order with the concurrent 0.5.0
+  brightness-controller work is resolved.
+
 ## 0.4.0 — right-nav observation foundation
 
 - added read-only `TYPE_NAVIGATION_BAR` root tracking through the existing exact

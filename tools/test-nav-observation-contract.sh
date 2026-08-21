@@ -92,6 +92,8 @@ for token in \
     'MediaSessionManager' \
     'MediaController' \
     'MediaController.TransportControls' \
+    'workerHandler.post(this::startOnWorker)' \
+    'workerHandler.post(this::stopOnWorker)' \
     'workerHandler.post(() -> dispatchOnWorker(action))'
 do
     grep -F "$token" "$MEDIA" >/dev/null 2>&1 || {

@@ -41,7 +41,6 @@ final class NavMediaSessionRepository {
     private final MediaController.Callback controllerCallback = new MediaController.Callback() {
         @Override public void onPlaybackStateChanged(PlaybackState state) {
             try {
-                publish(selected, state);
                 refresh();
             } catch (Throwable t) {
                 NavFeatureRuntime.recordFailure("media-playback-callback", t);
@@ -70,39 +69,15 @@ final class NavMediaSessionRepository {
             publish(null, null);
             return;
         }
-        try {
-            sessionManager.addOnActiveSessionsChangedListener(
-                    activeListener, (ComponentName) null, workerHandler);
-            refresh();
-        } catch (Throwable t) {
-            NavFeatureRuntime.recordFailure("media-start", t);
-        }
+        workerHandler.post(this::startOnWorker);
     }
 
     void stop() {
         if (stopped) return;
         stopped = true;
-        try {
-            if (sessionManager != null) {
-                sessionManager.removeOnActiveSessionsChangedListener(activeListener);
-            }
-        } catch (Throwable t) {
-            RateLimitedLog.error("nav-media-listener-remove",
-                    "failed to remove active-session listener", t);
-        }
-        MediaController previous = selected;
-        selected = null;
-        if (previous != null) {
-            try {
-                previous.unregisterCallback(controllerCallback);
-            } catch (Throwable t) {
-                RateLimitedLog.error("nav-media-callback-remove",
-                        "failed to unregister selected controller callback", t);
-            }
-        }
         snapshot = Snapshot.empty();
         mainHandler.removeCallbacksAndMessages(null);
-        workerThread.quitSafely();
+        workerHandler.post(this::stopOnWorker);
     }
 
     Snapshot snapshot() {
@@ -124,6 +99,39 @@ final class NavMediaSessionRepository {
                 NavFeatureRuntime.recordFailure("media-refresh", t);
             }
         });
+    }
+
+    private void startOnWorker() {
+        if (stopped || sessionManager == null) return;
+        try {
+            sessionManager.addOnActiveSessionsChangedListener(
+                    activeListener, (ComponentName) null, workerHandler);
+            select(sessionManager.getActiveSessions(null));
+        } catch (Throwable t) {
+            if (!stopped) NavFeatureRuntime.recordFailure("media-start", t);
+        }
+    }
+
+    private void stopOnWorker() {
+        try {
+            if (sessionManager != null) {
+                sessionManager.removeOnActiveSessionsChangedListener(activeListener);
+            }
+        } catch (Throwable t) {
+            RateLimitedLog.error("nav-media-listener-remove",
+                    "failed to remove active-session listener", t);
+        }
+        MediaController previous = selected;
+        selected = null;
+        if (previous != null) {
+            try {
+                previous.unregisterCallback(controllerCallback);
+            } catch (Throwable t) {
+                RateLimitedLog.error("nav-media-callback-remove",
+                        "failed to unregister selected controller callback", t);
+            }
+        }
+        workerThread.quitSafely();
     }
 
     private void select(List<MediaController> controllers) {
