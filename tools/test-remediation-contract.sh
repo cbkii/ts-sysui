@@ -33,9 +33,27 @@ require magisk-combined/customize.sh 'TS18StatusBarVisuals.apk'
 require tools/package-release.sh 'TS18-SystemUI-Magisk-v'
 require tools/test-packaged-artifacts.sh 'single combined Magisk'
 
+# Keep pull-request validation and the manual signed-release path aligned. A
+# remediation build must not be green while the release workflow silently skips
+# the combined-module or remediation-specific checks.
+require .github/workflows/build.yml 'sh -n magisk-combined/customize.sh'
+require .github/workflows/build.yml 'bash tools/test-remediation-contract.sh'
+require .github/workflows/release.yml 'sh -n magisk-combined/customize.sh'
+require .github/workflows/release.yml 'bash tools/test-remediation-contract.sh'
+
+UPLOAD_ARTIFACT_V6='actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0'
+require .github/workflows/build.yml "$UPLOAD_ARTIFACT_V6"
+require .github/workflows/release.yml "$UPLOAD_ARTIFACT_V6"
+
 if grep -F 'TS18-StatusBar-Geometry-Magisk-v' tools/package-release.sh >/dev/null \
         || grep -F 'TS18-StatusBar-Visuals-Magisk-v' tools/package-release.sh >/dev/null; then
     echo 'FAILED: normal packager still emits split Magisk artifacts.' >&2
+    exit 2
+fi
+
+if grep -F 'actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4' \
+        .github/workflows/build.yml .github/workflows/release.yml >/dev/null; then
+    echo 'FAILED: Node-20 upload-artifact v5 pin remains in a workflow.' >&2
     exit 2
 fi
 
