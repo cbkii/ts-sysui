@@ -1,25 +1,42 @@
 # Changelog
 
-## Unreleased — exact TS18 SystemUI finalisation
+## 0.5.0 — exact TS18 SystemUI finalisation and brightness controller
 
-- recorded the complete implementation roadmap before code changes and added a
-  machine-readable exact API29 SystemUI contract plus installed-APK verifier;
+- recorded the complete exact-device implementation roadmap and machine-readable
+  Android 10/API29 SystemUI contract, with installed-APK verification and
+  asynchronous SHA-256 gating before private mutation;
 - replaced the broad collapsed touch path with an after-stock exact
-  `StatusBarTouchableRegionManager` adapter, asynchronous SHA-256 gate and
-  explicit compatibility mode;
+  `StatusBarTouchableRegionManager` adapter and retained an explicitly selected
+  compatibility mode for diagnosis;
 - replaced recursive View scaling with an independently packaged, three-resource
-  allow-listed exact SystemUI visual RRO;
+  allow-listed SystemUI visual RRO;
 - promoted right-nav observation to an exact `NavigationBarView/navbar_left`
-  implementation that preserves all seven OEM children and injects one
-  ownership-tagged weighted media group only after a measured >=56dp preflight;
+  implementation that preserves all seven OEM children and inserts one owned
+  weighted media group only after a measured >=56dp preflight;
 - added deterministic existing-session controller selection and exactly-one
-  `TransportControls` dispatch without media authority or vendor/key fallback;
-- added independent generation-2 nav enable/disable/recovery, expanded pure and
-  Android tests, source contract guards and three-artifact packaging;
-- corrected provenance, architecture, install/recovery and physical validation
-  documentation while keeping on-device status explicitly unverified;
-- deferred release numbering until integration order with the concurrent 0.5.0
-  brightness-controller work is resolved.
+  `TransportControls` dispatch without a second playback authority or vendor/key
+  fallback;
+- added an evidence-gated brightness controller using the recovered current
+  Topway `258` mode and `516` Day/Night brightness command/callback contracts;
+- added Auto, Day, Night and **Set auto** brightness modes, with Set auto using
+  user-selected local transition times to select Day/Night explicitly rather
+  than relying on the stock Auto/ILL decision;
+- added optional managed Day/Night levels from 1..10 while preserving unmanaged
+  stock slots; level 0 remains blocked pending physical timed-recovery proof;
+- added an independent brightness circuit breaker, exact-SystemUI compatibility
+  gate, stock-transport lifecycle gate, bounded state queries and one-variable-
+  at-a-time reconciliation;
+- added a launcher brightness Activity whose privileged configuration request is
+  sender-permission protected and whose acknowledgement returns through a private
+  `ResultReceiver` Binder callback; the bounded root helper remains a fallback;
+- expanded pure/JUnit, Android, source-contract, proprietary-artifact and
+  packaging checks while retaining separate geometry, visual and LSPosed
+  deliverables;
+- corrected architecture, install/recovery, evidence and staged validation docs.
+
+Source/static/CI success does not establish physical TS18 touch, nav, brightness,
+reboot, cold-boot or ACC behaviour; those stages remain explicitly unverified
+until exercised on the exact unit.
 
 ## 0.4.0 — right-nav observation foundation
 
