@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Validate the independently recoverable package set produced by package-release.sh.
+# Validate the combined user-facing package set produced by package-release.sh.
 
 set -euo pipefail
 
@@ -18,17 +18,24 @@ for command_name in unzip grep sha256sum; do
     }
 done
 
-GEOMETRY="TS18-StatusBar-Geometry-Magisk-v$VERSION-$MODE.zip"
-VISUALS="TS18-StatusBar-Visuals-Magisk-v$VERSION-$MODE.zip"
-LSPOSED="TS18-StatusBar-Input-LSPosed-v$VERSION-$MODE.apk"
-BUNDLE="TS18-StatusBar-Bundle-v$VERSION-$MODE.zip"
+MAGISK="TS18-SystemUI-Magisk-v$VERSION-$MODE.zip"
+LSPOSED="TS18-SystemUI-LSPosed-v$VERSION-$MODE.apk"
+BUNDLE="TS18-SystemUI-Bundle-v$VERSION-$MODE.zip"
 
-for name in "$GEOMETRY" "$VISUALS" "$LSPOSED" "$BUNDLE" SHA256SUMS.txt; do
+for name in "$MAGISK" "$LSPOSED" "$BUNDLE" SHA256SUMS.txt; do
     [ -s "$DIST/$name" ] || {
         printf 'FAILED: missing or empty packaged artifact: %s\n' "$DIST/$name" >&2
         exit 2
     }
 done
+
+# Normal release output must no longer require two independently installed RRO modules.
+if find "$DIST" -maxdepth 1 -type f \( \
+        -name 'TS18-StatusBar-Geometry-Magisk-*' -o \
+        -name 'TS18-StatusBar-Visuals-Magisk-*' \) | grep . >/dev/null 2>&1; then
+    printf 'FAILED: legacy split Magisk release artifacts were produced\n' >&2
+    exit 2
+fi
 
 require_zip_entry() {
     archive="$1"
@@ -39,29 +46,34 @@ require_zip_entry() {
     }
 }
 
-require_zip_entry "$DIST/$GEOMETRY" system/product/overlay/TS18StatusBarGeometry.apk
-require_zip_entry "$DIST/$GEOMETRY" module.prop
-require_zip_entry "$DIST/$GEOMETRY" customize.sh
-require_zip_entry "$DIST/$VISUALS" system/product/overlay/TS18StatusBarVisuals.apk
-require_zip_entry "$DIST/$VISUALS" module.prop
-require_zip_entry "$DIST/$VISUALS" customize.sh
+require_zip_entry "$DIST/$MAGISK" system/product/overlay/TS18StatusBarGeometry.apk
+require_zip_entry "$DIST/$MAGISK" system/product/overlay/TS18StatusBarVisuals.apk
+require_zip_entry "$DIST/$MAGISK" module.prop
+require_zip_entry "$DIST/$MAGISK" customize.sh
 
-if { unzip -Z1 "$DIST/$GEOMETRY"; unzip -Z1 "$DIST/$VISUALS"; } 2>/dev/null \
+if unzip -Z1 "$DIST/$MAGISK" 2>/dev/null \
         | grep -E '(^|/)module\.prop\.in$' >/dev/null 2>&1; then
-    printf 'FAILED: template module.prop.in leaked into a Magisk artifact\n' >&2
+    printf 'FAILED: template module.prop.in leaked into combined Magisk artifact\n' >&2
     exit 2
 fi
 
+module_prop="$(unzip -p "$DIST/$MAGISK" module.prop)"
+printf '%s\n' "$module_prop" | grep -Fx 'id=ts18_sysui' >/dev/null || {
+    printf 'FAILED: combined Magisk artifact has wrong module ID\n' >&2
+    exit 2
+}
+
 for entry in \
-    "$GEOMETRY" \
-    "$VISUALS" \
+    "$MAGISK" \
     "$LSPOSED" \
     INSTALL.md \
     RECOVERY.md \
     VALIDATION.md \
+    PHYSICAL-0.5.1-REMEDIATION.md \
     ts18-statusbar-config.sh \
     ts18-systemui-contract.sh \
-    ts18-statusbar-validate.sh
+    ts18-statusbar-validate.sh \
+    ts18-migrate-magisk-modules.sh
 do
     require_zip_entry "$DIST/$BUNDLE" "$entry"
 done
@@ -71,4 +83,4 @@ done
     exit 2
 }
 
-printf 'SUCCESS: geometry, visuals, LSPosed and recovery bundle package contract\n'
+printf 'SUCCESS: single combined Magisk, LSPosed and recovery bundle package contract\n'
