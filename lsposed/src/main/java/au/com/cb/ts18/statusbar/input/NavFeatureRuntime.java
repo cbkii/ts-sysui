@@ -16,6 +16,14 @@ final class NavFeatureRuntime {
         return !disabledForProcess;
     }
 
+    static boolean isBreakerOpen() {
+        return disabledForProcess;
+    }
+
+    static int failureCount() {
+        return FAILURES.get();
+    }
+
     static void recordFailure(String stage, Throwable throwable) {
         int count = FAILURES.incrementAndGet();
         RateLimitedLog.error("nav-" + stage,
