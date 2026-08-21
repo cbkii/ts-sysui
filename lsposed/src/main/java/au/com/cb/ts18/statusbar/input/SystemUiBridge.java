@@ -180,6 +180,8 @@ final class SystemUiBridge {
         out.putString("identity_state", ExactSystemUiIdentity.state().name());
         out.putString("identity_detail", ExactSystemUiIdentity.detail());
         out.putBoolean("exact_identity_supported", ExactSystemUiIdentity.isSupported());
+        out.putBoolean("nav_hook_installed", ExactTopwayNavAdapter.isInstalled());
+        out.putInt("brightness_hook_count", BrightnessHooks.installedCount());
         out.putBoolean("geometry_overlay_mounted",
                 new File("/product/overlay/TS18StatusBarGeometry.apk").canRead());
         out.putBoolean("visual_overlay_mounted",
