@@ -53,8 +53,13 @@ jobs:
       - name: Android compile, unit tests and lint
         shell: bash
         run: |
-          ./gradlew --no-daemon clean test :overlay:lintDebug :visual-overlay:lintDebug :lsposed:lintDebug :overlay:assembleDebug :visual-overlay:assembleDebug :lsposed:assembleDebug
+          ./gradlew --no-daemon clean test \
+            :overlay:lintDebug :visual-overlay:lintDebug :lsposed:lintDebug \
+            :overlay:lintRelease :visual-overlay:lintRelease :lsposed:lintRelease \
+            :overlay:assembleDebug :visual-overlay:assembleDebug :lsposed:assembleDebug \
+            :overlay:assembleRelease :visual-overlay:assembleRelease :lsposed:assembleRelease
           bash tools/test-apk-contract.sh lsposed/build/outputs/apk/debug/lsposed-debug.apk
+          bash tools/test-apk-contract.sh lsposed/build/outputs/apk/release/lsposed-release-unsigned.apk
       - name: Package development artefacts
         env:
           ALLOW_DEBUG_SIGNING: '1'
