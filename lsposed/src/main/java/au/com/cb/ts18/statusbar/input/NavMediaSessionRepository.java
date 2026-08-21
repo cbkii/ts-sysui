@@ -66,7 +66,7 @@ final class NavMediaSessionRepository {
 
     void start() {
         if (sessionManager == null || stopped) {
-            publish(null, null);
+            publish(null, null, 0);
             return;
         }
         workerHandler.post(this::startOnWorker);
@@ -170,7 +170,7 @@ final class NavMediaSessionRepository {
             }
         }
         MediaController chosen = selected;
-        publish(chosen, chosen == null ? null : chosen.getPlaybackState());
+        publish(chosen, chosen == null ? null : chosen.getPlaybackState(), active.size());
     }
 
     private void dispatchOnWorker(NavAction action) {
@@ -232,8 +232,8 @@ final class NavMediaSessionRepository {
         return false;
     }
 
-    private void publish(MediaController controller, PlaybackState state) {
-        Snapshot next = Snapshot.from(controller, state);
+    private void publish(MediaController controller, PlaybackState state, int controllerCount) {
+        Snapshot next = Snapshot.from(controller, state, controllerCount);
         snapshot = next;
         if (listener != null && !stopped) {
             mainHandler.post(() -> {
@@ -289,17 +289,24 @@ final class NavMediaSessionRepository {
     }
 
     static final class Snapshot {
+        final int controllerCount;
+        final String selectedPackage;
+        final int playbackState;
+        final long actionBits;
         final boolean hasController;
         final boolean previousEnabled;
         final boolean playPauseEnabled;
         final boolean nextEnabled;
         final boolean playing;
 
-        Snapshot(boolean hasController,
-                 boolean previousEnabled,
-                 boolean playPauseEnabled,
-                 boolean nextEnabled,
-                 boolean playing) {
+        Snapshot(int controllerCount, String selectedPackage, int playbackState,
+                 long actionBits, boolean hasController,
+                 boolean previousEnabled, boolean playPauseEnabled,
+                 boolean nextEnabled, boolean playing) {
+            this.controllerCount = controllerCount;
+            this.selectedPackage = selectedPackage == null ? "" : selectedPackage;
+            this.playbackState = playbackState;
+            this.actionBits = actionBits;
             this.hasController = hasController;
             this.previousEnabled = previousEnabled;
             this.playPauseEnabled = playPauseEnabled;
@@ -317,12 +324,19 @@ final class NavMediaSessionRepository {
             }
         }
 
-        static Snapshot from(MediaController controller, PlaybackState state) {
-            if (controller == null || state == null) return empty();
+        static Snapshot from(MediaController controller, PlaybackState state,
+                             int controllerCount) {
+            if (controller == null || state == null) {
+                return new Snapshot(Math.max(0, controllerCount), "",
+                        state == null ? PlaybackState.STATE_NONE : state.getState(),
+                        state == null ? 0L : state.getActions(),
+                        false, false, false, false, false);
+            }
             long actions = state.getActions();
             NavMediaDispatchPolicy.Playback playback = dispatchPlayback(state);
             return new Snapshot(
-                    true,
+                    Math.max(0, controllerCount), controller.getPackageName(),
+                    state.getState(), actions, true,
                     NavMediaDispatchPolicy.decide(NavAction.PREVIOUS, playback,
                             supports(actions, PlaybackState.ACTION_SKIP_TO_PREVIOUS),
                             false, false, false) != NavMediaDispatchPolicy.Command.NONE,
@@ -341,7 +355,8 @@ final class NavMediaSessionRepository {
         }
 
         static Snapshot empty() {
-            return new Snapshot(false, false, false, false, false);
+            return new Snapshot(0, "", PlaybackState.STATE_NONE, 0L,
+                    false, false, false, false, false);
         }
     }
 }
