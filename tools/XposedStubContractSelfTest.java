@@ -30,6 +30,10 @@ public final class XposedStubContractSelfTest {
                 "findAndHookMethod", Class.class, String.class, Object[].class);
         yes(exactHook.getReturnType() == XC_MethodHook.Unhook.class,
                 "findAndHookMethod return type");
+        Method constructorHook = XposedHelpers.class.getMethod(
+                "findAndHookConstructor", Class.class, Object[].class);
+        yes(constructorHook.getReturnType() == XC_MethodHook.Unhook.class,
+                "findAndHookConstructor return type");
         yes(XposedBridge.class.getMethod("log", String.class).getReturnType() == void.class,
                 "log(String)");
         yes(XposedBridge.class.getMethod("log", Throwable.class).getReturnType() == void.class,

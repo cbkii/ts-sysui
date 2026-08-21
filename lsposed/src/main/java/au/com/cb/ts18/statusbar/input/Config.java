@@ -9,9 +9,10 @@ final class Config {
 
     private static final String PREFIX = "ts18_statusbar_";
     private static final String KEY_POLICY_VERSION = PREFIX + "policy_version";
-    private static final String POLICY_VERSION = "3";
+    private static final String POLICY_VERSION = "4";
     private static final String KEY_ENABLED = PREFIX + "enabled";
     private static final String KEY_INPUT = PREFIX + "input_enabled";
+    private static final String KEY_ADAPTER_MODE = PREFIX + "touch_adapter_mode";
     private static final String KEY_FRACTION = PREFIX + "touch_fraction";
     private static final String KEY_CORNER_GAP = PREFIX + "corner_gap_px";
     private static final String KEY_VISUAL = PREFIX + "visual_enabled";
@@ -41,13 +42,15 @@ final class Config {
             String policyVersion = Settings.Global.getString(
                     context.getContentResolver(), KEY_POLICY_VERSION);
             if (!POLICY_VERSION.equals(policyVersion == null ? null : policyVersion.trim())) {
-                // v0.3 is deliberately inert until its own configuration tool arms this
-                // policy generation. Old Settings.Global values cannot silently reactivate it.
+                // This generation is deliberately inert until its own configuration tool arms
+                // it. Old Settings.Global values cannot silently reactivate new exact hooks.
                 return Snapshot.defaults();
             }
             return new Snapshot(
                     readBoolean(context, KEY_ENABLED, false),
                     readBoolean(context, KEY_INPUT, false),
+                    AdapterMode.parse(Settings.Global.getString(
+                            context.getContentResolver(), KEY_ADAPTER_MODE)),
                     readFloat(context, KEY_FRACTION, 0.20f,
                             TouchStripGeometry.MIN_FRACTION, TouchStripGeometry.MAX_FRACTION),
                     readInt(context, KEY_CORNER_GAP, TouchStripGeometry.MIN_CORNER_GAP_PX,
@@ -101,6 +104,7 @@ final class Config {
     static final class Snapshot {
         final boolean enabled;
         final boolean inputEnabled;
+        final AdapterMode adapterMode;
         final float touchFraction;
         final int cornerGapPx;
         final boolean visualEnabled;
@@ -108,11 +112,13 @@ final class Config {
         final int rightInsetOverridePx;
         final boolean debug;
 
-        Snapshot(boolean enabled, boolean inputEnabled, float touchFraction, int cornerGapPx,
+        Snapshot(boolean enabled, boolean inputEnabled, AdapterMode adapterMode,
+                 float touchFraction, int cornerGapPx,
                  boolean visualEnabled, float visualScale, int rightInsetOverridePx,
                  boolean debug) {
             this.enabled = enabled;
             this.inputEnabled = inputEnabled;
+            this.adapterMode = adapterMode;
             this.touchFraction = touchFraction;
             this.cornerGapPx = cornerGapPx;
             this.visualEnabled = visualEnabled;
@@ -123,12 +129,29 @@ final class Config {
 
         static Snapshot defaults() {
             // First load is observation-only. The user must explicitly arm each mutation layer.
-            return new Snapshot(false, false, 0.20f, TouchStripGeometry.MIN_CORNER_GAP_PX,
+            return new Snapshot(false, false, AdapterMode.EXACT,
+                    0.20f, TouchStripGeometry.MIN_CORNER_GAP_PX,
                     false, 0.75f, -1, false);
         }
 
         static Snapshot failOpen() {
             return defaults();
+        }
+    }
+
+    enum AdapterMode {
+        EXACT,
+        COMPATIBILITY,
+        OFF;
+
+        static AdapterMode parse(String raw) {
+            if (raw == null || raw.trim().isEmpty() || "exact".equals(raw.trim())) {
+                return EXACT;
+            }
+            if ("compatibility".equals(raw.trim()) || "compat".equals(raw.trim())) {
+                return COMPATIBILITY;
+            }
+            return OFF;
         }
     }
 }

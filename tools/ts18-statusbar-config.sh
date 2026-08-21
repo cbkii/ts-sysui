@@ -2,6 +2,7 @@
 # Run under root on the exact TS18, e.g.:
 #   su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh status'
 
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)" || exit 3
 cmd="${1:-status}"
 arg="${2:-}"
 
@@ -67,6 +68,7 @@ show_compact() {
         ts18_statusbar_policy_version \
         ts18_statusbar_enabled \
         ts18_statusbar_input_enabled \
+        ts18_statusbar_touch_adapter_mode \
         ts18_statusbar_touch_fraction \
         ts18_statusbar_corner_gap_px \
         ts18_statusbar_visual_enabled \
@@ -76,8 +78,8 @@ show_compact() {
     do
         show_key "$key"
     done
-    echo "required_policy_version=3; without it compact runtime defaults remain observation-only"
-    echo "compact defaults: master=off input=off visual=off fraction=0.20 corner_gap=64 visual_scale=0.75"
+    echo "required_policy_version=4; without it compact runtime defaults remain observation-only"
+    echo "compact defaults: master=off input=off adapter=exact visual=off fraction=0.20 corner_gap=64 visual_scale=0.75"
 }
 show_nav() {
     for key in \
@@ -102,7 +104,7 @@ prepare_policy_generation() {
         echo "STOP: cannot read current TS18 status-bar policy generation (status=$rc)." >&2
         exit 4
     fi
-    if [ "$current" = "3" ]; then
+    if [ "$current" = "4" ]; then
         return 0
     fi
 
@@ -110,7 +112,23 @@ prepare_policy_generation() {
     put ts18_statusbar_enabled 0
     put ts18_statusbar_input_enabled 0
     put ts18_statusbar_visual_enabled 0
-    put ts18_statusbar_policy_version 3
+    put ts18_statusbar_touch_adapter_mode exact
+    put ts18_statusbar_policy_version 4
+}
+
+require_exact_contract() {
+    verifier="$SCRIPT_DIR/ts18-systemui-contract.sh"
+    if [ ! -r "$verifier" ]; then
+        verifier="/storage/emulated/0/Download/ts18-systemui-contract.sh"
+    fi
+    if [ ! -r "$verifier" ]; then
+        echo "STOP: exact contract verifier is missing; copy ts18-systemui-contract.sh beside this tool." >&2
+        exit 4
+    fi
+    if ! sh "$verifier"; then
+        echo "STOP: exact SystemUI verification failed; compact input remains off." >&2
+        exit 4
+    fi
 }
 
 prepare_nav_policy_generation() {
@@ -217,10 +235,26 @@ case "$cmd" in
         ;;
     input-on)
         prepare_policy_generation
+        adapter="$(get ts18_statusbar_touch_adapter_mode 2>/dev/null)"
+        case "$adapter" in
+            exact|null|'') require_exact_contract ;;
+            compatibility|compat) ;;
+            *) echo "STOP: touch adapter is off or invalid; choose exact or compatibility first." >&2; exit 4 ;;
+        esac
         put ts18_statusbar_enabled 1
         put ts18_statusbar_input_enabled 1
         ;;
     input-off) prepare_policy_generation; put ts18_statusbar_input_enabled 0 ;;
+    touch-adapter)
+        case "$arg" in
+            exact|compatibility|off) ;;
+            *) echo "STOP: touch adapter must be exact, compatibility or off." >&2; exit 4 ;;
+        esac
+        prepare_policy_generation
+        put ts18_statusbar_input_enabled 0
+        put ts18_statusbar_touch_adapter_mode "$arg"
+        echo "Touch adapter changed with compact input disarmed. Run input-on explicitly after validation."
+        ;;
     strict)
         prepare_policy_generation
         put ts18_statusbar_touch_fraction 0.20
@@ -320,7 +354,7 @@ case "$cmd" in
         echo "Right-nav settings reset to observation/mutation off defaults."
         ;;
     *)
-        echo "Usage: $0 {status|observe|enable|disable|disarm|input-on|input-off|strict|touch-fraction 0.01..0.20|corner-gap >=64|visual-on|visual-off|visual-scale 0.50..1.00|debug-on|debug-off|nav-status|nav-observe|nav-probe-off|nav-enable|nav-disable|nav-actions <list|none>|nav-min-touch-dp 48..96|nav-debug-on|nav-debug-off|nav-reset}" >&2
+        echo "Usage: $0 {status|observe|enable|disable|disarm|input-on|input-off|touch-adapter exact|compatibility|off|strict|touch-fraction 0.01..0.20|corner-gap >=64|visual-on|visual-off|visual-scale 0.50..1.00|debug-on|debug-off|nav-status|nav-observe|nav-probe-off|nav-enable|nav-disable|nav-actions <list|none>|nav-min-touch-dp 48..96|nav-debug-on|nav-debug-off|nav-reset}" >&2
         exit 3
         ;;
 esac

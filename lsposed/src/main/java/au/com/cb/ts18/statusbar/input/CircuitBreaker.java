@@ -23,6 +23,13 @@ final class CircuitBreaker {
             disabledForProcess = true;
             HookRuntime.deactivate();
 
+            try {
+                ExactTs18TouchableRegionAdapter.failOpen();
+            } catch (Throwable touchFailure) {
+                RateLimitedLog.error("breaker-exact-touch",
+                        "exact touch fail-open cleanup threw; continuing breaker cleanup",
+                        touchFailure);
+            }
             VisualScaler.RollbackResult rollback = VisualScaler.RollbackResult.empty();
             try {
                 rollback = VisualScaler.failOpen();
