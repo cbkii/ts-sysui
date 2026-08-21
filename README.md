@@ -5,29 +5,41 @@ Topway TS18 (`s9863a1h10`). It is not a generic TS10/TS18 modification.
 
 The project keeps five authorities separate:
 
-1. **Geometry** — a framework RRO reduces the OEM 58dp status-bar height to
-   43dp. It does not change right-navigation dimensions.
-2. **Visuals** — an independent SystemUI RRO reduces only three statically
-   approved status icon/clock dimensions. It replaces the former recursive View
-   scaling experiment.
-3. **Collapsed input** — an LSPosed exact adapter runs after the stock Android-Q
-   `StatusBarTouchableRegionManager` and narrows only an ordinary collapsed
-   touch region.
-4. **Right-nav media** — the same narrowly scoped LSPosed APK can add one
-   reversible weighted media group to the exact Topway `navbar_left` host and
-   command an existing Android `MediaController`.
-5. **Brightness** — an independently gated controller uses the recovered current
-   Topway Day/Night brightness and mode contracts without replacing the stock
-   transport or using Android brightness/sysfs as the actuator.
+1. **Geometry** — a framework RRO reduces the OEM status-bar height to 43dp.
+2. **Visuals** — an exact-SystemUI RRO changes only allow-listed status
+   icon/clock dimensions.
+3. **Collapsed input** — a SystemUI-scoped LSPosed exact adapter narrows only the
+   ordinary collapsed shade touch region.
+4. **Right-nav media** — the same LSPosed APK can add a reversible media group to
+   the recognised Topway `navbar_left` host and command an existing
+   `MediaController`.
+5. **Brightness** — an independently gated controller uses the recovered Topway
+   Day/Night mode/brightness contracts rather than Android brightness/sysfs as
+   the actuator.
 
 The implementation never replaces `SystemUI.apk`, writes an Android partition,
-hooks `system_server`, creates a playback service/session/queue/notification, or
+hooks `system_server`, creates a playback service/session/queue/notification or
 takes audio focus.
+
+## Physical 0.5.1 remediation
+
+The first exact-device 0.5.1 installation established two important failures:
+Day/Night selection produced no observable brightness change and no custom media
+buttons appeared in the right sidebar. These current physical observations take
+priority over the earlier static/CI assumptions.
+
+The remediation therefore replaces hidden configuration plus silent fail-open
+behaviour with a user-facing **TS18 System UI** dashboard and a
+signature-protected bidirectional bridge injected into the already-privileged
+SystemUI process. The dashboard reports exact identity, hook state, navbar
+preflight/measurements, media-session selection, Topway brightness state and
+258/516 confirmation rather than merely assuming that a saved setting worked.
+
+See [`docs/PHYSICAL-0.5.1-REMEDIATION.md`](docs/PHYSICAL-0.5.1-REMEDIATION.md).
 
 ## Exact SystemUI gate
 
-Every exact behavioural mutation remains inert until the installed SystemUI APK
-matches the controlling contract:
+Behavioural mutation requires the exact current contract:
 
 | Field | Required value |
 |---|---|
@@ -39,129 +51,129 @@ matches the controlling contract:
 | shared UID | `android.uid.systemui` |
 | media authority | `android.permission.MEDIA_CONTENT_CONTROL` |
 
-`tools/ts18-systemui-contract.sh` performs the same installed-APK check before
-an exact feature can be armed. The process check hashes in a background thread;
-it never reads the protected APK on SystemUI's main thread.
+Hashing remains off the SystemUI main thread. The dashboard bridge is allowed to
+report `CHECKING`/`UNSUPPORTED`, but mutating requests remain rejected until the
+identity is `SUPPORTED`.
 
 ## Hard collapsed-input boundary
 
 An armed collapsed shade strip always:
 
 - remains at least **64 physical pixels** from both top corners;
-- is no wider than **20%** of full physical status/screen width;
+- is no wider than **20%** of full physical width;
 - excludes the current right-navigation inset; and
-- leaves stock behaviour when coordinates, stock region or special SystemUI
-  state are ambiguous.
+- keeps stock behaviour when coordinates, stock region or special SystemUI state
+  are ambiguous.
 
-For the last-observed 1280x720 display and 55px right nav, the maximum half-open
-strip is **[960,1216)**: 256px wide and 64px from the right physical corner.
-Configuration may make the strip smaller, never larger or closer to a corner.
+For the last-observed 1280×720 display and ~55px right nav, the maximum half-open
+strip remains **[960,1216)**. Runtime geometry is authoritative.
 
-The exact adapter also keeps stock behaviour for keyguard/bouncer, expanded
-shade, pinned or departing heads-up notifications, bubbles and force-collapsed
-layout transitions. A separately labelled compatibility adapter remains for
-diagnosis; it is not silently selected.
+## Right sidebar media controls
 
-## Exact right-navigation contract
+The exact SystemUI layout contains a vertical weighted `navbar_left`. Current
+physical observation shows Home, Back, Recents, Volume+ and Volume−; these five
+are mandatory and are never recreated or replaced. The exact static layout also
+contains known screen/power and app-slot controls, which may be conditional or
+`GONE`.
 
-The decoded exact `navigation_bar.xml` contains vertical weighted
-`com.android.systemui:id/navbar_left` children for screen/power, Home, Back,
-Recents, optional app slot, volume up and volume down.
+The remediation preflight requires:
 
-When explicitly enabled, runtime preflight requires that exact seven-child
-topology, direct vertical `LinearLayout` ownership, uniform positive stock
-weights, no unknown direct child, exact APK identity and a measured projected
-cell of at least **56dp**. It then inserts one tagged module-owned group before
-the volume controls. The group weight equals the action count; its Previous,
-Play/Pause and Next cells have equal inner weights. No stock View, ID, listener
-or `LayoutParams` is replaced or edited. Disablement, detach or reinflation
-removes only the owned group.
+- every mandatory stock control as a direct child;
+- any present known optional controls to remain direct and unchanged;
+- no unknown direct child;
+- positive uniform visible stock weights and no explicit host `weightSum`;
+- an attached, laid-out host;
+- at least **56dp projected vertical cell height**; and
+- at least **48dp existing horizontal width**, while preferring 56dp.
 
-Media selection is deterministic and sticky. Work is performed off the main
-thread through:
+The module uses the full existing OEM strip width and never widens the strip just
+to satisfy density rounding. Insufficient vertical room remains a STOP.
 
-`MediaSessionManager -> existing MediaController -> TransportControls`
+The configurable subset/order is:
 
-One click schedules at most one supported command. There is no media-key or
-Topway-private-command fallback for the same tap. Disabled commands remain
-visible but disabled; Play/Pause reflects the selected controller state.
+```text
+previous,play_pause,next
+```
 
-The exact weighted fit is a static/runtime expectation, not physical proof. At
-153dpi and 720px height, six visible stock cells plus three media cells project
-to about 80px each; seven stock cells project to about 72px.
+The media group remains **visible but disabled** when no usable media session is
+present. Media authority remains strictly:
 
-## Exact Topway brightness controller
+```text
+MediaSessionManager -> existing MediaController -> TransportControls
+```
 
-The current exact-device evidence identifies these semantic surfaces:
+There is no second session/service or duplicate media-key/vendor fallback.
+
+## Topway brightness controller
+
+Current exact-device evidence identifies:
 
 ```text
 command/callback 516: separate Day/Night brightness slots, stock range 0..10
 command 258: mode 0=Auto, 1=Day, 2=Night
 ```
 
-The optional controller offers **Auto (stock)**, **Day**, **Night**, and
-**Set auto (scheduled)**. Set auto uses user-selected local clock transitions and
-explicitly chooses Day or Night instead of relying on the stock Auto/ILL decision.
-Day and Night levels can be left untouched or managed from **1..10**. Managed
-level 0 is deliberately blocked until an exact-device timed no-backlight
-recovery test proves it safe.
+The controller offers **Auto (stock)**, **Day**, **Night** and **Set auto
+(scheduled)**. Managed Day/Night levels remain restricted to **1..10**; level 0
+is blocked pending a separate timed no-backlight recovery test.
 
-Brightness mutation defaults off, uses the same exact SystemUI SHA gate, waits
-for stock `TWSystemUI.init()` or a valid Topway callback before querying/writing,
-and has an independent process circuit breaker. The launcher configuration
-request is sender-signature-permission protected and its acknowledgement returns
-through a private framework `ResultReceiver` Binder callback. A root helper
-writes the same `Settings.Global` policy as a recovery/configuration fallback.
+The remediation distinguishes policy persistence from actual device behaviour:
 
-See [`docs/BRIGHTNESS-CONTROLLER.md`](docs/BRIGHTNESS-CONTROLLER.md). Android
-`screen_brightness`, backlight sysfs, Factory Backlight Current, panel data and
-screen-power command `33281` are intentionally separate from this controller.
-
-## Deliverables and defaults
-
-Release packaging produces independently recoverable artifacts:
-
-- `TS18-StatusBar-Geometry-Magisk-*.zip`;
-- `TS18-StatusBar-Visuals-Magisk-*.zip`;
-- `TS18-StatusBar-Input-LSPosed-*.apk`; and
-- a combined bundle with configuration, validation and recovery documentation.
-
-| Control | Default / hard policy |
-|---|---:|
-| geometry RRO | separate install |
-| visual RRO | separate install |
-| compact policy generation | `4` |
-| compact master/input | off / off |
-| exact touch adapter | selected but inert |
-| touch fraction | `0.20`, configurable `0.01..0.20` |
-| corner gap | `>=64px` |
-| nav policy generation | `2` |
-| nav mutation/probe | off / off |
-| nav actions | `previous,play_pause,next` |
-| production nav target | `>=56dp` (`48dp` is STOP-only) |
-| brightness policy generation | `1` |
-| brightness mutation | off |
-| managed brightness levels | `1..10`; `0` blocked |
-| LSPosed scope | main `com.android.systemui` process only |
-
-Use the root helpers rather than editing `Settings.Global` by hand:
-
-```sh
-su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh status'
-su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh input-on'
-su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh nav-observe'
-su -c 'sh /storage/emulated/0/Download/ts18-statusbar-config.sh nav-enable'
-su -c 'sh /storage/emulated/0/Download/ts18-brightness-config.sh status'
+```text
+HOOK/IDENTITY
+ -> TRANSPORT_READY
+ -> MODE_STATE_KNOWN
+ -> LEVEL_STATE_KNOWN
+ -> ACTION_PENDING
+ -> CALLBACK_CONFIRMED
+ -> ACTIVE/SETTLED
 ```
 
-`input-on` and `nav-enable` verify the installed SystemUI contract first.
-Runtime topology/state gates may still retain stock behaviour. Brightness has its
-own exact compatibility and transport-readiness gates.
+It reports current Topway mode, effective night state, stored Day/Night values,
+last 258/516 callbacks, last module action, pending action and confirmation
+result. If Day and Night slots are equal, the dashboard explicitly warns that a
+mode change alone cannot visibly change brightness.
+
+Confirmation is callback-first: one write is followed by a bounded wait, one
+semantic query, then at most one controlled retry. Missing confirmations are
+reported distinctly as `NO_258_CALLBACK` and `NO_516_CALLBACK`. A single slow
+confirmation window no longer immediately opens the breaker.
+
+See [`docs/BRIGHTNESS-CONTROLLER.md`](docs/BRIGHTNESS-CONTROLLER.md).
+
+## Installation artefacts
+
+Normal packaging now produces **one Magisk module**, not separate geometry and
+visual modules:
+
+```text
+TS18-SystemUI-Magisk-v<version>-release.zip
+TS18-SystemUI-LSPosed-v<version>-release.apk
+TS18-SystemUI-Bundle-v<version>-release.zip
+SHA256SUMS.txt
+```
+
+The combined `ts18_sysui` Magisk ZIP contains both independently built/tested
+RRO APKs:
+
+```text
+system/product/overlay/TS18StatusBarGeometry.apk
+system/product/overlay/TS18StatusBarVisuals.apk
+```
+
+If either legacy ID `ts18_statusbar_geometry` or `ts18_statusbar_visuals` is
+still active, the installer stops rather than deleting `/data/adb` state. Use the
+bundled `ts18-migrate-magisk-modules.sh`, reboot, then install the combined ZIP.
+
+After reboot, install/update the LSPosed APK and scope it **only to the main
+`com.android.systemui` process**. Open **TS18 System UI** from the launcher for
+normal configuration and live diagnostics. Root shell helpers remain recovery
+and engineering tools, not the normal UX.
 
 ## Build and trust
 
-The APK intentionally uses the legacy Xposed bridge supported by LSPosed:
-`assets/xposed_init`, `IXposedHookLoadPackage`, `XposedBridge` and
+The APK deliberately uses the legacy Xposed bridge qualified for this API29
+stack: `assets/xposed_init`, `IXposedHookLoadPackage`, `XposedBridge` and
 `xposedminversion=82`. Local stubs are compile-only and CI verifies they are not
 packaged. No signing private key or proprietary APK is committed.
 
@@ -175,17 +187,16 @@ bash tools/test-gradle-wrapper.sh
   :overlay:assembleDebug :visual-overlay:assembleDebug :lsposed:assembleDebug
 bash tools/test-apk-contract.sh lsposed/build/outputs/apk/debug/lsposed-debug.apk
 ALLOW_DEBUG_SIGNING=1 bash tools/package-release.sh debug
+bash tools/test-packaged-artifacts.sh debug
 ```
-
-See [`docs/INSTALL.md`](docs/INSTALL.md),
-[`docs/VALIDATION.md`](docs/VALIDATION.md) and
-[`docs/RECOVERY.md`](docs/RECOVERY.md). The complete SystemUI finalisation record
-is [`docs/EXACT-TS18-SYSTEMUI-FINALISATION.md`](docs/EXACT-TS18-SYSTEMUI-FINALISATION.md).
 
 ## Validation status
 
-Source/static/CI success proves neither touch delivery nor on-device RRO/idmap,
-right-nav measurement/media behaviour, Topway brightness mutation, SystemUI
-restart, reboot, cold-boot, ACC sleep/wake, reverse-camera, projection, call or
-keyguard behaviour. Those remain explicitly unverified until recorded on the
-exact unit. Android 16 and generic FYT/UIS devices are not targets.
+Repository tests and CI are development evidence, not physical TS18 proof.
+Exact-device qualification must still cover right-nav rendering/media dispatch,
+Topway brightness confirmation, SystemUI restart, reboot, cold boot, ACC
+sleep/wake, reverse camera, calls, projection, keyguard/immersive states and
+long-duration stability.
+
+See [`docs/INSTALL.md`](docs/INSTALL.md), [`docs/VALIDATION.md`](docs/VALIDATION.md),
+[`docs/RECOVERY.md`](docs/RECOVERY.md) and the remediation roadmap.
