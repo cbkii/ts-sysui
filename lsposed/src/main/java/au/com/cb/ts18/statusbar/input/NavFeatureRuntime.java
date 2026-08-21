@@ -23,6 +23,13 @@ final class NavFeatureRuntime {
             if (disabledForProcess) return;
             disabledForProcess = true;
             try {
+                ExactTopwayNavAdapter.failOpen();
+            } catch (Throwable cleanupFailure) {
+                RateLimitedLog.error("nav-breaker-controller",
+                        "right-nav controller cleanup failed; feature remains disabled",
+                        cleanupFailure);
+            }
+            try {
                 NavHierarchyProbe.failOpen();
             } catch (Throwable cleanupFailure) {
                 RateLimitedLog.error("nav-breaker-cleanup",

@@ -24,7 +24,15 @@ fi
 
 PKG="$TMP/au/com/cb/ts18/statusbar/input"
 mkdir -p "$PKG" || exit 3
-for file in TouchStripGeometry.java CoordinateSpacePolicy.java TouchableStatePolicy.java VisualScalePolicy.java; do
+for file in \
+    TouchStripGeometry.java \
+    CoordinateSpacePolicy.java \
+    TouchableStatePolicy.java \
+    NavAction.java \
+    TopwayWeightedNavPolicy.java \
+    NavMediaSelectionPolicy.java \
+    NavMediaDispatchPolicy.java
+do
     cp -- "$ROOT/lsposed/src/main/java/au/com/cb/ts18/statusbar/input/$file" "$PKG/" || exit 2
 done
 cp -- "$ROOT/tools/GeometryPolicySelfTest.java" "$PKG/" || exit 2

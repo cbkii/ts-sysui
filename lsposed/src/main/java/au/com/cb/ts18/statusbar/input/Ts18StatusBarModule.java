@@ -17,6 +17,7 @@ public final class Ts18StatusBarModule implements IXposedHookLoadPackage {
         try {
             ExactSystemUiIdentity.install(lpparam.classLoader, registry);
             ExactTs18TouchableRegionAdapter.installSafely(lpparam.classLoader, registry);
+            ExactTopwayNavAdapter.installSafely(lpparam.classLoader, registry);
             TouchableInsetsHook.install(lpparam.classLoader, registry);
             WindowHooks.install(lpparam.classLoader, registry);
             HookRuntime.activate();

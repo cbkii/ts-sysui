@@ -73,6 +73,17 @@ if resources["navbarHost"] != "com.android.systemui:id/navbar_left":
     raise SystemExit("FAILED: exact navbar host drifted")
 if len(resources["knownNavbarChildren"]) != len(set(resources["knownNavbarChildren"])):
     raise SystemExit("FAILED: duplicate known navbar child resource")
+expected_nav_children = {
+    "com.android.systemui:id/navbar_guanping",
+    "com.android.systemui:id/home",
+    "com.android.systemui:id/back",
+    "com.android.systemui:id/recent_apps",
+    "com.android.systemui:id/app",
+    "com.android.systemui:id/navbar_volume_plus",
+    "com.android.systemui:id/navbar_volume_reduce",
+}
+if set(resources["knownNavbarChildren"]) != expected_nav_children:
+    raise SystemExit("FAILED: exact seven-child navbar topology drifted")
 
 print("SUCCESS: exact TS18 SystemUI contract fixture")
 PY

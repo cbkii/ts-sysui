@@ -1,5 +1,7 @@
 package au.com.cb.ts18.statusbar.input;
 
+import java.util.Arrays;
+
 /** Host-only smoke coverage for pure safety policies; Android/JUnit CI adds deeper coverage. */
 public final class GeometryPolicySelfTest {
     private GeometryPolicySelfTest() {}
@@ -63,12 +65,38 @@ public final class GeometryPolicySelfTest {
                 false, false, true, 0, 0, 1280, 41, 1280, 41, 3, 3, 720).apply,
                 "expanded window kept stock");
 
-        yes(VisualScalePolicy.decide(true, false, false, true)
-                        == VisualScalePolicy.Action.RESTORE_AND_RELEASE,
-                "owned leaf leaving bar restores");
-        yes(VisualScalePolicy.decide(true, false, true, false)
-                        == VisualScalePolicy.Action.RELEASE_CONFLICT,
-                "external scale change releases ownership");
+        TopwayWeightedNavPolicy.Result sixStock = TopwayWeightedNavPolicy.evaluate(
+                55, 720, 153f / 160f,
+                Arrays.asList(1f, 1f, 1f, 1f, 1f, 1f), 3, 56);
+        yes(sixStock.safe, "six stock plus three media controls pass exact preflight");
+        eq(80, sixStock.projectedCellPx, "six-stock projected cell");
+        TopwayWeightedNavPolicy.Result sevenStock = TopwayWeightedNavPolicy.evaluate(
+                55, 720, 153f / 160f,
+                Arrays.asList(1f, 1f, 1f, 1f, 1f, 1f, 1f), 3, 56);
+        yes(sevenStock.safe, "visible app slot still passes exact preflight");
+        eq(72, sevenStock.projectedCellPx, "seven-stock projected cell");
+        yes(!TopwayWeightedNavPolicy.evaluate(
+                        55, 720, 153f / 160f,
+                        Arrays.asList(1f, 1f, 1f, 1f, 1f, 1f), 3, 48).safe,
+                "48dp is a STOP floor, not a production fallback");
+
+        NavMediaSelectionPolicy.Candidate paused = new NavMediaSelectionPolicy.Candidate(
+                NavMediaSelectionPolicy.Playback.PAUSED, true);
+        NavMediaSelectionPolicy.Candidate playing = new NavMediaSelectionPolicy.Candidate(
+                NavMediaSelectionPolicy.Playback.PLAYING, true);
+        eq(1, NavMediaSelectionPolicy.choose(Arrays.asList(paused, playing), 0),
+                "playing controller selection");
+        eq(1, NavMediaSelectionPolicy.choose(Arrays.asList(playing, playing), 1),
+                "playing controller stickiness");
+
+        yes(NavMediaDispatchPolicy.decide(
+                        NavAction.PLAY_PAUSE, NavMediaDispatchPolicy.Playback.PLAYING,
+                        true, true, true, true) == NavMediaDispatchPolicy.Command.PAUSE,
+                "playing click maps to one pause command");
+        yes(NavMediaDispatchPolicy.decide(
+                        NavAction.NEXT, NavMediaDispatchPolicy.Playback.PLAYING,
+                        true, true, true, false) == NavMediaDispatchPolicy.Command.NONE,
+                "unsupported next maps to no command");
 
         System.out.println("SUCCESS: geometry/runtime policy self-test");
     }

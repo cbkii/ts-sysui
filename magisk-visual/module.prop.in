@@ -1,0 +1,6 @@
+id=ts18_statusbar_visuals
+name=TS18 Compact Status Bar Visuals
+version=@VERSION_NAME@
+versionCode=@VERSION_CODE@
+author=CB
+description=Independent exact-SystemUI status icon/clock visual RRO for the TS18 Android 10 target.

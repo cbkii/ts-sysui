@@ -36,9 +36,11 @@ jobs:
         run: |
           bash -n tools/*.sh
           sh -n magisk/customize.sh
+          sh -n magisk-visual/customize.sh
           bash tools/test-geometry.sh
           bash tools/test-nav-observation-contract.sh
           bash tools/test-exact-systemui-contract.sh
+          bash tools/test-visual-overlay-contract.sh
           bash tools/test-proprietary-artifacts.sh
           bash tools/test-xposed-stubs.sh
           bash tools/test-release-tools.sh
@@ -49,7 +51,7 @@ jobs:
       - name: Android compile, unit tests and lint
         shell: bash
         run: |
-          ./gradlew --no-daemon clean test :overlay:lintDebug :lsposed:lintDebug :overlay:assembleDebug :lsposed:assembleDebug
+          ./gradlew --no-daemon clean test :overlay:lintDebug :visual-overlay:lintDebug :lsposed:lintDebug :overlay:assembleDebug :visual-overlay:assembleDebug :lsposed:assembleDebug
           bash tools/test-apk-contract.sh lsposed/build/outputs/apk/debug/lsposed-debug.apk
       - name: Package development artefacts
         env:

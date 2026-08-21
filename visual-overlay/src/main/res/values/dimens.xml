@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Exact static resource-use review classifies these three dimensions as
+         status-specific. Values are approximately 75% of the Android-Q baseline.
+         Framework status-bar height remains owned by the geometry RRO. -->
+    <dimen name="status_bar_icon_size">18dp</dimen>
+    <dimen name="status_bar_icon_drawing_size">13dp</dimen>
+    <dimen name="status_bar_clock_size">10.5sp</dimen>
+</resources>

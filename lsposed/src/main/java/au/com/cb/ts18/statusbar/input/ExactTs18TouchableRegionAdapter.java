@@ -11,6 +11,7 @@ import java.lang.ref.WeakReference;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -100,7 +101,11 @@ final class ExactTs18TouchableRegionAdapter {
             try {
                 ViewTreeObserver observer = root.getViewTreeObserver();
                 if (observer.isAlive()) {
-                    observer.removeOnComputeInternalInsetsListener(entry.getValue().listener);
+                    Members contract = members;
+                    if (contract != null) {
+                        contract.removeInsetsListener.invoke(
+                                observer, entry.getValue().listener);
+                    }
                 }
             } catch (Throwable t) {
                 RateLimitedLog.error("exact-touch-detach",
@@ -125,18 +130,35 @@ final class ExactTs18TouchableRegionAdapter {
             if (!observer.isAlive()) return;
             if (previous != null) {
                 try {
-                    observer.removeOnComputeInternalInsetsListener(previous.listener);
+                    contract.removeInsetsListener.invoke(observer, previous.listener);
                 } catch (Throwable ignored) {
                     // Re-adding below remains idempotent for the current observer generation.
                 }
             }
 
             WeakReference<Object> managerRef = new WeakReference<>(manager);
-            ViewTreeObserver.OnComputeInternalInsetsListener listener = info -> {
-                Object current = managerRef.get();
-                if (current != null) apply(current, info);
-            };
-            observer.addOnComputeInternalInsetsListener(listener);
+            Object listener = Proxy.newProxyInstance(
+                    contract.insetsListenerClass.getClassLoader(),
+                    new Class<?>[] { contract.insetsListenerClass },
+                    (proxy, method, args) -> {
+                        if ("onComputeInternalInsets".equals(method.getName())
+                                && args != null && args.length == 1) {
+                            Object current = managerRef.get();
+                            if (current != null) apply(current, args[0]);
+                            return null;
+                        }
+                        if ("hashCode".equals(method.getName())) {
+                            return System.identityHashCode(proxy);
+                        }
+                        if ("equals".equals(method.getName())) {
+                            return args != null && args.length == 1 && proxy == args[0];
+                        }
+                        if ("toString".equals(method.getName())) {
+                            return "TS18ExactInsetsListener";
+                        }
+                        return null;
+                    });
+            contract.addInsetsListener.invoke(observer, listener);
             synchronized (ROOTS) {
                 ROOTS.put(root, new Binding(listener));
             }
@@ -242,9 +264,9 @@ final class ExactTs18TouchableRegionAdapter {
     }
 
     private static final class Binding {
-        final ViewTreeObserver.OnComputeInternalInsetsListener listener;
+        final Object listener;
 
-        Binding(ViewTreeObserver.OnComputeInternalInsetsListener listener) {
+        Binding(Object listener) {
             this.listener = listener;
         }
     }
@@ -254,6 +276,7 @@ final class ExactTs18TouchableRegionAdapter {
         final Class<?> infoClass;
         final Class<?> headsUpClass;
         final Class<?> statusBarClass;
+        final Class<?> insetsListenerClass;
         final Field statusBarWindowView;
         final Field statusBarHeight;
         final Field isStatusBarExpanded;
@@ -265,11 +288,14 @@ final class ExactTs18TouchableRegionAdapter {
         final Method hasPinnedHeadsUp;
         final Method isHeadsUpGoingAway;
         final Method hasBubbles;
+        final Method addInsetsListener;
+        final Method removeInsetsListener;
 
         Members(Class<?> managerClass,
                 Class<?> infoClass,
                 Class<?> headsUpClass,
                 Class<?> statusBarClass,
+                Class<?> insetsListenerClass,
                 Field statusBarWindowView,
                 Field statusBarHeight,
                 Field isStatusBarExpanded,
@@ -280,11 +306,14 @@ final class ExactTs18TouchableRegionAdapter {
                 Method isBouncerShowing,
                 Method hasPinnedHeadsUp,
                 Method isHeadsUpGoingAway,
-                Method hasBubbles) {
+                Method hasBubbles,
+                Method addInsetsListener,
+                Method removeInsetsListener) {
             this.managerClass = managerClass;
             this.infoClass = infoClass;
             this.headsUpClass = headsUpClass;
             this.statusBarClass = statusBarClass;
+            this.insetsListenerClass = insetsListenerClass;
             this.statusBarWindowView = statusBarWindowView;
             this.statusBarHeight = statusBarHeight;
             this.isStatusBarExpanded = isStatusBarExpanded;
@@ -296,6 +325,8 @@ final class ExactTs18TouchableRegionAdapter {
             this.hasPinnedHeadsUp = hasPinnedHeadsUp;
             this.isHeadsUpGoingAway = isHeadsUpGoingAway;
             this.hasBubbles = hasBubbles;
+            this.addInsetsListener = addInsetsListener;
+            this.removeInsetsListener = removeInsetsListener;
         }
 
         static Members resolve(ClassLoader loader) throws ReflectiveOperationException {
@@ -304,6 +335,9 @@ final class ExactTs18TouchableRegionAdapter {
                     false, loader);
             Class<?> info = Class.forName(
                     "android.view.ViewTreeObserver$InternalInsetsInfo", false, loader);
+            Class<?> insetsListener = Class.forName(
+                    "android.view.ViewTreeObserver$OnComputeInternalInsetsListener",
+                    false, loader);
             Class<?> heads = Class.forName(
                     "com.android.systemui.statusbar.phone.HeadsUpManagerPhone", false, loader);
             Class<?> status = Class.forName(
@@ -330,10 +364,15 @@ final class ExactTs18TouchableRegionAdapter {
             Method goingAway = requireMethod(heads, "isHeadsUpGoingAway", boolean.class);
             Method hasBubbles = requireMethod(bubbles, "hasBubbles", boolean.class);
             requireMethod(bubbles, "getTouchableRegion", Rect.class);
+            Method addListener = requireMethod(ViewTreeObserver.class,
+                    "addOnComputeInternalInsetsListener", void.class, insetsListener);
+            Method removeListener = requireMethod(ViewTreeObserver.class,
+                    "removeOnComputeInternalInsetsListener", void.class, insetsListener);
 
-            return new Members(manager, info, heads, status, root, height, expanded, force,
+            return new Members(manager, info, heads, status, insetsListener,
+                    root, height, expanded, force,
                     statusField, headsField, bubblesField, bouncer, pinned, goingAway,
-                    hasBubbles);
+                    hasBubbles, addListener, removeListener);
         }
 
         private static Field requireField(Class<?> owner, String name, Class<?> type)

@@ -15,8 +15,6 @@ final class Config {
     private static final String KEY_ADAPTER_MODE = PREFIX + "touch_adapter_mode";
     private static final String KEY_FRACTION = PREFIX + "touch_fraction";
     private static final String KEY_CORNER_GAP = PREFIX + "corner_gap_px";
-    private static final String KEY_VISUAL = PREFIX + "visual_enabled";
-    private static final String KEY_SCALE = PREFIX + "visual_scale";
     private static final String KEY_RIGHT_INSET = PREFIX + "right_inset_px";
     private static final String KEY_DEBUG = PREFIX + "debug";
 
@@ -55,8 +53,6 @@ final class Config {
                             TouchStripGeometry.MIN_FRACTION, TouchStripGeometry.MAX_FRACTION),
                     readInt(context, KEY_CORNER_GAP, TouchStripGeometry.MIN_CORNER_GAP_PX,
                             TouchStripGeometry.MIN_CORNER_GAP_PX, 2048),
-                    readBoolean(context, KEY_VISUAL, false),
-                    readFloat(context, KEY_SCALE, 0.75f, 0.50f, 1.00f),
                     readInt(context, KEY_RIGHT_INSET, -1, -1, 1000),
                     readBoolean(context, KEY_DEBUG, false));
         } catch (Throwable t) {
@@ -107,22 +103,17 @@ final class Config {
         final AdapterMode adapterMode;
         final float touchFraction;
         final int cornerGapPx;
-        final boolean visualEnabled;
-        final float visualScale;
         final int rightInsetOverridePx;
         final boolean debug;
 
         Snapshot(boolean enabled, boolean inputEnabled, AdapterMode adapterMode,
-                 float touchFraction, int cornerGapPx,
-                 boolean visualEnabled, float visualScale, int rightInsetOverridePx,
+                 float touchFraction, int cornerGapPx, int rightInsetOverridePx,
                  boolean debug) {
             this.enabled = enabled;
             this.inputEnabled = inputEnabled;
             this.adapterMode = adapterMode;
             this.touchFraction = touchFraction;
             this.cornerGapPx = cornerGapPx;
-            this.visualEnabled = visualEnabled;
-            this.visualScale = visualScale;
             this.rightInsetOverridePx = rightInsetOverridePx;
             this.debug = debug;
         }
@@ -130,8 +121,7 @@ final class Config {
         static Snapshot defaults() {
             // First load is observation-only. The user must explicitly arm each mutation layer.
             return new Snapshot(false, false, AdapterMode.EXACT,
-                    0.20f, TouchStripGeometry.MIN_CORNER_GAP_PX,
-                    false, 0.75f, -1, false);
+                    0.20f, TouchStripGeometry.MIN_CORNER_GAP_PX, -1, false);
         }
 
         static Snapshot failOpen() {

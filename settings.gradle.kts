@@ -16,5 +16,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "ts18-statusbar"
 include(":overlay")
+include(":visual-overlay")
 include(":lsposed")
 include(":xposed-stubs")

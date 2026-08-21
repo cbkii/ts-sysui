@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">TS18 Status Bar Input</string>
-    <string name="xposed_description">TS18-only compact status-bar touch region and visual scaling; scope only to SystemUI.</string>
+    <string name="xposed_description">Exact TS18 compact status-bar touch and optional right-nav controls; scope only to SystemUI.</string>
+    <string name="ts18_nav_previous">Previous track</string>
+    <string name="ts18_nav_play">Play</string>
+    <string name="ts18_nav_pause">Pause</string>
+    <string name="ts18_nav_next">Next track</string>
 </resources>

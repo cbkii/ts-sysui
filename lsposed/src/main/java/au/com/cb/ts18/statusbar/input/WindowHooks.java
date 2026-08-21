@@ -25,11 +25,8 @@ final class WindowHooks {
                                 (ViewGroup.LayoutParams) param.args[1];
 
                         if (StatusBarState.isStatusBarParams(params)) {
-                            if (HookRuntime.isOperational()) handleStatusBarAdd(root, params);
+                            if (HookRuntime.isOperational()) handleCompatibilityStatusBarAdd(root, params);
                             return;
-                        }
-                        if (NavBarState.isNavigationBarParams(params)) {
-                            handleNavigationBarAdd(root, params);
                         }
                     }
                 });
@@ -49,60 +46,37 @@ final class WindowHooks {
                                 (ViewGroup.LayoutParams) param.args[1];
 
                         if (StatusBarState.root() == view) {
-                            if (HookRuntime.isOperational()) handleStatusBarUpdate(view, params);
+                            if (HookRuntime.isOperational()) handleCompatibilityStatusBarUpdate(view, params);
                             return;
-                        }
-                        if (NavBarState.root() == view
-                                && NavBarState.isNavigationBarParams(params)) {
-                            handleNavigationBarUpdate(view, params);
                         }
                     }
                 });
         registry.addRequired("WindowManagerImpl.updateViewLayout", updateHook);
     }
 
-    private static void handleStatusBarAdd(View root, ViewGroup.LayoutParams params) {
+    private static void handleCompatibilityStatusBarAdd(
+            View root, ViewGroup.LayoutParams params) {
         try {
-            View previous = StatusBarState.capture(root, params);
-            if (previous != null && previous != root) {
-                VisualScaler.detach(previous, true);
-                SystemBarDimensions.clearCache();
+            Config.Snapshot config = Config.get(root.getContext());
+            if (!config.enabled || !config.inputEnabled
+                    || config.adapterMode != Config.AdapterMode.COMPATIBILITY) {
+                StatusBarState.clear();
+                return;
             }
-            VisualScaler.sync(root);
+            View previous = StatusBarState.capture(root, params);
+            if (previous != root) SystemBarDimensions.clearCache();
         } catch (Throwable t) {
             CircuitBreaker.recordFailure("window-add-view", t);
         }
     }
 
-    private static void handleStatusBarUpdate(View view, ViewGroup.LayoutParams params) {
+    private static void handleCompatibilityStatusBarUpdate(
+            View view, ViewGroup.LayoutParams params) {
         try {
             StatusBarState.updateIfTracked(view, params);
-            VisualScaler.sync(view);
         } catch (Throwable t) {
             CircuitBreaker.recordFailure("window-update-layout", t);
         }
     }
 
-    private static void handleNavigationBarAdd(View root, ViewGroup.LayoutParams params) {
-        if (!NavFeatureRuntime.isOperational()) return;
-        try {
-            NavBarState.Capture capture = NavBarState.capture(root, params);
-            if (capture.previous != null && capture.previous != root) {
-                NavHierarchyProbe.detach(capture.previous);
-            }
-            NavHierarchyProbe.sync(root, capture.generation);
-        } catch (Throwable t) {
-            NavFeatureRuntime.recordFailure("window-add-view", t);
-        }
-    }
-
-    private static void handleNavigationBarUpdate(View view, ViewGroup.LayoutParams params) {
-        if (!NavFeatureRuntime.isOperational()) return;
-        try {
-            NavBarState.updateIfTracked(view, params);
-            NavHierarchyProbe.sync(view, NavBarState.generation());
-        } catch (Throwable t) {
-            NavFeatureRuntime.recordFailure("window-update-layout", t);
-        }
-    }
 }

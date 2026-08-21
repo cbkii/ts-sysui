@@ -206,16 +206,18 @@ jobs:
           set -euo pipefail
           bash -n tools/*.sh
           sh -n magisk/customize.sh
+          sh -n magisk-visual/customize.sh
           bash tools/test-geometry.sh
           bash tools/test-nav-observation-contract.sh
           bash tools/test-exact-systemui-contract.sh
+          bash tools/test-visual-overlay-contract.sh
           bash tools/test-proprietary-artifacts.sh
           bash tools/test-xposed-stubs.sh
           bash tools/test-release-tools.sh
           bash tools/test-source-manifest.sh
           bash tools/bootstrap-gradle-wrapper.sh
           bash tools/test-gradle-wrapper.sh
-          ./gradlew --no-daemon clean test :overlay:lintRelease :lsposed:lintRelease :overlay:assembleRelease :lsposed:assembleRelease
+          ./gradlew --no-daemon clean test :overlay:lintRelease :visual-overlay:lintRelease :lsposed:lintRelease :overlay:assembleRelease :visual-overlay:assembleRelease :lsposed:assembleRelease
           bash tools/test-apk-contract.sh lsposed/build/outputs/apk/release/lsposed-release.apk
           bash tools/package-release.sh release
           (cd dist && sha256sum -c SHA256SUMS.txt)
@@ -226,7 +228,7 @@ jobs:
           EXPECTED_SIGNER: ${{ steps.signing.outputs.signer_sha256 }}
         run: |
           set -euo pipefail
-          for apk in overlay/build/outputs/apk/release/overlay-release.apk lsposed/build/outputs/apk/release/lsposed-release.apk; do
+          for apk in overlay/build/outputs/apk/release/overlay-release.apk visual-overlay/build/outputs/apk/release/visual-overlay-release.apk lsposed/build/outputs/apk/release/lsposed-release.apk; do
             output="$(apksigner verify --print-certs "$apk")"
             actual="$(printf '%s\n' "$output" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
             [ -n "$actual" ] || { echo "::error::Could not read signer SHA-256 from $apk"; exit 1; }
@@ -235,7 +237,7 @@ jobs:
               exit 1
             }
           done
-          echo 'Both release APKs match the configured release certificate.'
+          echo 'All three release APKs match the configured release certificate.'
 
       - name: Upload validated recovery bundle
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5

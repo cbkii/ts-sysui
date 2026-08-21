@@ -6,6 +6,8 @@ import android.os.Build;
 import java.io.FileInputStream;
 import java.security.MessageDigest;
 import java.util.Locale;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import de.robv.android.xposed.XC_MethodHook;
@@ -18,6 +20,7 @@ final class ExactSystemUiIdentity {
     private static final AtomicBoolean STARTED = new AtomicBoolean();
     private static volatile State state = State.UNCHECKED;
     private static volatile String detail = "not-checked";
+    private static final List<Runnable> listeners = new ArrayList<>();
 
     private ExactSystemUiIdentity() {}
 
@@ -53,6 +56,7 @@ final class ExactSystemUiIdentity {
         } catch (Throwable t) {
             state = State.UNSUPPORTED;
             detail = "worker-start-" + t.getClass().getSimpleName();
+            notifyResolved();
             RateLimitedLog.error("contract-worker",
                     "exact SystemUI identity verification could not start; mutation stays off", t);
         }
@@ -68,6 +72,16 @@ final class ExactSystemUiIdentity {
 
     static String detail() {
         return detail;
+    }
+
+    static void whenResolved(Runnable listener) {
+        if (listener == null) return;
+        boolean runNow;
+        synchronized (listeners) {
+            runNow = state == State.SUPPORTED || state == State.UNSUPPORTED;
+            if (!runNow) listeners.add(listener);
+        }
+        if (runNow) runListener(listener);
     }
 
     private static void verify(Context context) {
@@ -87,6 +101,7 @@ final class ExactSystemUiIdentity {
             detail = actual;
             state = State.SUPPORTED;
             RateLimitedLog.always("exact SystemUI contract verified asynchronously: " + actual);
+            notifyResolved();
         } catch (Throwable t) {
             reject("hash-" + t.getClass().getSimpleName());
             RateLimitedLog.error("contract-hash",
@@ -98,6 +113,25 @@ final class ExactSystemUiIdentity {
         detail = reason;
         state = State.UNSUPPORTED;
         RateLimitedLog.always("STOP: unsupported SystemUI contract; " + reason);
+        notifyResolved();
+    }
+
+    private static void notifyResolved() {
+        List<Runnable> pending;
+        synchronized (listeners) {
+            pending = new ArrayList<>(listeners);
+            listeners.clear();
+        }
+        for (Runnable listener : pending) runListener(listener);
+    }
+
+    private static void runListener(Runnable listener) {
+        try {
+            listener.run();
+        } catch (Throwable t) {
+            RateLimitedLog.error("contract-listener",
+                    "exact SystemUI resolution listener failed", t);
+        }
     }
 
     private static String sha256(String path) throws Exception {

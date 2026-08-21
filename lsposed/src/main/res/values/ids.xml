@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Keyed ownership tag only; injected view IDs are generated at runtime. -->
+    <item name="ts18_nav_owner_tag" type="id" />
+</resources>
