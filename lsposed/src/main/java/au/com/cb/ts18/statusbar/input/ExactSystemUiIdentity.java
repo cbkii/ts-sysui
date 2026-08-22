@@ -2,12 +2,14 @@ package au.com.cb.ts18.statusbar.input;
 
 import android.content.Context;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 
 import java.io.FileInputStream;
 import java.security.MessageDigest;
-import java.util.Locale;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import de.robv.android.xposed.XC_MethodHook;
@@ -18,6 +20,7 @@ final class ExactSystemUiIdentity {
     enum State { UNCHECKED, CHECKING, SUPPORTED, UNSUPPORTED }
 
     private static final AtomicBoolean STARTED = new AtomicBoolean();
+    private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static volatile State state = State.UNCHECKED;
     private static volatile String detail = "not-checked";
     private static final List<Runnable> listeners = new ArrayList<>();
@@ -34,6 +37,7 @@ final class ExactSystemUiIdentity {
                         if (param.getThrowable() != null || !(param.thisObject instanceof Context)) {
                             return;
                         }
+                        SystemUiBridge.install((Context) param.thisObject);
                         start((Context) param.thisObject);
                     }
                 });
@@ -47,11 +51,6 @@ final class ExactSystemUiIdentity {
         Context verificationContext = appContext;
         state = State.CHECKING;
         detail = "hashing";
-
-        // Register the signature-protected diagnostics bridge before hashing so
-        // the companion UI can report CHECKING/UNSUPPORTED instead of timing out.
-        // Mutating bridge requests still require SUPPORTED below.
-        SystemUiBridge.install(verificationContext);
 
         Thread worker = new Thread(() -> verify(verificationContext),
                 "TS18-SystemUI-contract");
@@ -86,7 +85,7 @@ final class ExactSystemUiIdentity {
             runNow = state == State.SUPPORTED || state == State.UNSUPPORTED;
             if (!runNow) listeners.add(listener);
         }
-        if (runNow) runListener(listener);
+        if (runNow) dispatchListener(listener);
     }
 
     private static void verify(Context context) {
@@ -127,10 +126,30 @@ final class ExactSystemUiIdentity {
             pending = new ArrayList<>(listeners);
             listeners.clear();
         }
-        for (Runnable listener : pending) runListener(listener);
+        for (Runnable listener : pending) dispatchListener(listener);
     }
 
-    private static void runListener(Runnable listener) {
+    /** Every resolution callback that can touch SystemUI/View state runs on main. */
+    private static void dispatchListener(Runnable listener) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            runListenerNow(listener);
+            return;
+        }
+        boolean posted;
+        try {
+            posted = MAIN.post(() -> runListenerNow(listener));
+        } catch (Throwable t) {
+            RateLimitedLog.error("contract-listener-dispatch",
+                    "exact SystemUI resolution callback could not be posted to main", t);
+            return;
+        }
+        if (!posted) {
+            RateLimitedLog.always(
+                    "exact SystemUI resolution callback was not accepted by the main looper; mutation stays fail-open until another lifecycle event");
+        }
+    }
+
+    private static void runListenerNow(Runnable listener) {
         try {
             listener.run();
         } catch (Throwable t) {
