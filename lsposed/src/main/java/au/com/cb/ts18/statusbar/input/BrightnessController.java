@@ -159,6 +159,9 @@ final class BrightnessController {
                 currentPending == null ? "none" : currentPending.action.key());
         out.putInt("brightness_pending_attempts",
                 currentPending == null ? 0 : currentPending.writeAttempts);
+        HandlerThread thread = workerThread;
+        out.putBoolean("brightness_worker_alive", thread != null && thread.isAlive());
+        out.putBoolean("brightness_watchers_registered", receiverRegistered || observerRegistered);
         out.putString("brightness_runtime_state", runtimeState(state));
     }
 
@@ -167,7 +170,64 @@ final class BrightnessController {
         pending = null;
         confirmationResult = "ERROR: brightness circuit breaker open";
         Handler current = worker;
-        if (current != null) current.removeCallbacksAndMessages(null);
+        if (current == null) {
+            cleanupOwnedRuntime();
+            return;
+        }
+        current.removeCallbacksAndMessages(null);
+        if (Looper.myLooper() == current.getLooper()) {
+            cleanupOwnedRuntime();
+        } else {
+            boolean posted;
+            try {
+                posted = current.post(BrightnessController::cleanupOwnedRuntime);
+            } catch (Throwable t) {
+                posted = false;
+                XposedBridge.log("TS18Brightness: breaker cleanup post failed: " + t);
+            }
+            if (!posted) cleanupOwnedRuntime();
+        }
+    }
+
+    /** Best-effort ownership-bounded cleanup. Never escalates a breaker cleanup failure. */
+    private static void cleanupOwnedRuntime() {
+        Context currentContext = context;
+        if (currentContext != null && receiverRegistered && timeReceiver != null) {
+            try {
+                currentContext.unregisterReceiver(timeReceiver);
+            } catch (Throwable t) {
+                XposedBridge.log("TS18Brightness: time receiver cleanup failed: " + t);
+            }
+        }
+        receiverRegistered = false;
+        timeReceiver = null;
+
+        if (currentContext != null && observerRegistered && settingsObserver != null) {
+            try {
+                currentContext.getContentResolver().unregisterContentObserver(settingsObserver);
+            } catch (Throwable t) {
+                XposedBridge.log("TS18Brightness: settings observer cleanup failed: " + t);
+            }
+        }
+        observerRegistered = false;
+        settingsObserver = null;
+
+        HandlerThread thread;
+        synchronized (LOCK) {
+            Handler current = worker;
+            if (current != null) current.removeCallbacksAndMessages(null);
+            worker = null;
+            thread = workerThread;
+            workerThread = null;
+        }
+        if (thread != null) {
+            try {
+                thread.quitSafely();
+            } catch (Throwable t) {
+                XposedBridge.log("TS18Brightness: worker cleanup failed: " + t);
+            }
+        }
+        XposedBridge.log("TS18Brightness: breaker cleanup removed owned watchers and worker; restart SystemUI to re-arm");
     }
 
     private static void initialiseOnWorker(ClassLoader classLoader) {
