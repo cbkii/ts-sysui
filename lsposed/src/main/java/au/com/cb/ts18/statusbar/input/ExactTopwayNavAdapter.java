@@ -22,13 +22,17 @@ final class ExactTopwayNavAdapter {
                         @Override protected void afterHookedMethod(MethodHookParam param) {
                             if (param.getThrowable() != null
                                     || !(param.thisObject instanceof View)) return;
-                            ExactTopwayNavController.onInflated((View) param.thisObject);
+                            // Visibility monitor owns admission to the controller.
+                            // Hidden/reverse/fullscreen stock panels suspend/remove
+                            // module controls without forcing OEM visibility; return
+                            // to visible triggers a complete normal preflight.
+                            ExactTopwayNavVisibilityMonitor.attach((View) param.thisObject);
                         }
                     });
             registry.addRequired("exact Topway NavigationBarView.onFinishInflate", hook);
             installed = true;
             RateLimitedLog.always(
-                    "exact TS18 right-nav lifecycle installed; mutation awaits identity and policy gates");
+                    "exact TS18 right-nav lifecycle installed; mutation awaits identity, stock visibility and policy gates");
             return true;
         } catch (Throwable t) {
             installed = false;
@@ -43,6 +47,7 @@ final class ExactTopwayNavAdapter {
     }
 
     static void failOpen() {
+        ExactTopwayNavVisibilityMonitor.shutdownAll();
         ExactTopwayNavController.failOpen();
     }
 }
