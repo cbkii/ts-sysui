@@ -10,11 +10,20 @@
 - turned the launcher Activity into a TS18 System UI dashboard for compact touch,
   configurable right-nav media actions, brightness controls and bounded
   diagnostics export;
+- corrected exact collapsed touch so one post-stock listener owns mutation,
+  runtime/type-checks `mShouldAdjustInsets`, leaves stock special states untouched
+  and explicitly establishes REGION from ordinary Android-Q FRAME/empty state;
+- marshalled exact-SystemUI identity completion callbacks onto the main looper
+  before View/SystemUI lifecycle reconciliation;
 - made right-nav OFF -> ON configuration invalidate its cache and request
   immediate in-process reconciliation instead of requiring a SystemUI restart;
 - retained exact host safety while allowing the two known conditional OEM
   screen/app controls to be absent and still requiring Home, Back, Recents and
   both volume controls plus no unknown direct child;
+- added a stock-navigation visibility monitor: hidden/detached/not-shown
+  `NavigationBarView/navbar_left` state removes the owned media group and stops
+  media observation, while return to visible reruns full exact preflight without
+  forcing OEM visibility or hooking reverse/MCU commands;
 - separated navbar sizing into a >=56dp vertical production target and a 48dp
   absolute horizontal floor, using the existing OEM strip width rather than
   widening/rejecting it solely for density rounding;
@@ -26,13 +35,19 @@
 - replaced the 450ms repeated-write loop with callback-first bounded confirmation,
   one semantic query before retry, controlled retry delay and distinct
   `NO_258_CALLBACK` / `NO_516_CALLBACK` failure reasons;
+- made the brightness breaker clean up the module-owned time receiver, settings
+  observer, queued work and worker thread while leaving stock Topway state alone;
 - added Day/Night equal-slot warnings, explicit Test Day/Test Night flows and a
   bounded restore action in the dashboard while retaining the 1..10 safety gate;
 - combined geometry and visual RROs into one normal user-facing `ts18_sysui`
   Magisk module, with an explicit legacy-module migration helper instead of
   deleting `/data/adb` state automatically;
+- incorporated secondary 4PDA Topway SystemUI/navigation-panel precedent while
+  keeping exact TS18 runtime/binary evidence authoritative, including the
+  reverse+DVR panel-hide firmware history and the separation between Android
+  navbar geometry and Topway panel behaviour;
 - updated packaging/CI contracts for the single Magisk ZIP plus LSPosed APK and
-  added physical-remediation regression tests.
+  expanded exact-touch/nav-visibility remediation regression tests.
 
 Physical success is not inferred from source or CI. The repaired build still
 requires the exact-unit progression in `docs/PHYSICAL-0.5.1-REMEDIATION.md` and
