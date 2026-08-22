@@ -12,8 +12,11 @@ final class BrightnessFeatureRuntime {
     private BrightnessFeatureRuntime() {}
 
     static boolean isOperational() { return compatible && !disabledForProcess; }
+    static boolean isCompatible() { return compatible; }
+    static boolean isBreakerOpen() { return disabledForProcess; }
+    static synchronized int failureCount() { return failures; }
 
-    static void markCompatible() {
+    static synchronized void markCompatible() {
         compatible = true;
         failures = 0;
         disabledForProcess = false;

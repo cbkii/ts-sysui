@@ -23,7 +23,8 @@ claim generic TS10/TS18 compatibility or Android 16 support.
 
 - Behavioural mutation requires the exact installed `SystemUI.apk` SHA-256
   `668dec9ac14fbabd76ae73d693dcdd1518190f7941b6ac0b00d16587d6c4bd3f`.
-- Hashing must stay off the SystemUI main thread.
+- Hashing must stay off the SystemUI main thread; callbacks that touch View or
+  SystemUI lifecycle state must be marshalled explicitly back to the main looper.
 - A reflection/resource/topology mismatch means zero exact mutation; do not
   broaden matching or fall back silently.
 - Preserve the legacy Xposed bridge unless exact installed LSPosed evidence
@@ -36,11 +37,17 @@ Any changed shade/touch region must:
 - remain at least 64px from both physical top corners;
 - never exceed 20% of full physical width;
 - exclude the current right-nav inset;
-- apply only after stock Android-Q touch-region computation; and
+- apply through one module-owned Android-Q internal-insets listener ordered after
+  stock lifecycle changes; and
 - retain stock behaviour for ambiguous coordinates/region, expanded shade,
   keyguard/bouncer, heads-up, bubbles and layout transitions.
 
-Configuration can narrow the strip or increase a gap, never weaken these limits.
+The exact adapter must runtime/type-check the Android-Q
+`StatusBarTouchableRegionManager.mShouldAdjustInsets` ownership signal. When it
+is true, leave `InternalInsetsInfo` completely stock. In the proven ordinary
+collapsed state, exact mode may explicitly convert the default FRAME/empty state
+to `TOUCHABLE_INSETS_REGION` and set only the bounded strip. Configuration can
+narrow the strip or increase a gap, never weaken these limits.
 
 ## Geometry and visuals
 
@@ -55,12 +62,21 @@ Configuration can narrow the strip or increase a gap, never weaken these limits.
 
 ## Right-navigation contract
 
-- Recognise only the exact vertical weighted `navbar_left` host with all seven
-  known direct OEM functions and no unknown direct child.
-- Preserve every stock View instance, ID, listener and `LayoutParams`.
+- Recognise only the exact vertical weighted `navbar_left` host. Current physical
+  evidence makes Home, Back, Recents and both volume controls mandatory; the
+  exact-static screen/power and app-slot controls are known optional children.
+  Any unknown direct child remains a STOP.
+- Preserve every stock View instance, ID, listener and `LayoutParams` and retain
+  the current runtime order rather than assuming one historical firmware order.
+- The module is subordinate to stock Topway navigation visibility. Never force
+  the panel visible. If the stock root/`navbar_left` is detached, hidden or not
+  shown (including reverse/fullscreen-style states), remove/suspend module-owned
+  controls and stop media observation; when stock returns, run the full exact
+  topology and measurement preflight again.
 - Controlled proportional reflow is permitted only by inserting one tagged
-  module-owned weighted group when measured stock and media cells remain at
-  least 56dp. The 48dp floor is not a production fallback.
+  module-owned weighted group when projected vertical cells remain at least
+  56dp. The existing OEM strip width is retained; 48dp is the absolute
+  horizontal floor and never a licence to narrow or widen the stock strip.
 - Reinflation, disablement and failure cleanup remove only module-owned Views.
 - Nav configuration and circuit breaker remain independent from compact status.
 - Use only an existing `MediaController` through public `TransportControls`.
@@ -87,6 +103,10 @@ Configuration can narrow the strip or increase a gap, never weaken these limits.
 - Do not issue the first vendor brightness query/write until stock
   `TWSystemUI.init()` has completed or a valid Topway callback directly proves
   the existing transport is live.
+- Confirmation is callback-first and bounded: query before any retry, cap write
+  attempts, and open only the brightness breaker on non-convergence. Breaker
+  cleanup must remove owned observers/receivers/workers without touching stock
+  Topway state.
 - Factory Backlight Current limits, panel files, `DIM_ADJ`/`LED_PWM`, VCOM/AVDD
   and screen-power command `33281` are separate protected domains.
 
@@ -100,5 +120,5 @@ Configuration can narrow the strip or increase a gap, never weaken these limits.
 5. Validate staged SystemUI restart, reboot, cold boot and ACC sleep/wake before
    describing a release as physically proven.
 6. Follow `docs/EXACT-TS18-SYSTEMUI-FINALISATION.md`,
-   `docs/RIGHT-NAV-MEDIA-ROADMAP.md` and `docs/BRIGHTNESS-CONTROLLER.md` for STOP
-   conditions and evidence labels.
+   `docs/RIGHT-NAV-MEDIA-ROADMAP.md`, `docs/BRIGHTNESS-CONTROLLER.md` and the
+   current physical-remediation runbook for STOP conditions and evidence labels.

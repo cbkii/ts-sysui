@@ -1,22 +1,26 @@
 #!/usr/bin/env bash
-# Validate the repository-safe exact SystemUI contract fixture.
+# Validate the repository-safe exact SystemUI contract fixture and exact-touch source shape.
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)" || exit 3
 ROOT="$(dirname -- "$SCRIPT_DIR")"
 FIXTURE="$ROOT/reference/exact-ts18-systemui-contract.json"
+ADAPTER="$ROOT/lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactTs18TouchableRegionAdapter.java"
+INSETS="$ROOT/lsposed/src/main/java/au/com/cb/ts18/statusbar/input/InternalInsetsAccess.java"
 
 if ! command -v python3 >/dev/null 2>&1; then
     printf 'FAILED: python3 is required for contract fixture validation\n' >&2
     exit 3
 fi
 
-python3 - "$FIXTURE" <<'PY'
+python3 - "$FIXTURE" "$ADAPTER" "$INSETS" <<'PY'
 import json
 import re
 import sys
 from pathlib import Path
 
 fixture = Path(sys.argv[1])
+adapter_path = Path(sys.argv[2])
+insets_path = Path(sys.argv[3])
 data = json.loads(fixture.read_text(encoding="utf-8"))
 target = data["target"]
 expected = {
@@ -58,12 +62,16 @@ expected_fields = {
     "mStatusBarHeight": "int",
     "mIsStatusBarExpanded": "boolean",
     "mForceCollapsedUntilLayout": "boolean",
+    "mShouldAdjustInsets": "boolean",
     "mStatusBar": "com.android.systemui.statusbar.phone.StatusBar",
     "mHeadsUpManager": "com.android.systemui.statusbar.phone.HeadsUpManagerPhone",
     "mBubbleController": "com.android.systemui.bubbles.BubbleController",
 }
 if fields != expected_fields:
     raise SystemExit(f"FAILED: touch manager fields drifted: {fields!r}")
+should = next(item for item in manager["fields"] if item["name"] == "mShouldAdjustInsets")
+if "runtime" not in should.get("evidenceClass", "").lower():
+    raise SystemExit("FAILED: mShouldAdjustInsets must remain labelled runtime-verified rather than exact-static-proven")
 
 resources = data["resources"]
 for forbidden in resources["forbiddenVisualOverrides"]:
@@ -85,5 +93,18 @@ expected_nav_children = {
 if set(resources["knownNavbarChildren"]) != expected_nav_children:
     raise SystemExit("FAILED: exact seven-child navbar topology drifted")
 
-print("SUCCESS: exact TS18 SystemUI contract fixture")
+adapter = adapter_path.read_text(encoding="utf-8")
+insets = insets_path.read_text(encoding="utf-8")
+if 'Field shouldAdjust = requireField(manager, "mShouldAdjustInsets", boolean.class)' not in adapter:
+    raise SystemExit("FAILED: exact adapter no longer runtime/type-checks mShouldAdjustInsets")
+if 'InternalInsetsAccess.setTouchableRegion(info' not in adapter:
+    raise SystemExit("FAILED: exact adapter no longer establishes REGION for ordinary collapsed state")
+if 'resolved.managerClass, "onComputeInternalInsets", resolved.infoClass' in adapter:
+    raise SystemExit("FAILED: duplicate direct onComputeInternalInsets mutation hook reintroduced")
+if 'getDeclaredMethod("setTouchableInsets", int.class)' not in insets:
+    raise SystemExit("FAILED: InternalInsetsAccess no longer resolves setTouchableInsets(int)")
+if 'contract.setTouchableInsets.invoke(info, contract.regionMode)' not in insets:
+    raise SystemExit("FAILED: InternalInsetsAccess no longer switches FRAME/default state to REGION")
+
+print("SUCCESS: exact TS18 SystemUI contract fixture and single-path touch runtime contract")
 PY

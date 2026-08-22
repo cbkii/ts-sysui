@@ -12,9 +12,13 @@ final class ExactTouchSafetyPolicy {
                              boolean headsUpPinned,
                              boolean headsUpGoingAway,
                              boolean bubblesActive,
-                             boolean forceCollapsedUntilLayout) {
+                             boolean forceCollapsedUntilLayout,
+                             boolean stockShouldAdjustInsets) {
         if (!exactIdentity) return Decision.keep("identity");
         if (!rootAttached) return Decision.keep("detached");
+        // mShouldAdjustInsets is the stock manager's consolidated ownership signal.
+        // When true, stock SystemUI must retain complete control of InternalInsetsInfo.
+        if (stockShouldAdjustInsets) return Decision.keep("stock-adjusting-insets");
         if (expanded) return Decision.keep("expanded");
         if (keyguardLocked) return Decision.keep("keyguard");
         if (bouncerShowing) return Decision.keep("bouncer");

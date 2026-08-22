@@ -3,7 +3,6 @@ package au.com.cb.ts18.statusbar.input;
 import android.app.KeyguardManager;
 import android.content.Context;
 import android.graphics.Rect;
-import android.graphics.Region;
 import android.view.View;
 import android.view.ViewTreeObserver;
 
@@ -23,7 +22,6 @@ import de.robv.android.xposed.XposedHelpers;
 
 /** Exact Android-Q/TS18 adapter for the SystemUI touch-region authority. */
 final class ExactTs18TouchableRegionAdapter {
-    private static final ThreadLocal<Rect> BOUNDS = ThreadLocal.withInitial(Rect::new);
     private static final Map<View, Binding> ROOTS =
             Collections.synchronizedMap(new WeakHashMap<>());
     private static volatile Members members;
@@ -55,24 +53,17 @@ final class ExactTs18TouchableRegionAdapter {
                     resolved.managerClass, "updateTouchableRegion", new XC_MethodHook() {
                         @Override protected void afterHookedMethod(MethodHookParam param) {
                             if (param.getThrowable() != null || param.thisObject == null) return;
+                            // Stock may add/remove its own listener here. Re-add ours afterwards
+                            // so the module's one listener remains ordered after stock.
                             syncListener(param.thisObject);
-                        }
-                    }));
-
-            installed.add(XposedHelpers.findAndHookMethod(
-                    resolved.managerClass, "onComputeInternalInsets", resolved.infoClass,
-                    new XC_MethodHook() {
-                        @Override protected void afterHookedMethod(MethodHookParam param) {
-                            if (param.getThrowable() != null || param.thisObject == null
-                                    || param.args == null || param.args.length != 1) return;
-                            apply(param.thisObject, param.args[0]);
                         }
                     }));
 
             for (int i = 0; i < installed.size(); i++) {
                 registry.addRequired("exact touch adapter " + i, installed.get(i));
             }
-            RateLimitedLog.always("exact TS18 touch contract installed; mutation awaits hash and policy gates");
+            RateLimitedLog.always(
+                    "exact TS18 touch contract installed; one post-stock listener awaits hash and policy gates");
             return true;
         } catch (Throwable t) {
             for (int i = installed.size() - 1; i >= 0; i--) {
@@ -103,8 +94,7 @@ final class ExactTs18TouchableRegionAdapter {
                 if (observer.isAlive()) {
                     Members contract = members;
                     if (contract != null) {
-                        contract.removeInsetsListener.invoke(
-                                observer, entry.getValue().listener);
+                        contract.removeInsetsListener.invoke(observer, entry.getValue().listener);
                     }
                 }
             } catch (Throwable t) {
@@ -180,6 +170,7 @@ final class ExactTs18TouchableRegionAdapter {
 
             boolean expanded = contract.isStatusBarExpanded.getBoolean(manager);
             boolean forceCollapsed = contract.forceCollapsedUntilLayout.getBoolean(manager);
+            boolean stockShouldAdjustInsets = contract.shouldAdjustInsets.getBoolean(manager);
             Object statusBar = contract.statusBar.get(manager);
             Object headsUp = contract.headsUpManager.get(manager);
             Object bubbles = contract.bubbleController.get(manager);
@@ -194,7 +185,8 @@ final class ExactTs18TouchableRegionAdapter {
                     (Boolean) contract.hasPinnedHeadsUp.invoke(headsUp),
                     (Boolean) contract.isHeadsUpGoingAway.invoke(headsUp),
                     (Boolean) contract.hasBubbles.invoke(bubbles),
-                    forceCollapsed);
+                    forceCollapsed,
+                    stockShouldAdjustInsets);
             if (!safety.apply) {
                 RateLimitedLog.debug(config.debug,
                         "exact input kept stock: state=" + safety.reason
@@ -214,32 +206,6 @@ final class ExactTs18TouchableRegionAdapter {
                 return;
             }
 
-            InternalInsetsAccess.Snapshot insets = InternalInsetsAccess.read(info);
-            Region stock = insets.region;
-            if (stock == null) return;
-            Rect stockBounds = BOUNDS.get();
-            stock.getBounds(stockBounds);
-
-            TouchableStatePolicy.Decision stockState = TouchableStatePolicy.evaluate(
-                    false,
-                    stock.isEmpty(),
-                    stock.isRect(),
-                    stockBounds.left,
-                    stockBounds.top,
-                    stockBounds.right,
-                    stockBounds.bottom,
-                    width,
-                    barHeight,
-                    insets.mode,
-                    insets.regionMode,
-                    root.getHeight());
-            if (!stockState.apply) {
-                RateLimitedLog.debug(config.debug,
-                        "exact input kept stock: region=" + stockState.reason
-                                + " bounds=" + stockBounds);
-                return;
-            }
-
             int rightInset = config.rightInsetOverridePx >= 0
                     ? Math.min(config.rightInsetOverridePx, Math.max(0, width - 1))
                     : SystemBarDimensions.rightSystemInset(root);
@@ -247,9 +213,14 @@ final class ExactTs18TouchableRegionAdapter {
                     width, rightInset, config.touchFraction, config.cornerGapPx);
             if (!geometry.valid) return;
 
-            stock.set(geometry.stripLeft, 0, geometry.stripRight, barHeight);
+            // Ordinary Android-Q computation starts in FRAME mode with an empty
+            // Region. Exact mode deliberately establishes REGION here. Stock
+            // special-region ownership has already been excluded by
+            // mShouldAdjustInsets and the explicit state gates above.
+            InternalInsetsAccess.setTouchableRegion(info,
+                    geometry.stripLeft, 0, geometry.stripRight, barHeight);
             RateLimitedLog.debug(config.debug,
-                    "exact collapsed touch strip x=" + geometry.stripLeft + ".."
+                    "exact collapsed touch FRAME/stock -> REGION x=" + geometry.stripLeft + ".."
                             + geometry.stripRight + " bar=" + barHeight
                             + " insetRight=" + geometry.rightInset);
         } catch (Throwable t) {
@@ -281,6 +252,7 @@ final class ExactTs18TouchableRegionAdapter {
         final Field statusBarHeight;
         final Field isStatusBarExpanded;
         final Field forceCollapsedUntilLayout;
+        final Field shouldAdjustInsets;
         final Field statusBar;
         final Field headsUpManager;
         final Field bubbleController;
@@ -300,6 +272,7 @@ final class ExactTs18TouchableRegionAdapter {
                 Field statusBarHeight,
                 Field isStatusBarExpanded,
                 Field forceCollapsedUntilLayout,
+                Field shouldAdjustInsets,
                 Field statusBar,
                 Field headsUpManager,
                 Field bubbleController,
@@ -318,6 +291,7 @@ final class ExactTs18TouchableRegionAdapter {
             this.statusBarHeight = statusBarHeight;
             this.isStatusBarExpanded = isStatusBarExpanded;
             this.forceCollapsedUntilLayout = forceCollapsedUntilLayout;
+            this.shouldAdjustInsets = shouldAdjustInsets;
             this.statusBar = statusBar;
             this.headsUpManager = headsUpManager;
             this.bubbleController = bubbleController;
@@ -348,6 +322,8 @@ final class ExactTs18TouchableRegionAdapter {
             Constructor<?> constructor = manager.getDeclaredConstructor(
                     Context.class, heads, status, View.class);
             if (constructor == null) throw new NoSuchMethodException("touch manager constructor");
+            // Keep the exact stock method in the contract, but do not hook it as a
+            // second mutation path. The persistent listener below is the sole owner.
             requireMethod(manager, "onComputeInternalInsets", void.class, info);
             requireMethod(manager, "updateTouchableRegion", void.class);
 
@@ -355,6 +331,10 @@ final class ExactTs18TouchableRegionAdapter {
             Field height = requireField(manager, "mStatusBarHeight", int.class);
             Field expanded = requireField(manager, "mIsStatusBarExpanded", boolean.class);
             Field force = requireField(manager, "mForceCollapsedUntilLayout", boolean.class);
+            // This Android-Q stock ownership signal is runtime-required. If this
+            // exact installed binary does not expose it with the expected type,
+            // the exact adapter fails open instead of guessing special states.
+            Field shouldAdjust = requireField(manager, "mShouldAdjustInsets", boolean.class);
             Field statusField = requireField(manager, "mStatusBar", status);
             Field headsField = requireField(manager, "mHeadsUpManager", heads);
             Field bubblesField = requireField(manager, "mBubbleController", bubbles);
@@ -370,7 +350,7 @@ final class ExactTs18TouchableRegionAdapter {
                     "removeOnComputeInternalInsetsListener", void.class, insetsListener);
 
             return new Members(manager, info, heads, status, insetsListener,
-                    root, height, expanded, force,
+                    root, height, expanded, force, shouldAdjust,
                     statusField, headsField, bubblesField, bouncer, pinned, goingAway,
                     hasBubbles, addListener, removeListener);
         }

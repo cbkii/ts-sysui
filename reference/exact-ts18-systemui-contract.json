@@ -16,7 +16,8 @@
     "class": "APK-STATIC",
     "source": "user-supplied exact TS18 SystemUI analysis",
     "temporalStatus": "historical exact-firmware contract; installed hash must be reverified before mutation",
-    "aospReference": "aosp-mirror/platform_frameworks_base@android-10.0.0_r47"
+    "aospReference": "aosp-mirror/platform_frameworks_base@android-10.0.0_r47",
+    "runtimeRequiredExtension": "mShouldAdjustInsets is required from the Android-Q stock touch-manager control contract and must be reflection/type-verified on the installed exact SystemUI before exact touch mutation; failure remains stock/fail-open"
   },
   "classes": [
     {
@@ -40,14 +41,15 @@
         }
       ],
       "methods": [
-        { "name": "onComputeInternalInsets", "parameters": ["android.view.ViewTreeObserver$InternalInsetsInfo"], "returns": "void", "purpose": "stock touch-region authority" },
-        { "name": "updateTouchableRegion", "parameters": [], "returns": "void", "purpose": "keep module listener ordered after stock listener changes" }
+        { "name": "onComputeInternalInsets", "parameters": ["android.view.ViewTreeObserver$InternalInsetsInfo"], "returns": "void", "purpose": "stock touch-region authority; contract check only, not a second mutation hook" },
+        { "name": "updateTouchableRegion", "parameters": [], "returns": "void", "purpose": "keep the single module listener ordered after stock listener changes" }
       ],
       "fields": [
         { "name": "mStatusBarWindowView", "type": "android.view.View", "required": true },
         { "name": "mStatusBarHeight", "type": "int", "required": true },
         { "name": "mIsStatusBarExpanded", "type": "boolean", "required": true },
         { "name": "mForceCollapsedUntilLayout", "type": "boolean", "required": true },
+        { "name": "mShouldAdjustInsets", "type": "boolean", "required": true, "evidenceClass": "AOSP-Q control contract plus mandatory exact-runtime reflection/type check" },
         { "name": "mStatusBar", "type": "com.android.systemui.statusbar.phone.StatusBar", "required": true },
         { "name": "mHeadsUpManager", "type": "com.android.systemui.statusbar.phone.HeadsUpManagerPhone", "required": true },
         { "name": "mBubbleController", "type": "com.android.systemui.bubbles.BubbleController", "required": true }

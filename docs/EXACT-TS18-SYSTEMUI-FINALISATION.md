@@ -1,509 +1,363 @@
-# Exact TS18 SystemUI finalisation roadmap
+# Exact TS18 SystemUI finalisation contract
 
-## 1. Purpose and outcome
+## 1. Scope and outcome
 
-This is the controlling development roadmap and implementation prompt for the
-next `ts-sysui` architecture milestone. It replaces the obsolete assumption
-that the executable TS18 `SystemUI.apk` is unknown and defines the work needed
-to move from generic Android-Q observation hooks to evidence-gated exact-TS18
-adapters.
+This document is the controlling source-level contract for `ts-sysui` on CB's
+exact Topway TS18 Android 10/API29 unit. It records the current architecture
+after merged PR #5, merged PR #4 and the unreleased physical-0.5.1 remediation.
 
-The target is CB's exact Topway TS18 on Android 10/API 29. The milestone must:
+The project must remain systemless, reversible, independently disableable and
+fail-open. It must not replace/resign `SystemUI.apk`, write protected Android
+partitions, hook `system_server`, broaden LSPosed beyond the main
+`com.android.systemui` process, create another media playback authority, or use
+Android/sysfs brightness as a substitute for the recovered Topway semantic path.
 
-- retain the framework RRO as the only status-bar height authority;
-- use the exact SystemUI touch-region authority for collapsed input;
-- replace recursive status-view scaling with resource-driven visuals;
-- add optional Previous, Play/Pause and Next controls to the recognised Topway
-  right-navigation host without replacing any OEM function;
-- control only an existing Android `MediaController`;
-- remain systemless, independently disableable, observation-first and fail-open;
-- leave physical TS18 qualification explicitly unverified until it is actually
-  run on the unit.
+Source/static/CI completion is not physical TS18 qualification.
 
-Implementation status on this branch: the contract/verifier, exact collapsed
-touch adapter, independent resource-driven visual RRO, exact weighted Topway nav
-group, existing-session media repository, configuration/recovery paths and
-repository checks are implemented. This document remains the controlling prompt
-and acceptance contract. Overlay/idmap, physical touch/nav/media behaviour and
-restart/reboot/cold-boot/ACC qualification remain unverified on the unit.
+## 2. Evidence order
 
-This work starts from `main` at
-`f72dd27b3c3166b31f40687d6ac648ea36fb9687`. Re-resolve `main` and any active
-overlapping pull requests before each consequential write. The open brightness
-controller work is a separate concurrent subsystem and must not be copied,
-rewritten or silently superseded by this branch.
+Use, in order:
 
-Release numbering is deliberately deferred. Another active branch already uses
-`0.5.0`; select the next non-conflicting version only after branch integration
-order is known.
+1. present exact-device runtime evidence;
+2. current repository source/tests/configuration;
+3. exact supplied/current TS18 Android-10 binaries and reproducible derived
+   contracts;
+4. applicable exact-device retained captures;
+5. same-firmware Topway components such as CarSetting/TWUtil;
+6. TS10/Driving/UIS7862/FYT implementations only as secondary precedent;
+7. AOSP Android 10 where it matches the target contract.
 
-## 2. Evidence and authority
+Current physical evidence overrides old source assumptions. Current source
+supersedes old roadmap wording. Duplicate binary copies are not corroboration.
 
-Use evidence in this order:
+## 3. Exact SystemUI identity
 
-1. fresh runtime evidence from the exact installed SystemUI process and its
-   namespace;
-2. current repository source and tests;
-3. the supplied exact TS18 Android-10 APK corpus and reproducible derived
-   contract fixtures;
-4. retained exact-device project captures;
-5. the Android-10 UIS7862/FYT/SYU SystemUI only as secondary implementation
-   precedent;
-6. AOSP Android 10 source where it matches the exact contract.
-
-Do not use the Android-16 SystemUI as an API29 implementation contract. Do not
-commit proprietary APKs, decoded layouts, decompiler output or copied OEM
-source. Commit only hashes, signatures, resource/member names, bounded derived
-fixtures and reproducible validation code.
-
-### Exact binary identity
-
-The supplied conversation records the exact executable target as:
+The retained executable contract is:
 
 | Property | Contract |
 |---|---|
 | Installed path | `/system/priv-app/SystemUI/SystemUI.apk` |
 | Package | `com.android.systemui` |
-| Version/API | Android 10 / versionCode 29 / API 29 |
+| Android/API | Android 10 / API 29 |
 | Shared UID | `android.uid.systemui` |
 | APK SHA-256 | `668dec9ac14fbabd76ae73d693dcdd1518190f7941b6ac0b00d16587d6c4bd3f` |
 | Platform certificate SHA-256 | `AA:6F:9F:B3:07:05:12:AC:96:24:25:79:7C:D6:5A:A5:85:CF:62:02:93:7E:E3:CE:EF:B1:4B:58:02:EA:BD:F3` |
-| Process authority | SystemUI already holds `android.permission.MEDIA_CONTENT_CONTROL` |
 
-The hash and static member/layout findings are inherited from the user-supplied
-exact-APK analysis. Before a mutating adapter is armed, a repository fixture and
-root-side verifier must re-establish the installed hash. A mismatch means:
+Before private mutation, runtime must re-hash the installed APK off the SystemUI
+main thread. Resolution callbacks that can touch Views/SystemUI lifecycle state
+must be explicitly dispatched back to the main looper.
 
-```text
-STOP: unsupported SystemUI contract
-```
+A hash/class/member/resource/topology mismatch means zero exact mutation. Do not
+weaken the gate or silently select compatibility mode.
 
-No exact private hook, visual mutation or navbar injection may run after that
-result. Collect the changed APK instead of guessing.
+## 4. Independent authority layers
 
-### Present, historical and unverified facts
+The implementation deliberately keeps these separate:
 
-| Claim | Status | Consequence |
-|---|---|---|
-| Android 10/API 29 target | Established exact-device evidence | Compile/runtime code remains API29 compatible. |
-| Historical display is 1280x720 with about 55 px top/right regions and density override 153 | Historical runtime baseline | Never hardcode it as current geometry; measure at runtime. |
-| Exact SystemUI contains `StatusBarTouchableRegionManager` and the Topway navbar classes/layouts listed below | Exact-APK static finding from supplied analysis | May define a reflective contract, but every member is checked before mutation. |
-| Installed APK still matches the recorded exact hash | Unknown until pre-arm check | Mutation remains off until verified. |
-| SystemUI visual RRO is accepted by current overlay/idmap policy | Unknown | Build and package it independently; rejected overlay stays stock. |
-| Weighted reflow keeps all relevant controls at least 56 dp on the unit | Strong static/runtime inference, not physical proof | Runtime preflight plus physical qualification required. |
-| MediaController selection and commands behave correctly on the unit | Unverified | Feature defaults off and progresses Play/Pause first. |
+1. **Framework geometry RRO** — owns the compact status-bar height only.
+2. **SystemUI visual RRO** — owns the narrow reviewed status icon/clock resource
+   allow-list only.
+3. **SystemUI-scoped LSPosed behaviour** — owns optional compact touch,
+   right-nav media client and brightness policy/bridge.
+4. **Stock Topway SystemUI/TWSystemUI/TWUtil** — continues to own OEM navigation,
+   vehicle-state panel visibility, screen power and vendor transport.
+5. **Existing Android media sessions** — remain playback authority.
 
-## 3. Preserved v0.4 guarantees
+No one feature failure may take down another feature domain.
 
-Do not reimplement or weaken these existing controls:
+## 5. Exact collapsed touch
 
-- first SystemUI execution is observation-only;
-- compact master, input and visual mutation defaults are off;
-- compact policy generation prevents stale settings from arming new code;
-- configured touch width remains 1-20%, with a hard 20% maximum;
-- physical top-corner exclusions remain at least 64 px;
-- the current right-system inset is excluded;
-- coordinate-space verification gates every touch mutation;
-- hook installation remains transactional and idempotent;
-- compact and navbar circuit breakers remain independent;
-- framework geometry remains the sole status-bar height authority;
-- no broad `system_server` hook is introduced;
-- build, release signing, pinned actions, source manifest and APK-contract checks
-  remain enforced.
+### 5.1 Stock Android-Q lifecycle
 
-## 4. Target architecture
+The exact adapter targets
+`com.android.systemui.statusbar.phone.StatusBarTouchableRegionManager`.
 
-The final architecture has three independent authorities:
+Ordinary Android-Q `InternalInsetsInfo` computation starts in the default FRAME
+mode with an empty `touchableRegion`. Therefore exact mode must **not** require
+stock SystemUI to have already supplied a non-empty REGION before applying the
+normal collapsed strip.
 
-1. **Framework geometry RRO** - the existing 43 dp status-bar height override;
-   no navigation dimension changes.
-2. **Exact-TS18 SystemUI visual RRO** - a separately packaged overlay containing
-   only approved status-specific resources.
-3. **SystemUI-scoped LSPosed behaviour** - exact adapters for collapsed touch and
-   optional right-nav media controls, with explicit compatibility fallback only
-   where documented.
+The production exact path uses one persistent module-owned
+`OnComputeInternalInsetsListener`. Constructor and `updateTouchableRegion()`
+lifecycle hooks only keep that listener ordered after stock changes. The module
+does not also hook `onComputeInternalInsets()` as a second mutation path.
 
-The legacy Xposed bridge remains the target because it is the repository's
-qualified API29 integration. Do not mix it with a libxposed entry path.
+### 5.2 Stock ownership signal
 
-## 5. Phase 1 - contract fixtures and drift detection
+The Android-Q stock control state `mShouldAdjustInsets` is a required runtime
+reflection/type gate. The supplied exact-static fixture did not independently
+prove that private field, so the repository records it accurately as an
+AOSP-Q-derived control requirement that must be verified against the installed
+exact binary before mutation.
 
-Create repository-safe JSON/Markdown fixtures for the exact SystemUI contract.
-Each reflected member must include its declaring class, name, parameter/return
-types, required/optional status, intended use and failure behaviour.
+If the field is missing or not boolean, exact touch does not install.
 
-At minimum cover:
-
-- `com.android.systemui.statusbar.phone.StatusBarTouchableRegionManager`;
-- `StatusBarWindowController`;
-- `StatusBarWindowView`;
-- `PhoneStatusBarView`;
-- `NavigationBarView`;
-- Topway `KeyButtonView2`;
-- `com.android.systemui.tw.TWSystemUI`;
-- `com.android.systemui.tw.StatusBarViewInit`;
-- `status_bar.xml`;
-- `navigation_bar.xml`;
-- `navigation_bar_app_item.xml`;
-- `navbar_left` and the known stock child IDs;
-- status-only versus navigation-shared dimensions.
-
-Known exact static touch contract to verify:
+If:
 
 ```text
-class  com.android.systemui.statusbar.phone.StatusBarTouchableRegionManager
-method onComputeInternalInsets(android.view.ViewTreeObserver$InternalInsetsInfo)
-field  mStatusBarWindowView
-field  mStatusBarHeight
-field  mIsStatusBarExpanded
+mShouldAdjustInsets == true
 ```
 
-Also capture the relevant heads-up, bouncer/keyguard and bubble state accessors
-only when their exact names and types are confirmed. Missing optional safety
-state means leave stock behaviour; never interpret it as inactive.
+leave `InternalInsetsInfo` completely untouched. Stock keeps ownership of its
+special touch state.
 
-Add repository checks for:
+### 5.3 Ordinary collapsed mutation
 
-- schema and fixture consistency;
-- the recorded APK/package/API/signer identity;
-- accidental contract drift;
-- absence of proprietary binaries and decoded artefacts.
+Exact mutation is allowed only when all required gates pass, including:
 
-Add a bounded root-side pre-arm verifier. It must resolve the installed APK with
-package-manager-first and explicit-path fallbacks, hash one exact file under a
-timeout, report the observed identity, never modify the APK, and leave all
-mutation settings off on mismatch or incomplete inspection.
+- exact APK identity supported;
+- compact/input explicitly armed;
+- root attached;
+- `mShouldAdjustInsets == false`;
+- `mIsStatusBarExpanded == false`;
+- keyguard and bouncer not active;
+- no pinned/departing heads-up state;
+- no bubble state requiring stock handling;
+- no force-collapsed/layout transition;
+- physical/local coordinate mapping proven;
+- valid runtime dimensions.
 
-## 6. Phase 2 - exact collapsed touch adapter
+Then exact mode explicitly performs:
 
-Add `ExactTs18TouchableRegionAdapter` as the preferred input authority.
+```text
+info.setTouchableInsets(TOUCHABLE_INSETS_REGION)
+info.touchableRegion.set(stripLeft, 0, stripRight, barHeight)
+```
 
-Install an exact API29 hook on
-`StatusBarTouchableRegionManager.onComputeInternalInsets(...)` and run only
-after stock SystemUI completes its computation. Validate the entire required
-class/member contract before registering or arming mutation. Obtain the root
-from `mStatusBarWindowView` rather than discovering it through a broad
-WindowManager path.
+The strip must remain at least 64 physical pixels from both top corners, never
+exceed 20% of full physical width and exclude the current right-system inset.
+Configuration can only make it smaller/further from corners.
 
-Mutation is permitted only when all of these are true:
+The generic compatibility adapter remains explicit-only and preserves its older
+recognised-stock-REGION safety policy. Exact failure never activates it
+automatically.
 
-- exact installed SystemUI contract is supported;
-- policy generation and compact master/input settings are armed;
-- the root is attached and still owned by the current manager;
-- the bar is unequivocally in its ordinary collapsed state;
-- `mIsStatusBarExpanded` is false;
-- keyguard/bouncer state does not require stock handling;
-- no heads-up notification is pinned, going away or transient;
-- no bubble touch region is active;
-- the stock touchable region is the normal full-width rectangular collapsed bar;
-- local x=0 maps to physical x=0 and local width equals display width;
-- geometry satisfies all existing hard invariants.
+## 6. Geometry and visuals
 
-Then, and only then, replace the ordinary collapsed region with the result of
-`TouchStripGeometry`. Any exception, missing safety state, non-rect region,
-reinflation or coordinate ambiguity leaves the stock result unchanged.
+The framework RRO remains the only status-bar height authority. Do not restore a
+runtime `TYPE_STATUS_BAR` height normaliser.
 
-Keep the generic `TouchableInsetsHook` only as a named compatibility mode that
-is disabled by default. It must never activate automatically when the exact
-adapter fails. Remove it if no supported use remains.
+The SystemUI visual RRO is independently packaged and may override only the
+reviewed status resource allow-list in
+`reference/exact-ts18-systemui-resource-matrix.md`. Current intended resources
+are status icon size/drawing size and clock size.
 
-## 7. Phase 3 - narrow root and lifecycle hooks
+Do not override navigation width/height/frame resources or shared-risk resources
+for convenience. Do not restore recursive `View.setScaleX()/setScaleY()` tree
+scaling. Overlay/idmap rejection is a clean STOP that retains stock visuals.
 
-Re-evaluate `WindowHooks` after the exact touch adapter is present:
+## 7. Exact Topway right navigation
 
-- remove status-root discovery from global `WindowManagerImpl` hooks when no
-  remaining supported feature needs it;
-- prefer exact `NavigationBarView.onFinishInflate`, attach, detach and root
-  replacement lifecycle hooks for navbar ownership;
-- keep every hook exact-signature, idempotent and transactionally uninstallable;
-- retain weak references only;
-- allow a hook failure to disable only the owning subsystem where registration
-  isolation is possible.
+The current exact host is the vertical weighted
+`com.android.systemui:id/navbar_left` inside the exact `NavigationBarView`.
 
-No work in this phase may widen scope beyond the main
-`com.android.systemui` process.
+Current physical evidence makes these direct stock controls mandatory:
 
-## 8. Phase 4 - resource-driven status visuals
-
-Retire recursive `View.setScaleX/setScaleY` traversal from production once the
-resource path is available. Delete obsolete visual traversal code and tests
-only after equivalent ownership/fail-open coverage exists.
-
-Add a separately buildable SystemUI visual RRO targeting
-`com.android.systemui`. Generate and commit a resource-use matrix that
-allow-lists only exact status-specific resources. Candidate categories include:
-
-- status icon size and drawing size;
-- clock text size;
-- status-specific icon spacing and padding;
-- exact Topway status-only child dimensions.
-
-Aim for approximately 75% visual sizing while retaining the 43 dp framework bar
-height. Never globally override `navigation_key_width`, navigation-bar width,
-height, frame dimensions or another resource shown to be shared with the right
-nav.
-
-If a status-only child has no independent overlayable resource, permit one
-narrow exact-ID adjustment after the recognised `PhoneStatusBarView` inflates.
-Do not restore recursive scaling or copy the proprietary OEM layout unless a
-separate review proves there is no narrower safe solution.
-
-Overlay rejection must be visible in validation and preserve stock visuals. Do
-not bypass overlay policy with partition writes or signing changes.
-
-## 9. Phase 5 - exact Topway navbar host
-
-Recognise only the exact vertical `LinearLayout` host `navbar_left` and validate
-its expected stock topology before any mutation. The supplied static analysis
-records stock controls for:
-
-- screen/power;
 - Home;
 - Back;
 - Recents;
-- optional/dormant app slot;
-- volume up;
-- volume down.
+- Volume+;
+- Volume−.
 
-Preserve every original View instance, ID, listener, layout authority and
-`TWSystemUI`/`TWUtil` behaviour. Do not replace or recreate the strip.
+The exact-static screen/power and app-slot controls are known optional children
+and may be absent/conditional at runtime. Unknown or duplicate direct children
+remain a STOP.
 
-Controlled proportional reflow is allowed only inside this recognised weighted
-host and only after preflight proves:
+Preserve current runtime stock order, every OEM View, ID, listener,
+`LayoutParams` and Topway command. Never replace/recreate the strip.
 
-- all expected stock functions remain present;
-- no stock listener/command authority is replaced;
-- every visible stock and media cell projects to at least 56 dp in the relevant
-  dimensions;
-- 48 dp remains an engineering STOP floor, not an automatic fallback;
-- there is no clipping, overlap, scrolling or width change;
-- removing the owned group restores a stock-only hierarchy without reconstructing
-  stock children.
-
-Insert exactly one uniquely tagged module-owned vertical weighted group. Its
-weight equals the number of enabled media actions; each enabled child has equal
-weight. Do not alter existing child layout parameters unless later exact
-runtime evidence proves that unavoidable and rollback is exact.
-
-Support an independently configured subset and order of:
+One owner-tagged weighted group may contain a unique configured subset/order of:
 
 ```text
 previous,play_pause,next
 ```
 
-The historical 720 px host suggests about 80 px per cell with six stock plus
-three media controls, or 72 px if the app slot is visible. This is a preflight
-expectation only; runtime measurement is authoritative.
+It may be injected only after exact identity, topology and measured sizing
+preflight. Vertical cells must remain >=56dp. The module uses the existing OEM
+sidebar width; 48dp is the absolute horizontal floor, not permission to narrow
+or widen the stock strip.
 
-Reinflation, disablement, contract mismatch or safety failure removes only the
-module-owned group. Duplicate callbacks must never duplicate the group.
+## 8. Stock nav visibility lifecycle
 
-## 10. Phase 6 - media control client
+Topway navigation visibility is stock/vendor authority. The module must never
+force the panel visible.
 
-Add `NavMediaSessionRepository` using only:
+A public-View visibility monitor observes the exact `NavigationBarView` and
+`navbar_left` lifecycle. If the stock root/host is detached, hidden or not shown,
+the owned media group is removed and its media observer stopped. When stock
+becomes visible again, start over with the full exact identity/topology/size
+preflight before reinjection.
+
+Do not add reverse/MCU hooks merely to keep module buttons alive.
+
+Secondary 4PDA firmware history supports this fail-open design: Topway has
+changed navigation-panel sorting/configuration/fullscreen behaviour, and the
+December-2024 TS18 branch family records a reverse+DVR navigation-panel hide fix.
+These references are precedent only, not exact current runtime proof:
+
+- `https://4pda.to/forum/index.php?showtopic=1015856&st=28740`
+- `https://4pda.to/forum/index.php?showtopic=1015856&st=45340`
+- `https://4pda.to/forum/index.php?showtopic=1015856&st=44300`
+- `https://4pda.to/forum/index.php?showtopic=1015856&st=46140`
+
+Android navbar overlays remain a separate geometry layer. TS10/Driving/FYT
+SystemUI binaries are differential research material only and must never be
+transplanted onto this TS18.
+
+## 9. Media authority
+
+Right-nav media controls use only:
 
 ```text
 MediaSessionManager -> existing MediaController -> TransportControls
 ```
 
-Do not create a MediaSession, playback service, queue, media notification,
-audio-focus owner, database or polling service.
+Do not create a MediaSession, playback service, queue, notification, audio-focus
+owner or vendor media authority.
 
-Controller selection must be deterministic and sticky while the selected
-controller remains valid. Prefer a playing active controller that advertises
-the requested action. Preserve a valid paused selection rather than hopping
-between packages. When selection or action support is ambiguous, disable/dim the
-action and dispatch nothing.
-
-Dispatch exactly one operation per accepted tap:
+Controller selection remains deterministic/sticky while valid. Unsupported
+commands are disabled. One accepted tap dispatches at most one operation:
 
 - Previous -> one `skipToPrevious()`;
 - Next -> one `skipToNext()`;
-- Play/Pause -> one specific `play()` or `pause()` chosen from reliable playback
-  state.
+- Play/Pause -> one `play()` or one `pause()`.
 
-Never issue both `TransportControls` and a media-key fallback for one tap. Do
-not guess Topway command numbers. Register bounded callbacks and unregister them
-on controller/root replacement or feature disable.
+Never pair TransportControls with media-key fallback or guessed
+`TWSystemUI.write(...)` media commands.
 
-## 11. Phase 7 - presentation
+## 10. Brightness authority
 
-Use module-owned vectors or suitable public resources for Previous, Play, Pause
-and Next. Match stock tint, padding and pressed-state styling without using the
-vendor `KeyButtonView2` class unless every key/cmd side effect is understood.
+The current exact semantic model is:
 
-- controls require meaningful content descriptions;
-- Play/Pause artwork updates from callbacks, never polling;
-- unsupported actions are visibly disabled and non-dispatching;
-- presentation does not take ownership of stock Topway buttons.
+- Topway command/callback `258` = mode (`0=Auto`, `1=Day`, `2=Night`);
+- Topway command/callback `516` = separate Day/Night stored 0..10 slots and
+  active Day/Night condition.
 
-## 12. Phase 8 - configuration and recovery
+Use one policy engine and one narrow adapter around the existing SystemUI
+`TWSystemUI`/`TWUtil` transport. Android `screen_brightness`, backlight sysfs,
+theme state, screen power and factory panel-current calibration are separate
+surfaces/domains.
 
-Keep compact, navbar and any future brightness policy generations independent.
-Expose explicit status/configuration operations for:
+Supported policy modes are Auto, Day, Night and local-clock Set-auto. Managed
+Day/Night levels are independent and preserve the opposite/unmanaged slot.
+Managed level 0 remains blocked pending a separate timed no-backlight recovery
+test.
 
-- exact-contract status and installed hash;
-- touch adapter mode (`exact`, explicit compatibility fallback, or off);
-- compact arm/disarm;
-- visual RRO status;
-- navbar observation;
-- navbar media arm/disarm;
-- media action subset/order;
-- global LSPosed kill switch.
+No first query/write occurs until stock `TWSystemUI.init()` succeeds or a valid
+Topway callback proves transport readiness. Reconciliation is callback-first,
+changes one semantic variable at a time, performs one semantic query before a
+bounded retry and opens only the brightness breaker on non-convergence.
 
-New policy generations migrate with all mutations off. Preserve independent
-recovery routes:
+When the brightness breaker opens, stop future writes and clean up the module's
+owned time receiver, settings observer, queued work and HandlerThread. Do not
+alter stock Topway state during breaker cleanup. SystemUI restart is required to
+re-arm that process.
 
-- disable the LSPosed module/scope;
-- compact global kill switch;
-- navbar kill switch and reset;
-- disable the framework geometry Magisk module;
-- disable the SystemUI visual Magisk module.
+Reverse-camera brightness coexistence remains a physical evidence question. Do
+not invent a private reverse signal pre-emptively; observe 258/516 during parked
+reverse testing and add suspension only if current evidence proves it necessary.
 
-Never require direct `/system` or `/product` writes.
+## 11. Dashboard, configuration and recovery
 
-## 13. Phase 9 - required tests
+The companion TS18 System UI Activity and the signature-protected in-process
+bridge provide the normal configuration/status surface. It exposes bounded
+current identity, hook/breaker, nav preflight/media-session and brightness
+258/516 transport/callback/confirmation state.
 
-Extend pure JVM, Android unit, shell-policy and contract tests for:
+Root helpers remain recovery/engineering fallbacks. Persistent feature switches
+remain independent so compact input, nav media and brightness can be disabled
+without removing unrelated layers. LSPosed disable plus reboot remains the broad
+behavioural recovery path.
 
-- exact class/member fixture validity;
-- unsupported/mismatched SystemUI contract -> zero mutation;
-- ordinary collapsed touch path;
-- expanded shade and detached/reinflating roots;
-- keyguard/bouncer;
-- pinned/going-away/transient heads-up state;
-- bubbles;
-- malformed, empty and non-rectangular stock regions;
-- physical coordinate mismatch;
-- 64 px corner and 20% width invariants;
-- current right-navigation inset;
-- visual overlay resource allow-list;
-- rejection of shared/nav-dimension overrides;
-- exact Topway nav-host recognition;
-- visible and `GONE` OEM app-slot variants;
-- projected equal-weight cell sizing;
-- insufficient width/height -> no injection;
-- duplicate inflate/root replacement;
-- disable and owned-view rollback;
-- action parsing, subset and order;
-- no controller, multiple controllers and sticky selection;
-- unsupported Previous/Next;
-- playing/paused transitions;
-- exactly one transport call per tap;
-- callback cleanup;
-- independent compact/navbar circuit breakers.
+No configuration path grants the normal APK platform identity or
+`WRITE_SECURE_SETTINGS`; privileged settings writes stay in the already
+privileged exact SystemUI process or explicit root helper.
 
-Remove tests for deleted generic implementations only after their replacement
-tests cover the required safety property.
+## 12. Required repository verification
 
-## 14. Phase 10 - CI, packaging and repository health
+The final remediation head must pass the repository-owned checks for:
 
-Extend the existing build lane; do not replace or weaken it. Add:
+- shell syntax/policy;
+- exact SystemUI fixture and single-path exact-touch source contract;
+- proprietary-artifact exclusion;
+- visual overlay allow-list;
+- remediation contract;
+- legacy Xposed compile/APK contract;
+- release-version tooling;
+- source manifest;
+- Gradle wrapper integrity;
+- JVM tests;
+- Android compile and Lint;
+- geometry/visual/LSPosed APK assembly;
+- APK contract;
+- development packaging and packaged-artifact contract.
 
-- exact-SystemUI contract fixture validation;
-- visual resource allow-list validation;
-- proprietary-binary/decompiler-output scan;
-- SystemUI visual RRO lint and assembly;
-- packaged-artifact validation for geometry, visual and LSPosed components;
-- source-manifest coverage for every committed source/fixture.
+Inspect complete workflow logs and fix task-owned failures. A green check is
+source/CI evidence only.
 
-Keep Actions pinned and permissions minimal. No temporary workflow, debug APK,
-captured log, signing material, decoded proprietary resource or benchmark output
-may remain in the final diff.
+## 13. Physical qualification
 
-## 15. Phase 11 - documentation correction
+Follow `docs/PHYSICAL-0.5.1-REMEDIATION.md` and `docs/VALIDATION.md` in staged
+order. At minimum re-establish:
 
-Update `README.md`, `AGENTS.md`, architecture, evidence limits, installation,
-recovery, validation, build status and right-nav documentation so they agree
-with the implemented state.
+1. stock baseline and recovery;
+2. geometry RRO;
+3. visual RRO/idmap;
+4. LSPosed inert;
+5. corrected exact compact touch;
+6. nav observation/visibility;
+7. Play/Pause only;
+8. Previous/Play-Pause/Next;
+9. reverse/fullscreen/call/projection/nav lifecycle;
+10. brightness BR0 observation;
+11. BR1 Day;
+12. BR2 Night;
+13. BR3 scheduled transitions;
+14. BR4 stock-slider/ILL/reverse coexistence;
+15. BR5 SystemUI/reboot/cold-boot/ACC lifecycle;
+16. combined lifecycle and long-duration qualification.
 
-Required corrections include:
+Do not claim any stage passed until exact-device evidence is supplied.
 
-- the exact executable SystemUI is no longer described as missing;
-- its hash, path, API identity, signer and static contract are recorded with
-  provenance and temporal limits;
-- UIS7862/FYT evidence is secondary precedent;
-- Android-16 SystemUI is explicitly non-target evidence;
-- `navbar_left` and the weighted Topway topology are documented;
-- evidence-backed proportional reflow is permitted only with the safety gates
-  above;
-- SystemUI's existing `MEDIA_CONTENT_CONTROL` authority is recorded;
-- static completion and physical/runtime qualification remain distinct;
-- renamed overlay exports are not treated as proof of active runtime resource
-  resolution.
+## 14. STOP conditions
 
-## 16. Phase 12 - verification and physical acceptance
+Keep the affected feature stock/off rather than improvising if:
 
-Run every available repository-owned source/build check on the final head:
+- installed SystemUI hash differs;
+- any required private member/type differs, including `mShouldAdjustInsets`;
+- physical coordinate mapping is ambiguous;
+- overlay/idmap rejects the visual/geometry design;
+- an unknown navbar topology/control appears;
+- stock nav is hidden/detached/not shown;
+- projected nav size is unsafe;
+- a media tap can duplicate commands;
+- Topway 258/516 semantics or transport readiness differ;
+- brightness does not converge within bounded confirmation;
+- reverse/vehicle behaviour is being fought;
+- rollback/ownership cannot be established.
 
-- shell syntax and host policy checks;
-- JVM/unit tests;
-- Android Lint;
-- debug and applicable release compilation;
-- APK contract checks;
-- development packaging and checksums;
-- source, binary, signing-material and proprietary-artefact scans.
+Firmware, MCU, panel calibration or protected package replacement remains a
+separate STOP requiring explicit approval and exact recovery evidence.
 
-Fix task-owned failures. Report the exact commit and commands. CI/static success
-does not prove device behaviour.
+## 15. Definition of source-complete
 
-Prepare staged exact-device validation that changes one authority at a time:
+The repository is source-complete for this milestone when:
 
-1. stock baseline;
-2. geometry RRO only;
-3. SystemUI visual RRO only;
-4. exact touch adapter with visual/nav media off;
-5. one inert owned navbar group;
-6. Play/Pause only;
-7. Previous and Next;
-8. full configured group.
+- exact touch uses one persistent post-stock listener;
+- `mShouldAdjustInsets=true` leaves stock InternalInsetsInfo untouched;
+- safe ordinary collapsed FRAME/empty state is explicitly converted to bounded
+  REGION;
+- identity completion that can touch Views runs on main;
+- nav media follows stock visibility and re-preflights on return;
+- existing MediaController remains sole media authority;
+- brightness retains one 258/516 semantic controller and cleans up owned runtime
+  resources on breaker;
+- dashboard/recovery paths remain bounded and independent;
+- docs match current code/evidence;
+- all final repository checks pass;
+- no proprietary binaries, decoded OEM material, generated APKs, logs,
+  credentials or temporary workflows are tracked.
 
-Test launcher, ordinary apps with top-edge controls, inside/outside strip drags,
-heads-up, expanded shade, keyguard, immersive/fullscreen, IME, reverse camera,
-phone call, projection where used, and playing/paused/stopped/no-session media.
-Confirm stock Home, Back, Recents, volume and power actions throughout.
-
-Repeat immediate, SystemUI restart, launcher restart, reboot, cold boot/full
-power cycle and ACC sleep/wake boundaries. Hash the installed SystemUI before
-arming any exact adapter.
-
-## 17. Definition of done
-
-The implementation is pull-request ready only when:
-
-- the roadmap remains accurate for the final diff;
-- exact contract fixtures and pre-arm identity verification exist;
-- framework geometry is the only status-height owner;
-- status visuals are resource-driven, independently packaged and allow-listed;
-- collapsed touch uses the exact TS18 authority;
-- the 64 px and 20% requirements remain mechanically enforced;
-- no broad `system_server` hook exists;
-- optional navbar controls use the recognised Topway host and an existing
-  `MediaController` only;
-- all OEM navbar Views/functions/listeners remain OEM-owned;
-- runtime preflight enforces the 56 dp minimum and 48 dp STOP floor;
-- each tap dispatches at most one media operation;
-- disable/reinflation leaves a stock-only navbar;
-- compact, navbar, geometry and visual subsystems remain independently
-  recoverable;
-- all applicable checks pass on the final head;
-- the complete diff contains no proprietary binary, decoded OEM file, temporary
-  diagnostic, generated APK, log or signing material;
-- documentation does not overstate physical validation;
-- the pull request records physical TS18 work as unverified until CB runs the
-  staged acceptance sequence.
-
-## 18. Execution prompt
-
-Use this roadmap as the task contract. Work on a fresh branch from the current
-default branch, preserve concurrent work, and implement the smallest coherent
-changes that satisfy each phase. Diagnose the current owning code before editing
-it. Validate against current complete files, not stale snippets. Commit this
-roadmap first, then make implementation commits grouped by contract fixtures,
-touch adapter, visual overlay, navbar/media, tooling/tests, and documentation.
-
-For every private member or resource, distinguish exact static evidence from a
-runtime assumption. Missing or mismatched contracts always produce zero
-mutation. Do not claim an unrun device state or physical lifecycle passed. Push
-the scoped branch and leave a review-ready pull request; do not merge or publish
-a release without separate approval.
+After that boundary, remaining work is physical TS18 qualification, not an
+unknown source architecture. Do not merge or publish a release without separate
+approval.

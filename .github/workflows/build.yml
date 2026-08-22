@@ -37,11 +37,13 @@ jobs:
           bash -n tools/*.sh
           sh -n magisk/customize.sh
           sh -n magisk-visual/customize.sh
+          sh -n magisk-combined/customize.sh
           bash tools/test-geometry.sh
           bash tools/test-nav-observation-contract.sh
           bash tools/test-exact-systemui-contract.sh
           bash tools/test-visual-overlay-contract.sh
           bash tools/test-proprietary-artifacts.sh
+          bash tools/test-remediation-contract.sh
           bash tools/test-xposed-stubs.sh
           bash tools/test-release-tools.sh
           bash tools/test-source-manifest.sh
@@ -51,16 +53,21 @@ jobs:
       - name: Android compile, unit tests and lint
         shell: bash
         run: |
-          ./gradlew --no-daemon clean test :overlay:lintDebug :visual-overlay:lintDebug :lsposed:lintDebug :overlay:assembleDebug :visual-overlay:assembleDebug :lsposed:assembleDebug
+          ./gradlew --no-daemon clean test \
+            :overlay:lintDebug :visual-overlay:lintDebug :lsposed:lintDebug \
+            :overlay:lintRelease :visual-overlay:lintRelease :lsposed:lintRelease \
+            :overlay:assembleDebug :visual-overlay:assembleDebug :lsposed:assembleDebug \
+            :overlay:assembleRelease :visual-overlay:assembleRelease :lsposed:assembleRelease
           bash tools/test-apk-contract.sh lsposed/build/outputs/apk/debug/lsposed-debug.apk
+          bash tools/test-apk-contract.sh lsposed/build/outputs/apk/release/lsposed-release-unsigned.apk
       - name: Package development artefacts
         env:
           ALLOW_DEBUG_SIGNING: '1'
         run: |
           bash tools/package-release.sh debug
           bash tools/test-packaged-artifacts.sh debug
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: ts18-statusbar-debug
+          name: ts18-systemui-debug
           path: dist/*
           if-no-files-found: error

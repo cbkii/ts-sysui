@@ -9,13 +9,14 @@ final class TopwayWeightedNavPolicy {
         INVALID_HOST,
         NO_ACTIONS,
         TARGET_BELOW_PRODUCTION,
-        WIDTH_TOO_SMALL,
+        WIDTH_BELOW_ABSOLUTE_FLOOR,
         AMBIGUOUS_STOCK_WEIGHTS,
         HEIGHT_TOO_SMALL
     }
 
     private static final float WEIGHT_EPSILON = 0.001f;
-    private static final int PRODUCTION_MIN_TOUCH_DP = 56;
+    private static final int PRODUCTION_VERTICAL_TOUCH_DP = 56;
+    private static final int ABSOLUTE_HORIZONTAL_TOUCH_DP = 48;
 
     private TopwayWeightedNavPolicy() {}
 
@@ -32,13 +33,22 @@ final class TopwayWeightedNavPolicy {
         if (actionCount <= 0 || actionCount > NavAction.values().length) {
             return Result.failure(FailureReason.NO_ACTIONS);
         }
-        if (requestedTouchDp < PRODUCTION_MIN_TOUCH_DP) {
+        if (requestedTouchDp < PRODUCTION_VERTICAL_TOUCH_DP) {
             return Result.failure(FailureReason.TARGET_BELOW_PRODUCTION);
         }
-        int minimumPx = (int) Math.ceil(requestedTouchDp * (double) density);
-        if (hostWidthPx < minimumPx) {
-            return Result.failure(FailureReason.WIDTH_TOO_SMALL);
+
+        // The OEM strip itself defines the horizontal interaction width. Do not
+        // reject a full-width module cell merely because density/padding makes the
+        // stock strip fractionally narrower than 56dp. Keep a hard 48dp floor,
+        // report whether 56dp is preferred/met, and never widen the strip here.
+        int minimumHorizontalPx = (int) Math.ceil(
+                ABSOLUTE_HORIZONTAL_TOUCH_DP * (double) density);
+        int preferredHorizontalPx = (int) Math.ceil(
+                PRODUCTION_VERTICAL_TOUCH_DP * (double) density);
+        if (hostWidthPx < minimumHorizontalPx) {
+            return Result.failure(FailureReason.WIDTH_BELOW_ABSOLUTE_FLOOR);
         }
+
         if (visibleStockWeights == null || visibleStockWeights.isEmpty()) {
             return Result.failure(FailureReason.AMBIGUOUS_STOCK_WEIGHTS);
         }
@@ -62,10 +72,13 @@ final class TopwayWeightedNavPolicy {
         float totalWeight = stockWeight + groupWeight;
         int projectedCellPx = (int) Math.floor(hostHeightPx * (double) unitWeight
                 / totalWeight);
-        if (projectedCellPx < minimumPx) {
+        int minimumVerticalPx = (int) Math.ceil(requestedTouchDp * (double) density);
+        if (projectedCellPx < minimumVerticalPx) {
             return Result.failure(FailureReason.HEIGHT_TOO_SMALL);
         }
-        return Result.success(unitWeight, groupWeight, minimumPx, projectedCellPx);
+        return Result.success(unitWeight, groupWeight,
+                minimumVerticalPx, minimumHorizontalPx, preferredHorizontalPx,
+                hostWidthPx >= preferredHorizontalPx, projectedCellPx, hostWidthPx);
     }
 
     static final class Result {
@@ -73,31 +86,48 @@ final class TopwayWeightedNavPolicy {
         final FailureReason failureReason;
         final float stockUnitWeight;
         final float mediaGroupWeight;
+        /** Backward-compatible alias for the required vertical target. */
         final int minimumTouchPx;
+        final int minimumHorizontalPx;
+        final int preferredHorizontalPx;
+        final boolean horizontalPreferredMet;
         final int projectedCellPx;
+        final int hostWidthPx;
 
         private Result(boolean safe,
                        FailureReason failureReason,
                        float stockUnitWeight,
                        float mediaGroupWeight,
                        int minimumTouchPx,
-                       int projectedCellPx) {
+                       int minimumHorizontalPx,
+                       int preferredHorizontalPx,
+                       boolean horizontalPreferredMet,
+                       int projectedCellPx,
+                       int hostWidthPx) {
             this.safe = safe;
             this.failureReason = failureReason;
             this.stockUnitWeight = stockUnitWeight;
             this.mediaGroupWeight = mediaGroupWeight;
             this.minimumTouchPx = minimumTouchPx;
+            this.minimumHorizontalPx = minimumHorizontalPx;
+            this.preferredHorizontalPx = preferredHorizontalPx;
+            this.horizontalPreferredMet = horizontalPreferredMet;
             this.projectedCellPx = projectedCellPx;
+            this.hostWidthPx = hostWidthPx;
         }
 
         static Result failure(FailureReason reason) {
-            return new Result(false, reason, 0f, 0f, 0, 0);
+            return new Result(false, reason, 0f, 0f,
+                    0, 0, 0, false, 0, 0);
         }
 
         static Result success(float unitWeight, float groupWeight,
-                              int minimumPx, int projectedCellPx) {
+                              int minimumVerticalPx, int minimumHorizontalPx,
+                              int preferredHorizontalPx, boolean horizontalPreferredMet,
+                              int projectedCellPx, int hostWidthPx) {
             return new Result(true, FailureReason.NONE, unitWeight, groupWeight,
-                    minimumPx, projectedCellPx);
+                    minimumVerticalPx, minimumHorizontalPx, preferredHorizontalPx,
+                    horizontalPreferredMet, projectedCellPx, hostWidthPx);
         }
     }
 }

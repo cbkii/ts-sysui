@@ -12,7 +12,7 @@
         <activity
             android:name=".BrightnessSettingsActivity"
             android:exported="true"
-            android:label="@string/brightness_title"
+            android:label="@string/app_name"
             android:theme="@android:style/Theme.Material.NoActionBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

@@ -35,6 +35,39 @@ final class Config {
         }
     }
 
+    static void invalidate() {
+        synchronized (Config.class) {
+            cached = Snapshot.defaults();
+            cachedAt = -CACHE_MS;
+        }
+    }
+
+    /** Called only from the exact SystemUI process after bridge validation. */
+    static void persistFromSystemUi(Context context, boolean enabled, boolean inputEnabled,
+                                    float touchFraction, int cornerGapPx, boolean debug) {
+        if (context == null) throw new IllegalArgumentException("context");
+        if (Float.isNaN(touchFraction) || Float.isInfinite(touchFraction)
+                || touchFraction < TouchStripGeometry.MIN_FRACTION
+                || touchFraction > TouchStripGeometry.MAX_FRACTION) {
+            throw new IllegalArgumentException("touch fraction outside hard 0.01..0.20 range");
+        }
+        if (cornerGapPx < TouchStripGeometry.MIN_CORNER_GAP_PX || cornerGapPx > 2048) {
+            throw new IllegalArgumentException("corner gap outside 64..2048px range");
+        }
+
+        // Publish mutation bits last so an interrupted transaction cannot arm a partial policy.
+        putRequired(context, KEY_INPUT, "0");
+        putRequired(context, KEY_ENABLED, "0");
+        putRequired(context, KEY_ADAPTER_MODE, "exact");
+        putRequired(context, KEY_FRACTION, Float.toString(touchFraction));
+        putRequired(context, KEY_CORNER_GAP, Integer.toString(cornerGapPx));
+        putRequired(context, KEY_DEBUG, debug ? "1" : "0");
+        putRequired(context, KEY_POLICY_VERSION, POLICY_VERSION);
+        putRequired(context, KEY_ENABLED, enabled ? "1" : "0");
+        putRequired(context, KEY_INPUT, enabled && inputEnabled ? "1" : "0");
+        invalidate();
+    }
+
     private static Snapshot read(Context context) {
         try {
             String policyVersion = Settings.Global.getString(
@@ -58,6 +91,12 @@ final class Config {
         } catch (Throwable t) {
             RateLimitedLog.error("config-read", "configuration read failed; failing open", t);
             return Snapshot.failOpen();
+        }
+    }
+
+    private static void putRequired(Context context, String key, String value) {
+        if (!Settings.Global.putString(context.getContentResolver(), key, value)) {
+            throw new IllegalStateException("Settings.Global rejected " + key);
         }
     }
 

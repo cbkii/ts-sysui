@@ -38,6 +38,58 @@ final class NavConfig {
         }
     }
 
+    static void invalidate() {
+        synchronized (NavConfig.class) {
+            cached = Snapshot.defaults();
+            cachedAt = -CACHE_MS;
+        }
+    }
+
+    /** Called only from the exact SystemUI process after bridge validation. */
+    static void persistFromSystemUi(Context context, boolean enabled, boolean probeEnabled,
+                                    String rawActions, int minTouchDp, boolean debug) {
+        if (context == null) throw new IllegalArgumentException("context");
+        List<NavAction> actions = NavAction.parseConfigured(rawActions);
+        if (enabled && actions.isEmpty()) {
+            throw new IllegalArgumentException("enabled right-nav requires at least one valid action");
+        }
+        if (minTouchDp < MIN_TOUCH_DP_FLOOR || minTouchDp > MAX_TOUCH_DP) {
+            throw new IllegalArgumentException("right-nav touch target outside 48..96dp range");
+        }
+        if (enabled && minTouchDp < DEFAULT_TOUCH_DP) {
+            throw new IllegalArgumentException("production right-nav requires >=56dp vertical target");
+        }
+        String canonicalActions = actionIds(actions);
+        if (!enabled && actions.isEmpty() && rawActions != null
+                && "none".equals(rawActions.trim())) canonicalActions = "none";
+
+        // Disable mutation while publishing a coherent policy; arm last.
+        putRequired(context, KEY_ENABLED, "0");
+        putRequired(context, KEY_PROBE, probeEnabled ? "1" : "0");
+        putRequired(context, KEY_ACTIONS, canonicalActions);
+        putRequired(context, KEY_MIN_TOUCH_DP, Integer.toString(minTouchDp));
+        putRequired(context, KEY_DEBUG, debug ? "1" : "0");
+        putRequired(context, KEY_POLICY_VERSION, POLICY_VERSION);
+        putRequired(context, KEY_ENABLED, enabled ? "1" : "0");
+        invalidate();
+    }
+
+    private static String actionIds(List<NavAction> actions) {
+        if (actions == null || actions.isEmpty()) return "none";
+        StringBuilder out = new StringBuilder();
+        for (NavAction action : actions) {
+            if (out.length() > 0) out.append(',');
+            out.append(action.id());
+        }
+        return out.toString();
+    }
+
+    private static void putRequired(Context context, String key, String value) {
+        if (!Settings.Global.putString(context.getContentResolver(), key, value)) {
+            throw new IllegalStateException("Settings.Global rejected " + key);
+        }
+    }
+
     private static Snapshot read(Context context) {
         try {
             String policyVersion = Settings.Global.getString(

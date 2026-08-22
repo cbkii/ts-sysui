@@ -1,0 +1,6 @@
+id=ts18_sysui
+name=TS18 System UI RROs
+version=@VERSION_NAME@
+versionCode=@VERSION_CODE@
+author=CB
+description=Combined systemless status-bar geometry and exact-SystemUI visual RROs for the exact TS18 Android 10 target.

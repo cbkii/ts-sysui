@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.TypedValue;
@@ -27,9 +28,15 @@ final class ExactTopwayNavController {
     private static final String MODULE_PACKAGE = "au.com.cb.ts18.statusbar.input";
     private static final long CONFIGURATION_POLL_MS = 2500L;
     private static final Object OWNER = new Object();
-    private static final String[] STOCK_IDS = {
-            "navbar_guanping", "home", "back", "recent_apps", "app",
-            "navbar_volume_plus", "navbar_volume_reduce"
+
+    // The five controls physically reported on the current unit are mandatory.
+    // The exact decoded layout also contains power/screen and an app slot; those
+    // are known OEM children but may be GONE/omitted by runtime configuration.
+    private static final String[] REQUIRED_STOCK_IDS = {
+            "home", "back", "recent_apps", "navbar_volume_plus", "navbar_volume_reduce"
+    };
+    private static final String[] OPTIONAL_STOCK_IDS = {
+            "navbar_guanping", "app"
     };
 
     private static Binding current;
@@ -45,6 +52,41 @@ final class ExactTopwayNavController {
         if (current != null) current.detach();
         current = new Binding(root);
         current.attach();
+    }
+
+    static synchronized void requestReconcile() {
+        if (current != null) current.reconcileSoon();
+    }
+
+    static synchronized void appendStatus(Bundle out) {
+        if (out == null) return;
+        Binding binding = current;
+        out.putBoolean("nav_root_seen", binding != null);
+        out.putBoolean("nav_root_attached", binding != null && binding.root.isAttachedToWindow());
+        out.putBoolean("nav_host_seen", binding != null && binding.hostSeen);
+        out.putString("nav_preflight_reason",
+                binding == null ? "navigation-root-not-seen" : binding.lastStopReason);
+        out.putInt("nav_host_width_px", binding == null ? 0 : binding.lastHostWidthPx);
+        out.putInt("nav_host_height_px", binding == null ? 0 : binding.lastHostHeightPx);
+        out.putFloat("nav_density", binding == null ? 0f : binding.lastDensity);
+        out.putInt("nav_projected_cell_px", binding == null ? 0 : binding.lastProjectedCellPx);
+        out.putInt("nav_horizontal_width_px", binding == null ? 0 : binding.lastHostWidthPx);
+        out.putInt("nav_horizontal_floor_px", binding == null ? 0 : binding.lastHorizontalFloorPx);
+        out.putInt("nav_horizontal_preferred_px", binding == null ? 0 : binding.lastHorizontalPreferredPx);
+        out.putBoolean("nav_horizontal_preferred_met",
+                binding != null && binding.lastHorizontalPreferredMet);
+        out.putString("nav_stock_summary", binding == null ? "" : binding.lastStockSummary);
+        out.putString("nav_injected_actions", binding == null ? "none"
+                : actionIds(binding.ownedActions));
+        NavMediaSessionRepository.Snapshot media = binding == null
+                ? NavMediaSessionRepository.Snapshot.empty() : binding.lastMediaSnapshot;
+        out.putInt("nav_media_controller_count", media.controllerCount);
+        out.putString("nav_media_selected_package", media.selectedPackage);
+        out.putInt("nav_media_playback_state", media.playbackState);
+        out.putLong("nav_media_action_bits", media.actionBits);
+        out.putBoolean("nav_media_previous_enabled", media.previousEnabled);
+        out.putBoolean("nav_media_play_pause_enabled", media.playPauseEnabled);
+        out.putBoolean("nav_media_next_enabled", media.nextEnabled);
     }
 
     static void failOpen() {
@@ -69,9 +111,20 @@ final class ExactTopwayNavController {
         LinearLayout ownedGroup;
         List<NavAction> ownedActions = Collections.emptyList();
         NavMediaSessionRepository media;
+        NavMediaSessionRepository.Snapshot lastMediaSnapshot =
+                NavMediaSessionRepository.Snapshot.empty();
         boolean reconciling;
         boolean detached;
-        String lastStopReason = "";
+        boolean hostSeen;
+        String lastStopReason = "not-reconciled";
+        int lastHostWidthPx;
+        int lastHostHeightPx;
+        float lastDensity;
+        int lastProjectedCellPx;
+        int lastHorizontalFloorPx;
+        int lastHorizontalPreferredPx;
+        boolean lastHorizontalPreferredMet;
+        String lastStockSummary = "";
         final Runnable reconcileRunnable = this::reconcile;
         final Runnable configurationPoll = this::reconcile;
 
@@ -129,6 +182,7 @@ final class ExactTopwayNavController {
             NavConfig.Snapshot config = null;
             try {
                 NavBarState.Capture capture = NavBarState.capture(root, root.getLayoutParams());
+                NavConfig.invalidate();
                 config = NavConfig.get(root.getContext());
                 if (config.probeEnabled) {
                     NavHierarchyProbe.sync(root, capture.generation);
@@ -138,6 +192,8 @@ final class ExactTopwayNavController {
 
                 if (!config.enabled || config.actions.isEmpty()) {
                     removeOwnedGroup();
+                    stop(config.actions.isEmpty() ? "disabled-or-no-actions" : "disabled",
+                            config.debug);
                     return;
                 }
                 if (!root.isAttachedToWindow() || root.getWidth() <= 0 || root.getHeight() <= 0) {
@@ -161,27 +217,30 @@ final class ExactTopwayNavController {
                 if (ownedGroup != null && ownedGroup.getParent() == preflight.host
                         && ownedActions.equals(config.actions)) {
                     host = preflight.host;
+                    lastStopReason = "active";
                     return;
                 }
 
                 removeOwnedGroup();
                 inject(preflight, config);
-                lastStopReason = "";
+                lastStopReason = "active";
                 RateLimitedLog.always("exact right-nav media group active: actions="
                         + actionIds(config.actions) + " projectedCellPx="
-                        + preflight.policy.projectedCellPx + " minimumPx="
-                        + preflight.policy.minimumTouchPx);
+                        + preflight.policy.projectedCellPx + " verticalMinimumPx="
+                        + preflight.policy.minimumTouchPx + " hostWidthPx="
+                        + preflight.policy.hostWidthPx + " horizontalPreferredMet="
+                        + preflight.policy.horizontalPreferredMet);
             } catch (Throwable t) {
                 removeOwnedGroup();
+                lastStopReason = "exception-" + t.getClass().getSimpleName();
                 NavFeatureRuntime.recordFailure("reconcile", t);
             } finally {
                 reconciling = false;
                 root.removeCallbacks(configurationPoll);
                 if (!detached && config != null
                         && (config.enabled || config.probeEnabled)) {
-                    // Settings.Global is intentionally observed only while a nav
-                    // feature is armed. This makes disablement converge without
-                    // a permanent SystemUI poll when the feature is off.
+                    // Armed-only polling remains a resilience fallback. Normal UI
+                    // configuration calls requestReconcile() immediately.
                     root.postDelayed(configurationPoll, CONFIGURATION_POLL_MS);
                 }
             }
@@ -196,6 +255,12 @@ final class ExactTopwayNavController {
                 return Preflight.failure("navbar_left-not-linear-layout");
             }
             LinearLayout exactHost = (LinearLayout) candidate;
+            hostSeen = true;
+            lastHostWidthPx = exactHost.getWidth()
+                    - exactHost.getPaddingLeft() - exactHost.getPaddingRight();
+            lastHostHeightPx = exactHost.getHeight()
+                    - exactHost.getPaddingTop() - exactHost.getPaddingBottom();
+            lastDensity = exactHost.getResources().getDisplayMetrics().density;
             if (exactHost.getOrientation() != LinearLayout.VERTICAL) {
                 return Preflight.failure("navbar_left-not-vertical");
             }
@@ -203,68 +268,96 @@ final class ExactTopwayNavController {
                 return Preflight.failure("explicit-host-weight-sum");
             }
 
+            Set<Integer> knownIds = new HashSet<>();
             Set<Integer> requiredIds = new HashSet<>();
             List<Float> visibleWeights = new ArrayList<>();
+            StringBuilder summary = new StringBuilder();
             int insertionIndex = Integer.MAX_VALUE;
-            for (String name : STOCK_IDS) {
+
+            for (String name : REQUIRED_STOCK_IDS) {
                 int id = resources.getIdentifier(name, "id", SYSTEM_UI_PACKAGE);
-                if (id == 0 || !requiredIds.add(id)) {
+                if (id == 0 || !knownIds.add(id) || !requiredIds.add(id)) {
                     return Preflight.failure("missing-or-duplicate-stock-id-" + name);
                 }
                 View child = exactHost.findViewById(id);
                 if (child == null || child.getParent() != exactHost) {
                     return Preflight.failure("stock-child-not-direct-" + name);
                 }
-                ViewGroup.LayoutParams raw = child.getLayoutParams();
-                if (!(raw instanceof LinearLayout.LayoutParams)) {
-                    return Preflight.failure("stock-layout-params-" + name);
-                }
-                LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) raw;
-                if (params.height != 0 || params.weight <= 0f
-                        || Float.isNaN(params.weight) || Float.isInfinite(params.weight)) {
-                    return Preflight.failure("stock-not-weighted-" + name);
-                }
-                if (child.getVisibility() != View.GONE) visibleWeights.add(params.weight);
+                String failure = inspectKnownChild(exactHost, child, name,
+                        visibleWeights, summary);
+                if (failure != null) return Preflight.failure(failure);
                 if ("navbar_volume_plus".equals(name)
                         || "navbar_volume_reduce".equals(name)) {
                     insertionIndex = Math.min(insertionIndex, exactHost.indexOfChild(child));
                 }
             }
 
+            for (String name : OPTIONAL_STOCK_IDS) {
+                int id = resources.getIdentifier(name, "id", SYSTEM_UI_PACKAGE);
+                if (id == 0) continue;
+                if (!knownIds.add(id)) return Preflight.failure("duplicate-known-id-" + name);
+                View child = exactHost.findViewById(id);
+                if (child == null) {
+                    appendSummary(summary, name + "=absent");
+                    continue;
+                }
+                if (child.getParent() != exactHost) {
+                    return Preflight.failure("optional-stock-child-not-direct-" + name);
+                }
+                String failure = inspectKnownChild(exactHost, child, name,
+                        visibleWeights, summary);
+                if (failure != null) return Preflight.failure(failure);
+            }
+
             Set<Integer> seenDirectIds = new HashSet<>();
             for (int i = 0; i < exactHost.getChildCount(); i++) {
                 View child = exactHost.getChildAt(i);
                 if (child == ownedGroup && isOwned(child)) continue;
-                if (!requiredIds.contains(child.getId())
-                        || !seenDirectIds.add(child.getId())) {
-                    return Preflight.failure("unknown-or-duplicate-direct-child");
+                if (!knownIds.contains(child.getId()) || !seenDirectIds.add(child.getId())) {
+                    return Preflight.failure("unknown-or-duplicate-direct-child-id-" + child.getId());
                 }
             }
-            if (!seenDirectIds.equals(requiredIds)) {
-                return Preflight.failure("missing-direct-child");
+            if (!seenDirectIds.containsAll(requiredIds)) {
+                return Preflight.failure("missing-required-direct-child");
             }
             if (insertionIndex == Integer.MAX_VALUE) {
                 return Preflight.failure("volume-anchor-missing");
             }
             if (ownedGroup != null && ownedGroup.getParent() == exactHost
                     && exactHost.indexOfChild(ownedGroup) < insertionIndex) {
-                // Preflight runs before an action-change reinjection. Convert the
-                // live index to the post-removal stock index.
                 insertionIndex--;
             }
 
-            int availableWidth = exactHost.getWidth()
-                    - exactHost.getPaddingLeft() - exactHost.getPaddingRight();
-            int availableHeight = exactHost.getHeight()
-                    - exactHost.getPaddingTop() - exactHost.getPaddingBottom();
+            lastStockSummary = summary.toString();
             TopwayWeightedNavPolicy.Result policy = TopwayWeightedNavPolicy.evaluate(
-                    availableWidth, availableHeight,
-                    exactHost.getResources().getDisplayMetrics().density,
+                    lastHostWidthPx, lastHostHeightPx, lastDensity,
                     visibleWeights, config.actions.size(), config.minTouchDp);
             if (!policy.safe) {
                 return Preflight.failure("weighted-policy-" + policy.failureReason);
             }
+            lastProjectedCellPx = policy.projectedCellPx;
+            lastHorizontalFloorPx = policy.minimumHorizontalPx;
+            lastHorizontalPreferredPx = policy.preferredHorizontalPx;
+            lastHorizontalPreferredMet = policy.horizontalPreferredMet;
             return Preflight.success(exactHost, insertionIndex, policy);
+        }
+
+        private String inspectKnownChild(LinearLayout exactHost, View child, String name,
+                                         List<Float> visibleWeights, StringBuilder summary) {
+            ViewGroup.LayoutParams raw = child.getLayoutParams();
+            if (!(raw instanceof LinearLayout.LayoutParams)) {
+                return "stock-layout-params-" + name;
+            }
+            LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) raw;
+            if (params.height != 0 || params.weight <= 0f
+                    || Float.isNaN(params.weight) || Float.isInfinite(params.weight)) {
+                return "stock-not-weighted-" + name;
+            }
+            if (child.getVisibility() != View.GONE) visibleWeights.add(params.weight);
+            appendSummary(summary, name + "=" + visibility(child.getVisibility())
+                    + ",index:" + exactHost.indexOfChild(child)
+                    + ",weight:" + params.weight);
+            return null;
         }
 
         private void inject(Preflight preflight, NavConfig.Snapshot config) throws Exception {
@@ -316,6 +409,8 @@ final class ExactTopwayNavController {
             button.setPadding(padding, padding, padding, padding);
             button.setImageDrawable(drawable(moduleContext, iconFor(action, false)));
             button.setContentDescription(moduleContext.getString(labelFor(action)));
+            // No session never hides the group. Controls remain visible but disabled.
+            button.setVisibility(View.VISIBLE);
             button.setEnabled(false);
             button.setAlpha(0.38f);
             button.setOnClickListener(view -> {
@@ -327,6 +422,7 @@ final class ExactTopwayNavController {
 
         private void applySnapshot(NavMediaSessionRepository.Snapshot snapshot) {
             if (detached || ownedGroup == null || snapshot == null) return;
+            lastMediaSnapshot = snapshot;
             try {
                 Context moduleContext = root.getContext().createPackageContext(
                         MODULE_PACKAGE, Context.CONTEXT_IGNORE_SECURITY);
@@ -334,6 +430,7 @@ final class ExactTopwayNavController {
                     NavAction action = entry.getKey();
                     ImageButton button = entry.getValue();
                     boolean enabled = snapshot.enabled(action);
+                    button.setVisibility(View.VISIBLE);
                     button.setEnabled(enabled);
                     button.setAlpha(enabled ? 1f : 0.38f);
                     if (action == NavAction.PLAY_PAUSE) {
@@ -353,6 +450,7 @@ final class ExactTopwayNavController {
             NavMediaSessionRepository repository = media;
             media = null;
             if (repository != null) repository.stop();
+            lastMediaSnapshot = NavMediaSessionRepository.Snapshot.empty();
             LinearLayout group = ownedGroup;
             ownedGroup = null;
             ownedActions = Collections.emptyList();
@@ -371,6 +469,18 @@ final class ExactTopwayNavController {
                 RateLimitedLog.debug(debug, "right-nav kept stock: " + reason);
             }
         }
+    }
+
+    private static void appendSummary(StringBuilder out, String value) {
+        if (out.length() > 0) out.append("; ");
+        out.append(value);
+    }
+
+    private static String visibility(int value) {
+        if (value == View.VISIBLE) return "VISIBLE";
+        if (value == View.INVISIBLE) return "INVISIBLE";
+        if (value == View.GONE) return "GONE";
+        return Integer.toString(value);
     }
 
     private static boolean isOwned(View view) {
@@ -401,6 +511,7 @@ final class ExactTopwayNavController {
     }
 
     private static String actionIds(List<NavAction> actions) {
+        if (actions == null || actions.isEmpty()) return "none";
         StringBuilder out = new StringBuilder();
         for (NavAction action : actions) {
             if (out.length() > 0) out.append(',');

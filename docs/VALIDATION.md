@@ -1,214 +1,328 @@
 # Exact-device validation matrix
 
 Repository/CI validation and physical qualification are different evidence
-classes. Record timestamps, build fingerprint, installed artifact hashes,
-settings, overlay state and bounded logs for every physical stage.
+classes. The current exact-device findings from 0.5.1 are part of the test
+baseline: no right-nav media buttons were visible and Day/Night selection caused
+no observable brightness change.
 
-Run the read-only collector before and after each change:
+The remediation is not physically successful until the stages below are recorded
+on the exact `s9863a1h10` Android 10/API29 unit.
 
-```sh
-su -c 'sh /storage/emulated/0/Download/ts18-statusbar-validate.sh'
-```
+## Evidence to record
 
-Use `ts18-right-nav-evidence.sh` for the bounded nav hierarchy/lifecycle report.
+For each consequential stage record:
+
+- timestamp and boot/lifecycle boundary;
+- build fingerprint and installed project version;
+- combined Magisk module state;
+- exact SystemUI identity/hash result;
+- TS18 System UI dashboard diagnostic export;
+- feature settings;
+- relevant physical observation;
+- PASS / FAIL / STOP outcome.
+
+The dashboard is the preferred first diagnostic source. Root collectors remain
+supplementary and should not be replaced by repeated hanging Binder-heavy shell
+commands on this firmware.
 
 ## Universal acceptance conditions
 
-- Exact SystemUI contract reports `SUPPORTED` with the expected APK SHA-256.
-- No SystemUI crash loop, ANR, input lockout or repeated circuit-breaker opening.
-- Status/shade, keyguard, HUN, bubbles, calls, reverse camera and projection keep
-  their intended stock behaviour unless a tested feature explicitly changes it.
-- Collapsed changed strip is no wider than 20% of full physical width, at least
-  64px from both top corners and does not overlap the right nav.
-- Every OEM nav function remains present and correct; every enabled media cell
-  measures at least 56dp.
-- Disabling a layer restores only that layer without partition changes.
+- exact SystemUI = `SUPPORTED` with expected SHA-256;
+- LSPosed scope remains only main `com.android.systemui`;
+- no SystemUI crash loop, ANR, input lockout or repeated breaker opening;
+- no OEM Home/Back/Recents/Volume function regresses;
+- no project code replaces SystemUI or writes Android partitions;
+- collapsed touch never exceeds 20% physical width or enters the 64px corner
+  exclusions;
+- every injected media control uses the existing sidebar width >=48dp and
+  projected vertical size >=56dp;
+- one accepted media tap results in at most one transport operation;
+- brightness hardware success is never inferred from policy persistence alone;
+- disabling one behavioural layer restores stock ownership of that layer.
 
-At last-observed 1280px width, the maximum changed touch strip is 256px. With a
-55px right nav and 64px corner gap, expected half-open x bounds are [960,1216).
-Treat these numbers as a measurement check, not a hardcoded runtime assumption.
+At the last-observed 1280px width, the maximum collapsed strip remains 256px;
+with the historic 55px right nav and 64px corner gap, expected half-open bounds
+are [960,1216). These are measurement checks, not hardcoded runtime geometry.
 
-## Stage 0 — stock baseline
+# Installation / RRO stages
 
-All project artifacts disabled. Capture contract, overlay/package/window/input,
-density, nav hierarchy and logs. Exercise shade, app top-edge input, every OEM
-nav control, media, keyguard, call, reverse camera and projection.
+## Stage I0 — stock/recovery reference
 
-Acceptance: stable stock reference and a known recovery route.
+Before installing the remediation build:
 
-## Stage 1 — geometry RRO only
+- record current stock/project behaviour;
+- confirm Home, Back, Recents, Volume+ and Volume−;
+- confirm stock brightness surfaces still work;
+- confirm Magisk and LSPosed recovery routes.
 
-Enable only `ts18_statusbar_geometry`, reboot and measure status height/insets.
+Acceptance: known stable reference and rollback route.
 
-Acceptance: about 43dp status geometry, right nav unchanged, no clipping/input
-or lifecycle regression. Repeat SystemUI restart and full reboot.
+## Stage I1 — migrate legacy split modules
 
-## Stage 2 — visual RRO
+If `ts18_statusbar_geometry` or `ts18_statusbar_visuals` remains installed, use
+`ts18-migrate-magisk-modules.sh`, reboot and confirm both legacy IDs are gone.
 
-Keep geometry enabled, add only `ts18_statusbar_visuals`, reboot and inspect
-overlay/idmap state plus status icons/clock in all ordinary and special states.
+Acceptance: no direct module-directory deletion; no duplicate project overlay
+owners remain.
 
-Acceptance: only approved status visuals shrink; nav/shared layout does not
-change. Rejection or missing target resources is a clean STOP with stock visuals.
+## Stage I2 — combined `ts18_sysui` Magisk module
 
-## Stage 3 — LSPosed hook load, mutations off
+Install one `TS18-SystemUI-Magisk-*` ZIP and reboot.
 
-Install/scope the APK only to main `com.android.systemui`. Compact generation 4,
-nav generation 2 and brightness generation 1 remain disabled.
+Acceptance:
 
-Acceptance: exact identity resolves asynchronously, hooks load once, no view,
-touch or brightness mutation occurs, restart/reboot stable.
+- geometry and visual overlay payload paths are mounted;
+- top status geometry moves toward the intended ~43dp result;
+- only approved status icon/clock visuals change;
+- right-nav width/functions remain stock;
+- no boot/SystemUI/launcher/reverse-camera regression.
 
-## Stage 4 — exact collapsed touch
+Payload presence is not sufficient proof of idmap/resource use; inspect the
+rendered result.
 
-Arm exact input, preferably below 20% first. Test shade gestures inside the
-strip and app gestures immediately outside it. Measure input/window reports.
-Repeat for expanded shade, keyguard/bouncer, HUN, bubbles, rotation if supported
-and immersive transitions.
+# LSPosed / dashboard stages
 
-Acceptance: ordinary collapsed routing changes only inside bounds; special
-states retain stock behaviour; `input-off` restores stock routing.
+## Stage L0 — hooks loaded, behaviour off
 
-## Stage 5 — nav observation, mutation off
+Install/update the LSPosed APK and scope only `com.android.systemui`. Reboot with
+compact/nav/brightness mutations off. Open **TS18 System UI**.
 
-Arm only `nav-observe`, capture hierarchy through attach/detach/reinflation and
-normal/immersive/keyguard/reverse-camera/call/projection transitions.
+Acceptance:
 
-Acceptance: exact vertical `navbar_left`, seven known direct functions, uniform
-weighted stock cells and no unknown/duplicate host. Probe disable removes its
-listener and changes no view.
+- bridge responds;
+- exact identity reports `SUPPORTED`;
+- navbar hook status is visible;
+- brightness hook count/state is visible;
+- no behavioural mutation occurs merely from installation;
+- no breaker is open.
 
-## Stage 6 — Play/Pause only
+If the bridge cannot respond, STOP. Do not widen LSPosed scope.
 
-Set `nav-actions play_pause`, 56dp minimum and `nav-enable`. Restart SystemUI.
-Measure all stock and owned cells and record their order, bounds, IDs/listeners
-where observable and press feedback.
+## Stage L1 — exact collapsed touch
 
-Test no session, one playing session, one paused session, two simultaneous
-sessions, session destruction and unsupported action.
+Enable compact touch at ~10% first, retain 64px corner gap and test:
 
-Acceptance: stock functions unchanged; cell >=56dp; no-session/unsupported is
-disabled; icon follows selected state; one tap yields exactly one play or pause;
-disable/reinflation removes only the owned group.
+- shade initiation inside the configured strip;
+- top-edge app interaction immediately outside it;
+- expanded shade;
+- keyguard/bouncer;
+- heads-up/bubbles if present;
+- immersive/fullscreen transitions.
 
-## Stage 7 — Previous / Play-Pause / Next
+Acceptance: only ordinary collapsed routing changes; special/ambiguous states
+remain stock. Then test up to, but not beyond, the required 20% maximum.
 
-Enable all three in the configured order. Repeat measurements and multi-session
-tests. At the historical 720px host, expected projected cells are about 80px for
-six visible OEM cells or 72px when the app slot is visible.
+# Right-nav remediation stages
 
-Acceptance: every visible stock and media cell remains >=56dp; each tap maps to
-one supported transport command; no media-key/vendor fallback or duplicate
-dispatch is observed.
+## Stage N0 — live preflight, mutation off
 
-## Stage 8 — operational state matrix
+Refresh dashboard status with nav disabled. If needed enable diagnostic/probe
+mode using the engineering helper and collect the exact host summary.
 
-With intended non-brightness features enabled, exercise:
+Record:
 
-- ordinary launcher/app use and rapid shade gestures;
-- keyguard, screen off/on and power button;
-- pinned/departing HUN and bubbles if present;
-- calls and audio route changes;
-- reverse camera and parking/vehicle UI;
-- CarPlay/Android Auto/projection and immersive apps;
-- volume up/down, mute/power, Home, Back, Recents and app slot;
-- media app switching, paused background session, no session and app death.
+```text
+nav hook installed
+root seen/attached
+navbar_left host seen
+preflight reason
+host width/height/density
+mandatory/optional stock child summary
+projected cell size
+horizontal floor/preferred result
+nav breaker state
+```
 
-Acceptance: no OEM-function regression, overlap, stale controller, duplicate
-command or SystemUI instability.
+Acceptance: the runtime topology is explained rather than silently ignored.
+Unknown direct child, missing mandatory stock control or unsafe geometry is a
+STOP.
 
-## Brightness BR0 — observation/config bridge only
+## Stage N1 — Play/Pause only, no session
 
-Keep `ts18_brightness_enabled=0`. Confirm the exact SystemUI compatibility gate
-passes, brightness lifecycle/callback hooks load, and the configuration Activity
-can receive a valid private acknowledgement without enabling mutation. Capture
-current `258` mode and `516` Day/Night callback state where available.
+Configure only Play/Pause and enable custom sidebar controls from the dashboard.
+No SystemUI restart should be required merely for the config change to be
+consumed.
 
-Acceptance: no Topway brightness write attributable to the controller; config
-request/acknowledgement is bounded; normal stock brightness surfaces still work.
+Acceptance:
 
-## Brightness BR1 — fixed Day at a safe visible level
+- one module-owned Play/Pause cell becomes visible;
+- it remains visible but disabled with no usable MediaController;
+- every OEM control stays visible/correct;
+- vertical projected size >=56dp;
+- existing full strip width >=48dp;
+- no nav strip widening, overlap or scrolling;
+- dashboard preflight changes to active/injected state.
 
-Select a conservative non-zero managed Day level and `mode=day`, then enable the
-brightness controller. Change one variable at a time and capture the follow-up
-Topway callback/query state.
+Complete absence of the cell is a FAIL/STOP with the dashboard preflight reason,
+not a media-session failure.
 
-Acceptance: the requested Day slot/mode converges without repeated writes;
-disabling brightness returns ownership to stock behaviour immediately.
+## Stage N2 — Play/Pause with sessions
 
-## Brightness BR2 — fixed Night at a safe visible level
+Test:
 
-Repeat BR1 for `mode=night` using a clearly visible non-zero Night level.
+- one playing session;
+- one paused session;
+- no session;
+- session destruction;
+- two simultaneous sessions;
+- media app switch.
 
-Acceptance: the Night slot/mode converges, stock slider/CarSetting remains
-usable after disable, and no brightness-only circuit breaker opens.
+Record controller count, selected package, playback state/action bits and button
+state.
 
-## Brightness BR3 — Set auto transition in both directions
+Acceptance: deterministic sticky selection, callback-driven button state and
+exactly one play or pause command per tap.
 
-Choose near-future Day and Night times so each transition can be observed within
-a bounded test window. Test Day -> Night and Night -> Day separately. Record the
-clock, settings and `258`/`516` callback state before and after each transition.
+## Stage N3 — Previous / Play-Pause / Next
 
-Acceptance: exactly one semantic mode transition is required at each boundary;
-no hot loop or continuous rewrite occurs. Screen-off/on across a boundary must
-also reconcile correctly.
+Enable all three in the desired order.
 
-## Brightness BR4 — coexistence and vehicle-state checks
+Acceptance:
 
-With safe non-zero levels, exercise:
+- all media and visible OEM cells still satisfy production vertical size;
+- unsupported Previous/Next stay visible but disabled;
+- one supported tap maps to one `TransportControls` call;
+- disabling/re-enabling or reinflation never duplicates the group;
+- removing the group restores the stock hierarchy without reconstructing stock
+  Views.
 
-- stock SystemUI brightness slider and CarSetting brightness UI;
-- `ts18_brightness_enabled=0` and the root helper disable path;
-- headlights/ILL on and off while fixed and scheduled modes are tested;
-- reverse-camera entry/exit; and
-- ordinary launcher/app operation.
+# Brightness remediation stages
 
-Acceptance: brightness uses only the recovered Topway semantic path, does not
-fight stock writers while disabled, and does not disturb camera/vehicle UI.
+## Stage BR0 — observe exact runtime state
 
-## Brightness BR5 — lifecycle qualification
+Keep brightness mutation off. Refresh dashboard status and record:
 
-With an already proven safe brightness policy, test in order:
+```text
+brightness hooks/compatibility
+transport ready
+mode known
+levels known
+Topway mode
+effectiveNight
+detected Day level
+detected Night level
+last 258 callback
+last 516 callback
+last stock 258/516 write
+breaker state
+```
 
-1. SystemUI restart;
-2. launcher restart;
-3. warm Android reboot;
-4. cold boot after full power removal where safe; and
-5. repeated ACC sleep/wake cycles.
+Operate the stock brightness slider/CarSetting once where safe and refresh.
 
-Acceptance: brightness remains fail-open until exact identity and transport
-readiness are re-established; the intended saved policy recovers without a
-SystemUI loop or repeated writes; kill-switch recovery remains available.
+Acceptance: the module can distinguish whether the private hooks/transport and
+callbacks are actually alive. No module write is attributed while disabled.
 
-**Managed level 0 is not part of BR0–BR5.** It remains blocked until a separate,
-explicitly planned timed no-backlight recovery test proves that this exact panel
-can be restored safely. Do not weaken the 1..10 production guard to complete the
-normal brightness matrix.
+## Stage BR1 — interpret Day/Night slots
 
-## Stage 9 — combined lifecycle qualification
+If detected Day and Night values are equal, record that fact. A mode-only change
+is not expected to produce a visible difference in that state.
 
-After the applicable brightness BR stages and non-brightness stages have each
-passed independently, exercise the intended combined feature set. Perform in
-order, collecting a fresh report after each:
+Choose deliberately distinct safe non-zero managed values. Do not use level 0.
 
-1. proven SystemUI restart;
-2. normal Android reboot;
-3. cold boot after full power removal where safe;
-4. multiple ACC sleep/wake cycles; and
-5. representative long-duration drive/standby interval.
+Acceptance: test values are explicit and recoverable; no hidden assumption that
+stock slots differ.
 
-Acceptance: overlays persist, identity resolves, exactly one owned nav group
-exists, brightness remains bounded and independently recoverable, settings remain
-intended, stock recovery works and no repeated exception/ANR appears.
+## Stage BR2 — fixed Day
 
-## STOP evidence
+Use **Test Day** or apply an enabled fixed-Day policy with a safe managed Day
+level.
 
-On a failure, record the smallest exact reproduction, settings, contract output,
-overlay list, validator/nav report and bounded logs. Disable only the affected
-layer. Do not broaden hashes/topology, reduce production nav target below 56dp,
-replace SystemUI, add a system-server hook, infer a vendor command as a fix, or
-bypass the brightness level-0 safety gate.
+Required observable sequence:
 
-Only after every applicable stage passes may the result be labelled physically
-qualified. Until then use `source-validated`, `CI-validated` or `unverified on
-physical TS18` precisely.
+```text
+policy saved
+-> transport/state ready
+-> ACTION_PENDING
+-> 258/516 callback confirmation as applicable
+-> ACTIVE/SETTLED
+```
+
+Acceptance:
+
+- required slot/mode converges semantically;
+- dashboard reports callback-confirmed state, not persistence-only success;
+- physical brightness visibly matches the intended Day result;
+- no hot loop or immediate breaker opening;
+- Restore/disable returns ownership safely.
+
+## Stage BR3 — fixed Night
+
+Repeat BR2 for Night with a deliberately different safe level.
+
+Acceptance: confirmed Topway Night state plus a physically distinct visible
+brightness from the Day test.
+
+`NO_258_CALLBACK`, `NO_516_CALLBACK`, transport-not-ready, unconfirmed write or
+breaker-open is a real STOP reason and must be retained in the diagnostic report.
+
+## Stage BR4 — scheduled Set auto
+
+Choose near-future transitions and test Day -> Night and Night -> Day separately.
+Also test screen-off/on across a boundary.
+
+Acceptance: one required semantic transition per boundary, callback confirmation,
+no continuous rewriting and correct recovery after a missed/sleep interval.
+
+## Stage BR5 — coexistence
+
+With safe proven values test:
+
+- module brightness disabled versus enabled;
+- stock SystemUI slider / CarSetting;
+- headlights/ILL on/off;
+- reverse-camera entry/exit;
+- ordinary launcher/app use.
+
+Acceptance: disabled module does not fight stock writers. The feature remains on
+258/516 semantic authority and does not mutate Android brightness/sysfs/panel
+calibration as a fallback.
+
+# Combined lifecycle qualification
+
+Only after compact, nav and brightness each pass independently, test the intended
+combined feature set in order:
+
+1. normal launcher/app use;
+2. proven SystemUI restart;
+3. launcher restart;
+4. warm Android reboot;
+5. cold boot/full power removal where safe;
+6. repeated ACC sleep/wake;
+7. reverse camera;
+8. phone call/audio route changes;
+9. projection/immersive mode;
+10. representative long-duration drive/standby interval.
+
+Acceptance:
+
+- exactly one module-owned nav group;
+- no duplicate media command;
+- brightness re-establishes identity/transport/state before any mutation;
+- intended settings survive where designed;
+- both behavioural kill switches and `ts18_sysui` Magisk recovery remain usable;
+- no repeated SystemUI exception/ANR or vehicle-UI regression.
+
+# STOP evidence
+
+On failure save the dashboard diagnostics plus the smallest physical reproduction
+and disable only the affected layer.
+
+Do not respond to a STOP by:
+
+- broadening SystemUI hash/topology matching;
+- widening LSPosed scope;
+- reducing vertical media targets below 56dp;
+- hiding/replacing OEM controls;
+- introducing a second media authority;
+- replacing/resigning SystemUI;
+- changing Android partitions;
+- using brightness level 0;
+- automatically substituting Android brightness/sysfs.
+
+If module 258/516 state is callback-confirmed but physical brightness still does
+not change, collect a narrow marker-assisted stock-vs-module trace before
+reconsidering the actuator.
+
+Only after the applicable stages pass may the build be called physically
+qualified. Until then use `source-validated`, `CI-validated` and `physical TS18
+validation outstanding` precisely.
