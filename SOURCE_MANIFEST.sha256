@@ -52,7 +52,7 @@ d55b76c9491e31e9b5a93f120327dd44f29152cc7fedd71951b58a4ee82d0e61  ./lsposed/src/
 d617473c8cc28d810047d9b8ba6a9ea5725fcdf8cec97f3d55ae01bb1bf8a155  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/InternalInsetsAccess.java
 d0ae7294cb281d4dd249c7a19c1c906713e0f91edb28f5a09bce42712922ec6a  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/NavAction.java
 33de279492c200c5a3387b52e323361f851186577a3b448d61deddc7d98b91d5  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/NavBarState.java
-efdd9c02f8c0c7bcdc122cf58a75045b3a174be7d3715b3bd1e1db8457daf11d4  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/NavConfig.java
+efdd9c02f8c0c7bcdc122cf58a75045b3a174be7d3715b3c277a4f6a2e71fb94  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/NavConfig.java
 714b187ffc27f63698ec852c57de5887270e4b447e1c51df0430ea40fd48dbf4  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/NavFeatureRuntime.java
 abc05179ad49aad131f4011586ade95843bacd502c7c27f7a20fe5c65df06cc3  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/NavHierarchyProbe.java
 8e7ec6ee1b5bb4fc853bcc9050d00759a24eed1643e624d3a33b5b1e4035ccbb  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/NavMediaDispatchPolicy.java
