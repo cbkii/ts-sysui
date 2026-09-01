@@ -49,5 +49,11 @@ android {
             isMinifyEnabled = false
             if (releaseSigning != null) signingConfig = releaseSigning
         }
+        create("diagnostic") {
+            initWith(getByName("release"))
+            versionNameSuffix = "-diagnostic"
+            signingConfig = releaseSigning ?: signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release", "debug")
+        }
     }
 }
