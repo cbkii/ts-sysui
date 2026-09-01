@@ -29,28 +29,48 @@ final class ExactSystemUiIdentity {
 
     static void install(ClassLoader classLoader, HookRegistry registry)
             throws ClassNotFoundException {
+        DiagnosticJournal.state("identity-hook", "RESOLVING",
+                "SystemUIApplication.onCreate");
         Class<?> application = Class.forName(
                 "com.android.systemui.SystemUIApplication", false, classLoader);
         XC_MethodHook.Unhook hook = XposedHelpers.findAndHookMethod(
                 application, "onCreate", new XC_MethodHook() {
                     @Override protected void afterHookedMethod(MethodHookParam param) {
                         if (param.getThrowable() != null || !(param.thisObject instanceof Context)) {
+                            DiagnosticJournal.record("DEBUG", "systemui-oncreate",
+                                    "ignored throwable/non-Context callback");
                             return;
                         }
+                        DiagnosticJournal.state("systemui-oncreate", "SEEN",
+                                "bridge install + identity verification requested");
                         SystemUiBridge.install((Context) param.thisObject);
                         start((Context) param.thisObject);
                     }
                 });
         registry.addRequired("SystemUIApplication.onCreate identity gate", hook);
+        DiagnosticJournal.state("identity-hook", "INSTALLED",
+                "SystemUIApplication.onCreate");
     }
 
     static void start(Context context) {
-        if (context == null || !STARTED.compareAndSet(false, true)) return;
+        if (context == null) {
+            DiagnosticJournal.state("identity", "BLOCKED", "null context");
+            return;
+        }
+        if (!STARTED.compareAndSet(false, true)) {
+            DiagnosticJournal.record("DEBUG", "identity",
+                    "verification already started state=" + state);
+            return;
+        }
         Context appContext = context.getApplicationContext();
         if (appContext == null) appContext = context;
         Context verificationContext = appContext;
         state = State.CHECKING;
         detail = "hashing";
+        DiagnosticJournal.state("identity", "CHECKING",
+                "API=" + Build.VERSION.SDK_INT + " device=" + Build.DEVICE
+                        + " product=" + Build.PRODUCT);
+        RateLimitedLog.event("identity", "exact SystemUI APK verification started off main");
 
         Thread worker = new Thread(() -> verify(verificationContext),
                 "TS18-SystemUI-contract");
@@ -60,6 +80,8 @@ final class ExactSystemUiIdentity {
         } catch (Throwable t) {
             state = State.UNSUPPORTED;
             detail = "worker-start-" + t.getClass().getSimpleName();
+            DiagnosticJournal.failure("identity", "worker start failed", t);
+            DiagnosticJournal.state("identity", "UNSUPPORTED", detail);
             notifyResolved();
             RateLimitedLog.error("contract-worker",
                     "exact SystemUI identity verification could not start; mutation stays off", t);
@@ -85,6 +107,9 @@ final class ExactSystemUiIdentity {
             runNow = state == State.SUPPORTED || state == State.UNSUPPORTED;
             if (!runNow) listeners.add(listener);
         }
+        DiagnosticJournal.record("DEBUG", "identity-listener",
+                runNow ? "resolution already available; dispatch now"
+                        : "listener queued while state=" + state);
         if (runNow) dispatchListener(listener);
     }
 
@@ -95,6 +120,8 @@ final class ExactSystemUiIdentity {
                 reject("source-dir");
                 return;
             }
+            DiagnosticJournal.record("DEBUG", "identity",
+                    "hash source=" + sourceDir);
             String actual = sha256(sourceDir);
             SystemUiContractPolicy.Decision decision = SystemUiContractPolicy.evaluate(
                     Build.VERSION.SDK_INT, Build.DEVICE, Build.PRODUCT, actual);
@@ -104,10 +131,13 @@ final class ExactSystemUiIdentity {
             }
             detail = actual;
             state = State.SUPPORTED;
-            RateLimitedLog.always("exact SystemUI contract verified asynchronously: " + actual);
+            DiagnosticJournal.state("identity", "SUPPORTED", actual);
+            RateLimitedLog.event("identity",
+                    "exact SystemUI contract verified asynchronously: " + actual);
             notifyResolved();
         } catch (Throwable t) {
             reject("hash-" + t.getClass().getSimpleName());
+            DiagnosticJournal.failure("identity", "verification failed", t);
             RateLimitedLog.error("contract-hash",
                     "exact SystemUI identity verification failed; mutation stays off", t);
         }
@@ -116,7 +146,8 @@ final class ExactSystemUiIdentity {
     private static void reject(String reason) {
         detail = reason;
         state = State.UNSUPPORTED;
-        RateLimitedLog.always("STOP: unsupported SystemUI contract; " + reason);
+        DiagnosticJournal.state("identity", "UNSUPPORTED", reason);
+        RateLimitedLog.event("identity", "STOP: unsupported SystemUI contract; " + reason);
         notifyResolved();
     }
 
@@ -126,6 +157,8 @@ final class ExactSystemUiIdentity {
             pending = new ArrayList<>(listeners);
             listeners.clear();
         }
+        DiagnosticJournal.record("DEBUG", "identity-listener",
+                "dispatching count=" + pending.size() + " state=" + state);
         for (Runnable listener : pending) dispatchListener(listener);
     }
 
@@ -139,12 +172,16 @@ final class ExactSystemUiIdentity {
         try {
             posted = MAIN.post(() -> runListenerNow(listener));
         } catch (Throwable t) {
+            DiagnosticJournal.failure("identity-listener",
+                    "main-looper post failed", t);
             RateLimitedLog.error("contract-listener-dispatch",
                     "exact SystemUI resolution callback could not be posted to main", t);
             return;
         }
         if (!posted) {
-            RateLimitedLog.always(
+            DiagnosticJournal.state("identity-listener", "BLOCKED",
+                    "main looper rejected post");
+            RateLimitedLog.event("identity-listener",
                     "exact SystemUI resolution callback was not accepted by the main looper; mutation stays fail-open until another lifecycle event");
         }
     }
@@ -153,6 +190,8 @@ final class ExactSystemUiIdentity {
         try {
             listener.run();
         } catch (Throwable t) {
+            DiagnosticJournal.failure("identity-listener",
+                    "resolution listener failed", t);
             RateLimitedLog.error("contract-listener",
                     "exact SystemUI resolution listener failed", t);
         }
