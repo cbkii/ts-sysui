@@ -36,7 +36,8 @@ a3648413b47ef77af21d5ebc36c687c7d103aaef3e17f33de7d4f080a6f300a3  ./gradlew
 1abccc2c1ef3173f1f0ae3cad9271c48e7f001b91d5f9d05aaff31f103b866f8  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessController.java
 5b42e795cb0f3fabfe110b162ea0edb1fbb973271c5151048e94301789bc8962  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessFeatureRuntime.java
 2fd0ecc6f45c98abb56ceb6a023c26d0da3c064defe8df02d14c291815b3bcf0  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessHooks.java
-c2dbb5b0e7aaaa22349efc83168f5af0ddbe26e306e9da18c9c4488962078a59b7f  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessProtocol.java
+c2dbb5b0e7aaaa22349efc83168f5af0ddbe26e306e9da18c9a223385fb016db  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessPolicy.java
+dffc2b9dcab3d26123c88c4a638e45492e286d6b3681cd3245d73b43869f7736  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessProtocol.java
 debfe734bce4d5b01b173384b44feac3eca6c026bffc2c9c4488962078a59b7f  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessSettingsActivity.java
 de3c7358f2e10a880d8f99f0a90cc834e55d99e5c3e9ef9784ad0b210b19e384  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessState.java
 37ab7318ff9078b16854cd7e0570ce42f45cb51446186e81198ac846483a869c  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/CircuitBreaker.java
