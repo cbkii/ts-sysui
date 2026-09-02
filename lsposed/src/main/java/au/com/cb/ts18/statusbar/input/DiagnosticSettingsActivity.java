@@ -145,6 +145,9 @@ public final class DiagnosticSettingsActivity extends Activity {
 
     private void refresh() {
         if (pendingNonce != null) return;
+        // Invalidate any report already being generated before starting a new
+        // bridge request, so its completion cannot re-enable stale export.
+        renderGeneration++;
         setReportReady(false);
         report.setText("Waiting for SystemUI bridge status...");
         DiagnosticJournal.record("INFO", "diagnostic-activity", "status refresh requested");
