@@ -45,7 +45,7 @@ de3c7358f2e10a880d8f99f0a90cc834e55d99e5c3e9ef9784ad0b210b19e384  ./lsposed/src/
 56b111b613f4c07defa70e8eadf9a9f79ffe9a4aa8c43d942488b8195954cae7  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/CoordinateSpacePolicy.java
 453ca4afea7f8899394689b2df495b8bf9dd0383d7e54a6645288f22676a6bab  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/CoordinateSpaceVerifier.java
 4070f728207dfc2ab3ed7bdb3efbe934bb865898b9b5010ff4e3ad2b63d4efe9  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/DiagnosticJournal.java
-2e19aa19e0bf516fd19858a154cd378f7a8e3a2d3489488857b14c54d8acca0d  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/DiagnosticSettingsActivity.java
+34389146bd133b9d4292ee370a961a8b8a30c525152754be119cffcc0168e208  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/DiagnosticSettingsActivity.java
 f5b09a837a6c53bbe6fc24621fdf13f8f754603e3baf8f3ef4c417b7e5ee35e0  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactSystemUiIdentity.java
 f24ccb5ded7bb8ef61b6ddb43309bd268a9ab506f809e4008ec98814453a7b6e  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactTopwayNavAdapter.java
 cb682ceb5c8405b604c7574096cc3bffa6e7d80b0ce4027936ecd1725c787cd6  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactTopwayNavController.java
@@ -122,7 +122,7 @@ e25e7b045532e8cdff15cddc4b2a03b0f0e62ab9641e661e373e110a9ffc8892  ./tools/Geomet
 9af847483ea1fd3e4634a255f339ef7eddc63dfcc4815dd7fb047d8c5856bc81  ./tools/resolve-release-version.sh
 41fed45a2952784a9c393fd32c04cb9efaaa58a742cb73bb5c6724ac56d4e410  ./tools/test-apk-contract.sh
 06fa9002f0593d9f122347fcc69ff2820cf01728e804c5257f390444bfcbe99c  ./tools/test-diagnostic-apk-contract.sh
-f3de655545ff36413b02f91e946bded873645f3f6976e533082c299e403ffd74  ./tools/test-diagnostic-contract.sh
+2f7993032eda2aecc7aa08da74b03f83dc3c6841db1464dbfdc178ace243878d  ./tools/test-diagnostic-contract.sh
 1fefeb5085a6d09313aee7347f351998e0b093eca6c1f7ab0c1eb3b0077f405a  ./tools/test-exact-systemui-contract.sh
 af44839a40a5b36d443425aaf05276477db2692dbf247d7acc8984bc58ac8bbc  ./tools/test-geometry.sh
 94d2ae29e476e999f9694257266c66fb70eadfd5dadf4ccfb01e9433db313d13  ./tools/test-gradle-wrapper.sh
