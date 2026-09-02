@@ -44,6 +44,8 @@ require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/LocalSelfDiagnostic
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/DiagnosticSettingsActivity.java 'Read-only diagnostic console'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/DiagnosticSettingsActivity.java 'Refresh full diagnostic status'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/DiagnosticSettingsActivity.java 'Executors.newSingleThreadExecutor'
+require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/DiagnosticSettingsActivity.java 'copyButton.setEnabled(ready)'
+require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/DiagnosticSettingsActivity.java 'saveButton.setEnabled(ready)'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessHooks.java 'RateLimitedLog.debug(true, "brightness-write-observed"'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessHooks.java 'DiagnosticJournal.state(stage, "ROLLED_BACK"'
 require docs/DIAGNOSTIC-BUILD-POLICY.md 'Mandatory runtime event model'
@@ -78,6 +80,23 @@ fi
 if grep -F 'ACTION_APPLY' \
         lsposed/src/main/java/au/com/cb/ts18/statusbar/input/DiagnosticSettingsActivity.java >/dev/null; then
     echo 'FAILED: Diagnostic Console must not issue mutation/apply requests.' >&2
+    exit 2
+fi
+
+# Export actions must stay disabled/guarded until a complete report is ready, and
+# stopped Activity lifetimes must invalidate old worker callbacks before resume.
+activity='lsposed/src/main/java/au/com/cb/ts18/statusbar/input/DiagnosticSettingsActivity.java'
+report_guard_count="$(grep -F -c 'if (!reportReady)' "$activity" || true)"
+if [ "$report_guard_count" -lt 2 ]; then
+    echo 'FAILED: Diagnostic Console copy/save paths must both reject incomplete reports.' >&2
+    exit 2
+fi
+if ! grep -A8 -F 'private void refresh()' "$activity" | grep -F 'setReportReady(false);' >/dev/null; then
+    echo 'FAILED: Diagnostic Console refresh must disable report export before collecting new state.' >&2
+    exit 2
+fi
+if ! grep -A10 -F '@Override protected void onStop()' "$activity" | grep -F 'renderGeneration++;' >/dev/null; then
+    echo 'FAILED: Diagnostic Console onStop must invalidate stale report workers.' >&2
     exit 2
 fi
 
