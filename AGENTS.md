@@ -23,6 +23,10 @@ claim generic TS10/TS18 compatibility or Android 16 support.
 
 - Behavioural mutation requires the exact installed `SystemUI.apk` SHA-256
   `668dec9ac14fbabd76ae73d693dcdd1518190f7941b6ac0b00d16587d6c4bd3f`.
+- Brightness mutation additionally depends on the exact supplied/current
+  `CarSetting.apk` actuator contract, SHA-256
+  `06060263e3968a4203c6c37efe95858cd959ac39481dc133de576023b7de2b71`;
+  a changed CarSetting binary blocks managed brightness until re-analysed.
 - Hashing must stay off the SystemUI main thread; callbacks that touch View or
   SystemUI lifecycle state must be marshalled explicitly back to the main looper.
 - A reflection/resource/topology mismatch means zero exact mutation; do not
@@ -62,10 +66,15 @@ narrow the strip or increase a gap, never weaken these limits.
 
 ## Right-navigation contract
 
-- Recognise only the exact vertical weighted `navbar_left` host. Current physical
-  evidence makes Home, Back, Recents and both volume controls mandatory; the
-  exact-static screen/power and app-slot controls are known optional children.
-  Any unknown direct child remains a STOP.
+- Recognise only the exact vertical weighted `navbar_left` host.
+- The exact supplied `SystemUI.apk` names the required physical controls
+  `navbar_home`, `navbar_back`, `navbar_history`, `navbar_volume_plus`, and
+  `navbar_volume_reduce`; `navbar_guanping` and `navbar_app` are known optional
+  decoded children. Do not regress to generic AOSP `home`, `back`,
+  `recent_apps`, or `app` resource names.
+- Current physical evidence makes Home, Back, Recents and both volume controls
+  mandatory. Any unknown direct child remains a STOP, and diagnostics must report
+  the live direct-child resource entry names before guessing at a firmware drift.
 - Preserve every stock View instance, ID, listener and `LayoutParams` and retain
   the current runtime order rather than assuming one historical firmware order.
 - The module is subordinate to stock Topway navigation visibility. Never force
@@ -86,29 +95,47 @@ narrow the strip or increase a gap, never weaken these limits.
 
 ## Brightness contract
 
-- The current exact-device semantic authority is Topway command/callback `516`
-  for separate Day/Night 0–10 slots and command `258` for mode. The recovered
-  current mode values are `0=Auto`, `1=Day`, `2=Night`.
-- Do not use Android `screen_brightness`, backlight sysfs or panel calibration as
-  the ordinary brightness controller.
-- Active private brightness mutation requires the same exact current SystemUI
-  SHA-256 gate. Unknown/changed binaries fail open; do not weaken the hash check.
+- Exact supplied `CarSetting.apk` static evidence supersedes the earlier
+  assumption that Topway command `516` is the ordinary physical brightness
+  actuator on this build.
+- The active CarSetting slider writes
+  `Settings.System.SCREEN_BRIGHTNESS`, using the physical raw range `30..255`.
+  The module keeps its managed logical range `1..10` and maps it monotonically to
+  that raw range (`1 -> 30`, `10 -> 255`).
+- Command/callback `516` remains observation-only for this module: it can expose
+  effective Day/Night and packed Topway slots, but a 516 callback must never be
+  used as physical brightness-write confirmation.
+- Topway command `258` remains the mode authority. Reproduce the exact observed
+  CarSetting mode transaction on the main looper: `write(258,1,<mode>)` followed
+  by `write(258,128)`. Do not invent an unsupported semantic label for the
+  second stock operation.
+- Re-read `Settings.System.SCREEN_BRIGHTNESS` after a managed physical write and
+  require convergence before reporting success. A returned/persisted policy
+  acknowledgement is not physical confirmation.
+- Active brightness mutation requires the exact SystemUI hash and exact
+  CarSetting hash gates. Unknown/changed binaries fail open; do not weaken either
+  check.
 - Brightness has its own policy generation, persistent enable switch and
   process-local circuit breaker. A brightness failure must not disable compact
   status-bar or right-nav functionality.
-- All brightness mutation defaults off. Managed level `0` remains unsupported
-  until a timed exact-device no-backlight recovery test proves safe recovery.
+- All brightness mutation defaults off. Managed logical level `0` remains
+  unsupported until a timed exact-device no-backlight recovery test proves safe
+  recovery.
 - `set_auto` is a local-clock policy that explicitly selects Day or Night; it
   must not depend on the stock ILL/headlight Auto decision.
-- Do not issue the first vendor brightness query/write until stock
-  `TWSystemUI.init()` has completed or a valid Topway callback directly proves
-  the existing transport is live.
-- Confirmation is callback-first and bounded: query before any retry, cap write
-  attempts, and open only the brightness breaker on non-convergence. Breaker
-  cleanup must remove owned observers/receivers/workers without touching stock
-  Topway state.
-- Factory Backlight Current limits, panel files, `DIM_ADJ`/`LED_PWM`, VCOM/AVDD
-  and screen-power command `33281` are separate protected domains.
+- Stock `Auto` keeps Topway's own mode decision authoritative. If module-managed
+  Day/Night physical levels are enabled in stock Auto, select the applicable
+  level only after a valid 516 observation establishes effective Day/Night;
+  otherwise fail open rather than guess.
+- Do not issue the first vendor 258 query/write until stock `TWSystemUI.init()`
+  has completed or a valid Topway callback directly proves the transport is live.
+- Confirmation is bounded: physical level writes use Settings readback; mode
+  changes use the observed 258 callback/state; query before retry, cap attempts,
+  and open only the brightness breaker on non-convergence. Breaker cleanup must
+  remove owned observers/receivers/workers without touching stock state.
+- Do not add backlight sysfs, panel calibration, Factory Backlight Current,
+  `DIM_ADJ`/`LED_PWM`, VCOM/AVDD, screen-power command `33281`, a CarSetting
+  LSPosed scope, or a second physical brightness authority without new evidence.
 
 ## Diagnostic and development builds
 
@@ -129,6 +156,9 @@ narrow the strip or increase a gap, never weaken these limits.
   unrelated application/file data.
 - Mounted RRO files are not proof of effective overlays; diagnostic builds should
   expose resource values resolved by the live framework/SystemUI process.
+- Brightness diagnostics must keep Topway semantic observation separate from the
+  physical `SCREEN_BRIGHTNESS` write/readback path and expose both 258 transaction
+  stages.
 - The release-derived `diagnostic` variant keeps the production application ID.
   A trusted Manual Diagnostic Build may use the configured release certificate
   solely to permit exact-device upgrade testing. It must never tag, publish a
@@ -148,5 +178,6 @@ narrow the strip or increase a gap, never weaken these limits.
    describing a release as physically proven.
 6. Follow `docs/EXACT-TS18-SYSTEMUI-FINALISATION.md`,
    `docs/RIGHT-NAV-MEDIA-ROADMAP.md`, `docs/BRIGHTNESS-CONTROLLER.md`,
-   `docs/DIAGNOSTIC-BUILD-POLICY.md` and the current physical-remediation
-   runbook for STOP conditions and evidence labels.
+   `docs/DIAGNOSTIC-BUILD-POLICY.md`,
+   `docs/EXACT-APK-NAV-BRIGHTNESS-CORRECTION.md` and the current
+   physical-remediation runbook for STOP conditions and evidence labels.

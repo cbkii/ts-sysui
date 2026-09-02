@@ -14,8 +14,8 @@
   },
   "provenance": {
     "class": "APK-STATIC",
-    "source": "user-supplied exact TS18 SystemUI analysis",
-    "temporalStatus": "historical exact-firmware contract; installed hash must be reverified before mutation",
+    "source": "user-supplied exact TS18 SystemUI.apk analysis",
+    "temporalStatus": "exact supplied/current-firmware contract; installed hash must be reverified before mutation",
     "aospReference": "aosp-mirror/platform_frameworks_base@android-10.0.0_r47",
     "runtimeRequiredExtension": "mShouldAdjustInsets is required from the Android-Q stock touch-manager control contract and must be reflection/type-verified on the installed exact SystemUI before exact touch mutation; failure remains stock/fail-open"
   },
@@ -78,18 +78,9 @@
         { "name": "getTouchableRegion", "parameters": [], "returns": "android.graphics.Rect", "purpose": "confirm bubble-region authority" }
       ]
     },
-    {
-      "name": "com.android.systemui.statusbar.phone.StatusBarWindowController",
-      "required": false
-    },
-    {
-      "name": "com.android.systemui.statusbar.phone.StatusBarWindowView",
-      "required": false
-    },
-    {
-      "name": "com.android.systemui.statusbar.phone.PhoneStatusBarView",
-      "required": true
-    },
+    { "name": "com.android.systemui.statusbar.phone.StatusBarWindowController", "required": false },
+    { "name": "com.android.systemui.statusbar.phone.StatusBarWindowView", "required": false },
+    { "name": "com.android.systemui.statusbar.phone.PhoneStatusBarView", "required": true },
     {
       "name": "com.android.systemui.statusbar.phone.NavigationBarView",
       "required": true,
@@ -105,7 +96,7 @@
     {
       "name": "com.android.systemui.tw.TWSystemUI",
       "required": true,
-      "purpose": "existing Topway authority retained for stock controls; media commands do not use guessed vendor writes"
+      "purpose": "existing Topway authority retained for stock controls and brightness-mode transport"
     },
     {
       "name": "com.android.systemui.tw.StatusBarViewInit",
@@ -122,10 +113,10 @@
     "navbarHost": "com.android.systemui:id/navbar_left",
     "knownNavbarChildren": [
       "com.android.systemui:id/navbar_guanping",
-      "com.android.systemui:id/home",
-      "com.android.systemui:id/back",
-      "com.android.systemui:id/recent_apps",
-      "com.android.systemui:id/app",
+      "com.android.systemui:id/navbar_home",
+      "com.android.systemui:id/navbar_back",
+      "com.android.systemui:id/navbar_history",
+      "com.android.systemui:id/navbar_app",
       "com.android.systemui:id/navbar_volume_plus",
       "com.android.systemui:id/navbar_volume_reduce"
     ],

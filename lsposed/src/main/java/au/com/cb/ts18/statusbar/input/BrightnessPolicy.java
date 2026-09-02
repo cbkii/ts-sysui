@@ -1,6 +1,6 @@
 package au.com.cb.ts18.statusbar.input;
 
-/** Pure policy for the exact TS18 Topway brightness contract. */
+/** Pure policy for the exact TS18 CarSetting-backed brightness contract. */
 final class BrightnessPolicy {
     static final int TOPWAY_MODE_AUTO = 0;
     static final int TOPWAY_MODE_DAY = 1;
@@ -8,6 +8,8 @@ final class BrightnessPolicy {
     static final int MIN_LEVEL = 1;
     static final int MAX_LEVEL = 10;
     static final int PRESERVE_LEVEL = -1;
+    static final int SLOT_DAY = 0;
+    static final int SLOT_NIGHT = 1;
 
     enum ControlMode {
         AUTO("auto"), DAY("day"), NIGHT("night"), SET_AUTO("set_auto");
@@ -24,7 +26,7 @@ final class BrightnessPolicy {
         }
     }
 
-    enum ActionType { NONE, SET_DAY_LEVEL, SET_NIGHT_LEVEL, SET_MODE }
+    enum ActionType { NONE, SET_PHYSICAL_LEVEL, SET_MODE }
 
     static final class Config {
         final boolean enabled;
@@ -46,8 +48,12 @@ final class BrightnessPolicy {
             this.debug = debug;
         }
         boolean scheduleValid() { return dayStartMinute != nightStartMinute; }
+        boolean hasManagedLevel() {
+            return dayLevel != PRESERVE_LEVEL || nightLevel != PRESERVE_LEVEL;
+        }
     }
 
+    /** Topway semantic observation. The day/night slots originate from callback 516 only. */
     static final class State {
         final boolean modeKnown;
         final int topwayMode;
@@ -66,35 +72,119 @@ final class BrightnessPolicy {
         }
     }
 
+    static final class LevelTarget {
+        final boolean known;
+        final int selector;
+        final int logicalLevel;
+        final String reason;
+
+        private LevelTarget(boolean known, int selector, int logicalLevel, String reason) {
+            this.known = known;
+            this.selector = selector;
+            this.logicalLevel = logicalLevel;
+            this.reason = reason;
+        }
+
+        static LevelTarget day(int level) {
+            return new LevelTarget(true, SLOT_DAY, level, "day");
+        }
+
+        static LevelTarget night(int level) {
+            return new LevelTarget(true, SLOT_NIGHT, level, "night");
+        }
+
+        static LevelTarget none(String reason) {
+            return new LevelTarget(true, -1, PRESERVE_LEVEL, reason);
+        }
+
+        static LevelTarget unknown(String reason) {
+            return new LevelTarget(false, -1, PRESERVE_LEVEL, reason);
+        }
+
+        boolean managed() {
+            return known && logicalLevel != PRESERVE_LEVEL;
+        }
+    }
+
     static final class Action {
         static final Action NONE = new Action(ActionType.NONE, -1, -1);
         final ActionType type;
         final int selector;
         final int value;
         private Action(ActionType type, int selector, int value) {
-            this.type = type; this.selector = selector; this.value = value;
+            this.type = type;
+            this.selector = selector;
+            this.value = value;
         }
-        static Action dayLevel(int value) { return new Action(ActionType.SET_DAY_LEVEL, 0, value); }
-        static Action nightLevel(int value) { return new Action(ActionType.SET_NIGHT_LEVEL, 1, value); }
+        static Action physicalLevel(int selector, int logicalLevel) {
+            if (selector != SLOT_DAY && selector != SLOT_NIGHT) {
+                throw new IllegalArgumentException("physical brightness slot must be day or night");
+            }
+            if (sanitiseLevel(logicalLevel) == PRESERVE_LEVEL) {
+                throw new IllegalArgumentException("physical brightness level must be managed 1..10");
+            }
+            return new Action(ActionType.SET_PHYSICAL_LEVEL, selector, logicalLevel);
+        }
         static Action mode(int value) { return new Action(ActionType.SET_MODE, -1, value); }
-        String key() { return type.name() + ':' + selector + ':' + value; }
+        int rawBrightness() {
+            return type == ActionType.SET_PHYSICAL_LEVEL
+                    ? BrightnessLevelMapper.logicalToRaw(value) : -1;
+        }
+        String key() {
+            if (type == ActionType.SET_PHYSICAL_LEVEL) {
+                return type.name() + ':' + selector + ':' + value + ":raw=" + rawBrightness();
+            }
+            return type.name() + ':' + selector + ':' + value;
+        }
     }
 
     private BrightnessPolicy() {}
 
-    static Action nextAction(Config config, State state, int localMinute) {
+    static Action nextAction(Config config, State state, int localMinute,
+                             int observedScreenBrightnessRaw) {
         if (config == null || state == null || !config.enabled) return Action.NONE;
         if (config.mode == ControlMode.SET_AUTO && !config.scheduleValid()) return Action.NONE;
-        if (!state.modeKnown || !state.levelsKnown) return Action.NONE;
-        if (config.dayLevel != PRESERVE_LEVEL && state.dayLevel != config.dayLevel) {
-            return Action.dayLevel(config.dayLevel);
-        }
-        if (config.nightLevel != PRESERVE_LEVEL && state.nightLevel != config.nightLevel) {
-            return Action.nightLevel(config.nightLevel);
-        }
+        if (!state.modeKnown) return Action.NONE;
+
         int desiredMode = desiredTopwayMode(config, localMinute);
         if (state.topwayMode != desiredMode) return Action.mode(desiredMode);
+
+        LevelTarget target = targetPhysicalLevel(config, state, localMinute);
+        if (!target.known || !target.managed() || observedScreenBrightnessRaw < 0) {
+            return Action.NONE;
+        }
+        if (!BrightnessLevelMapper.matchesLogical(target.logicalLevel,
+                observedScreenBrightnessRaw)) {
+            return Action.physicalLevel(target.selector, target.logicalLevel);
+        }
         return Action.NONE;
+    }
+
+    static LevelTarget targetPhysicalLevel(Config config, State state, int localMinute) {
+        if (config == null || !config.enabled) return LevelTarget.none("disabled");
+        switch (config.mode) {
+            case DAY:
+                return LevelTarget.day(config.dayLevel);
+            case NIGHT:
+                return LevelTarget.night(config.nightLevel);
+            case SET_AUTO:
+                if (!config.scheduleValid()) return LevelTarget.unknown("invalid-schedule");
+                return isScheduledDay(config.dayStartMinute, config.nightStartMinute,
+                        clampMinute(localMinute, 0))
+                        ? LevelTarget.day(config.dayLevel)
+                        : LevelTarget.night(config.nightLevel);
+            case AUTO:
+            default:
+                if (!config.hasManagedLevel()) return LevelTarget.none("stock-auto-preserve-current");
+                // Callback 516 is observation-only here. It supplies the effective
+                // stock Day/Night decision, not physical brightness confirmation.
+                if (state == null || !state.levelsKnown) {
+                    return LevelTarget.unknown("stock-auto-effective-state-unknown");
+                }
+                return state.effectiveNight
+                        ? LevelTarget.night(config.nightLevel)
+                        : LevelTarget.day(config.dayLevel);
+        }
     }
 
     static int desiredTopwayMode(Config config, int localMinute) {

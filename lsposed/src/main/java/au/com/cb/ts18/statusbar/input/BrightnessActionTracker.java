@@ -1,6 +1,6 @@
 package au.com.cb.ts18.statusbar.input;
 
-/** Pure policy for callback-first confirmation of one Topway brightness action. */
+/** Pure bounded confirmation policy for one exact-device brightness action. */
 final class BrightnessActionTracker {
     static final long WRITE_CONFIRM_MS = 1500L;
     static final long QUERY_CONFIRM_MS = 1500L;
@@ -11,13 +11,13 @@ final class BrightnessActionTracker {
 
     private BrightnessActionTracker() {}
 
-    static boolean matches(BrightnessPolicy.Action action, BrightnessPolicy.State state) {
+    static boolean matches(BrightnessPolicy.Action action, BrightnessPolicy.State state,
+                           int observedScreenBrightnessRaw) {
         if (action == null || state == null) return false;
         switch (action.type) {
-            case SET_DAY_LEVEL:
-                return state.levelsKnown && state.dayLevel == action.value;
-            case SET_NIGHT_LEVEL:
-                return state.levelsKnown && state.nightLevel == action.value;
+            case SET_PHYSICAL_LEVEL:
+                return observedScreenBrightnessRaw >= 0
+                        && action.rawBrightness() == observedScreenBrightnessRaw;
             case SET_MODE:
                 return state.modeKnown && state.topwayMode == action.value;
             case NONE:
@@ -34,12 +34,11 @@ final class BrightnessActionTracker {
         return DeadlineDecision.FAIL;
     }
 
-    static String missingCallbackReason(BrightnessPolicy.Action action) {
+    static String missingConfirmationReason(BrightnessPolicy.Action action) {
         if (action == null) return "WRITE_UNCONFIRMED";
         switch (action.type) {
             case SET_MODE: return "NO_258_CALLBACK";
-            case SET_DAY_LEVEL:
-            case SET_NIGHT_LEVEL: return "NO_516_CALLBACK";
+            case SET_PHYSICAL_LEVEL: return "SCREEN_BRIGHTNESS_READBACK_MISMATCH";
             default: return "WRITE_UNCONFIRMED";
         }
     }

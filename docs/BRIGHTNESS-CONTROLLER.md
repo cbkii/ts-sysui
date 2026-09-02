@@ -2,107 +2,147 @@
 
 ## Scope
 
-This feature targets CB's exact current Topway TS18 only. It does not claim
-TS10/TS18-family compatibility and it does not replace SystemUI, change panel
-files, write backlight sysfs, adjust LCD VCOM/AVDD or alter Factory Backlight
-Current calibration.
-
-The controller remains an optional capability of the SystemUI-scoped LSPosed
-APK. It introduces no Android service, foreground service, notification, second
-scheduler process or `system_server` hook.
+This feature targets CB's exact current Topway TS18 Android 10/API29 unit. It
+remains an optional capability of the SystemUI-scoped LSPosed APK. It does not
+replace SystemUI, hook `system_server`, alter panel files, touch backlight sysfs,
+change Factory Backlight Current, or broaden LSPosed scope to CarSetting.
 
 ## Exact-device evidence
 
-The retained current target is Android 10/API29, `s9863a1h10`, Topway
-`TS18.2.2_20241210.165912_WINDOW-THEME1`.
+The corrected controller is based on the exact user-supplied privileged APKs:
 
 | artefact | SHA-256 |
 | --- | --- |
 | `SystemUI.apk` | `668dec9ac14fbabd76ae73d693dcdd1518190f7941b6ac0b00d16587d6c4bd3f` |
 | `CarSetting.apk` | `06060263e3968a4203c6c37efe95858cd959ac39481dc133de576023b7de2b71` |
-| `framework.jar` | `9de541880ca8521db454133fbca8f7e1021f41b7e22756e844db880aea3b72bc` |
-| `lights.sp9863a.so` (64-bit) | `ea3c27bef9ca5396f0e6fb6fda0aa1518caf55116e8e0883da5df4da6e93542c` |
 
-Stock SystemUI uses `com.android.systemui.tw.qspanel.QSPanelBrightness` and the
-existing `com.android.systemui.tw.TWSystemUI` singleton. Current package evidence
-also establishes the SystemUI process as privileged/shared-SystemUI and able to
-write the persisted policy; the separately signed LSPosed application does not
-request `WRITE_SECURE_SETTINGS`.
+The proprietary APKs and decoded output are not stored in this repository. The
+repository-safe static contracts are `reference/exact-ts18-systemui-contract.json`
+and `reference/exact-ts18-carsetting-contract.json`.
 
-### Recovered Topway contract
+### Superseded assumption
 
-Stock brightness writes:
+Earlier source treated Topway command `516` as the ordinary physical Day/Night
+brightness actuator. The exact CarSetting binary shows that this is not the
+active physical-output path for the supplied build.
 
-```text
-TWSystemUI.write(516, selector, level)
-selector 0 = day slot
-selector 1 = night slot
-stock level range = 0..10
-```
-
-Command 516 callbacks expose:
+In the active CarSetting branch the brightness slider writes:
 
 ```text
-dayLevel       = packed & 0xff
-nightLevel     = (packed >>> 8) & 0xff
-effectiveNight = arg1 == 1
+Settings.System.SCREEN_BRIGHTNESS
 ```
 
-CarSetting changes mode using:
+with an effective raw range:
 
 ```text
-write(258, 1, mode)
-mode 0 = Auto
-mode 1 = Day
-mode 2 = Night
+CarSetting slider 0..225 -> screen_brightness 30..255
 ```
 
-SystemUI queries semantic state with:
+The module retains a safer, simpler managed logical range `1..10` and maps it
+linearly:
+
+```text
+1  -> 30
+2  -> 55
+3  -> 80
+4  -> 105
+5  -> 130
+6  -> 155
+7  -> 180
+8  -> 205
+9  -> 230
+10 -> 255
+```
+
+Managed logical level `0` remains prohibited.
+
+### Topway mode/state contract
+
+Command 258 remains the exact mode authority:
+
+```text
+0 = Auto
+1 = Day
+2 = Night
+```
+
+The exact CarSetting mode setter performs two stock operations:
+
+```text
+write(258, 1, selectedMode)
+write(258, 128)
+```
+
+The controller reproduces both operations in that order on the SystemUI main
+looper. The private meaning of the second operation is intentionally not named;
+it is simply treated as a required second stage of the observed stock
+transaction.
+
+SystemUI state queries remain:
 
 ```text
 write(258, 255)
 write(516, 255)
 ```
 
-The 258 callback exposes the current mode in its third callback argument.
+Command 516 callbacks still expose useful Topway observation:
 
-## Why Android brightness/sysfs remain non-authoritative
+```text
+daySlot        = packed & 0xff
+nightSlot      = (packed >>> 8) & 0xff
+effectiveNight = arg1 == 1
+```
 
-During the retained live interaction trace, Android
-`Settings.System.screen_brightness` stayed at `255` while Topway brightness
-changed through its 0–10 semantic values. The `tw` backlight node also did not
-always track semantic Day/Night changes.
+For this module those 516 values are **observation-only**. A 516 callback is not
+physical brightness confirmation and the controller does not perform an
+ordinary three-argument 516 brightness write.
 
-Therefore the ordinary controller continues to treat 258/516 as the semantic
-authority. Android brightness, backlight sysfs, Factory Backlight Current and
-screen-power command 33281 remain separate observation/control domains, not
-automatic fallbacks.
+## Runtime gates
 
-## Physical 0.5.1 finding
+Brightness mutation requires all of:
 
-The first physical 0.5.1 installation showed no observable brightness difference
-when applying Day versus Night. That finding does not by itself disprove the
-258/516 contract because the 0.5.1 UI could save a mode while both Day/Night
-levels remained `preserve current`, and its acknowledgement proved only policy
-persistence rather than transport/callback/hardware convergence.
+1. Android 10/API29 and the exact TS18 device token;
+2. exact installed SystemUI SHA-256;
+3. exact installed CarSetting SHA-256;
+4. the required `TWSystemUI` reflection contract;
+5. controller policy explicitly enabled.
 
-The remediation therefore makes every stage observable and callback-confirmed.
+The SystemUI and CarSetting hashes are verified off the SystemUI main thread.
+Changing either privileged binary blocks managed brightness until the contract
+is re-analysed. This prevents a firmware or CarSetting update from silently
+reusing stale actuator assumptions.
 
-## Modes and levels
+## Policy behaviour
 
 User modes remain:
 
-- **Auto (stock)** — Topway mode 0;
+- **Auto (stock)** — Topway mode 0 remains responsible for choosing effective
+  Day/Night;
 - **Day** — Topway mode 1;
 - **Night** — Topway mode 2;
 - **Set auto (scheduled)** — local-clock policy explicitly selecting Day/Night.
 
-Day and Night levels can remain **preserve current** or be managed from **1..10**.
-Managed 0 remains blocked until a separate timed no-backlight recovery test is
-physically proven.
+Day and Night managed levels can independently be `preserve current` or `1..10`.
 
-The dashboard now displays the detected 516 Day/Night values. If they are equal,
-it explicitly warns that changing mode alone will not visibly change brightness.
+### Fixed Day / Night
+
+The controller first converges the Topway mode. It then applies the selected
+managed Day or Night level through `Settings.System.SCREEN_BRIGHTNESS` and reads
+the same setting back before reporting success.
+
+### Set auto
+
+The local-clock policy determines Day or Night, converges the corresponding
+Topway mode transaction, then applies the corresponding managed physical level.
+It does not depend on the vehicle's stock ILL/headlight Auto decision.
+
+### Auto (stock)
+
+Topway remains authoritative for the effective Day/Night decision. If both
+managed levels are `preserve current`, no 516 observation is needed. If either
+managed level is active, the module waits for a valid 516 observation before
+choosing which physical level applies. If the effective state is unknown, it
+fails open rather than guessing.
 
 ## Runtime architecture
 
@@ -113,93 +153,79 @@ TS18 System UI dashboard
 SystemUiBridge inside exact SystemUI
         │
         ├── coherent Settings.Global policy transaction
-        ├── private ResultReceiver acknowledgement
         └── live status snapshot
                     │
                     ▼
              BrightnessController
                     │
-        ┌───────────┼─────────────────────────────┐
-        │ exact SystemUI/class gate               │
-        │ waits for TWSystemUI.init/callback      │
-        │ observes sendTWCallBack(258/516)        │
-        │ observes stock/module Topway writes     │
-        │ callback-first pending-action confirm   │
-        └───────────┬─────────────────────────────┘
+        ┌───────────┼────────────────────────────────────┐
+        │ exact SystemUI + exact CarSetting hash gates   │
+        │ physical read/write: SCREEN_BRIGHTNESS         │
+        │ mode transport: Topway 258 two-stage sequence  │
+        │ 516: effective Day/Night observation only      │
+        │ bounded confirmation/retry + independent break │
+        └───────────┬────────────────────────────────────┘
                     ▼
-             existing TWSystemUI
-                    ▼
-              Topway vendor/MCU
+       Android Settings provider + existing TWSystemUI
 ```
 
-The bridge can register while exact identity is still `CHECKING` so the dashboard
-can explain why mutation is blocked. A mutating request is still rejected unless
-`ExactSystemUiIdentity` is `SUPPORTED`.
+The separately signed module application never receives platform settings
+privileges. The physical write executes from the already injected, exact-gated
+SystemUI process, whose exact manifest includes the relevant settings authority.
+A failed `Settings.System.putInt` or mismatched readback is treated as a real
+failure and never as success.
 
-## User-visible runtime state
+## Confirmation model
 
-The dashboard distinguishes:
+Mode and physical brightness use different confirmation authorities.
 
-```text
-HOOK/IDENTITY
- -> TRANSPORT_READY
- -> MODE_STATE_KNOWN
- -> LEVEL_STATE_KNOWN
- -> CONFIG_ENABLED
- -> ACTION_PENDING
- -> CALLBACK_CONFIRMED
- -> ACTIVE/SETTLED
-```
+### Mode
 
-and explicit `BLOCKED:` / `ERROR:` states.
+1. send `258,1,<mode>`;
+2. send `258,128`;
+3. wait for the observed 258 state to match;
+4. if unconfirmed, issue one bounded query before any retry;
+5. allow at most one controlled transaction retry;
+6. record `NO_258_CALLBACK` on non-convergence.
 
-The runtime status includes:
+### Physical level
 
-- hook count and exact compatibility;
-- transport readiness/time;
-- mode-known and levels-known;
-- current Topway mode and `effectiveNight`;
-- detected Day/Night values;
-- last 258 callback timestamp;
-- last 516 callback timestamp;
-- last observed stock 258/516 write;
-- last module action/write time;
-- pending action/attempt count;
-- confirmation result;
-- brightness breaker state/failure count.
+1. map logical 1..10 to raw 30..255;
+2. write `Settings.System.SCREEN_BRIGHTNESS` once;
+3. read `SCREEN_BRIGHTNESS` back;
+4. if mismatched, perform one bounded re-read before retry;
+5. allow at most one controlled physical write retry;
+6. record `SCREEN_BRIGHTNESS_READBACK_MISMATCH` on non-convergence.
 
-A configuration acknowledgement means **policy saved/consumed**, not hardware
-success. The UI refreshes runtime status separately and reports semantic
-confirmation.
+Repeated failures open only the brightness breaker. Compact touch and right-nav
+remain independent.
 
-## Callback-first action confirmation
+## Diagnostics
 
-The old short repeated-write loop is replaced by one pending action.
+Runtime status separates Topway semantic observation from the physical backend.
+It includes:
 
-For each required semantic change:
+- exact compatibility and hook count;
+- CarSetting contract hash;
+- transport readiness;
+- current Topway mode;
+- 516 callback timestamps, effectiveNight and observed packed slots;
+- explicit `Topway516=observation-only` labelling;
+- physical backend name;
+- observed raw `screen_brightness`;
+- last requested logical and raw level;
+- last physical write/read timestamps;
+- mode transaction stage-1/stage-2 timestamps and status;
+- pending action and attempt count;
+- callback/readback confirmation result;
+- breaker state and failure count.
 
-1. send exactly one Topway write;
-2. wait up to 1.5s for the corresponding callback/state predicate;
-3. if unconfirmed, issue one bounded semantic 258/516 query;
-4. wait a further 1.5s;
-5. if still unconfirmed, issue at most one controlled write retry;
-6. allow a longer 2.5s final confirmation window;
-7. on failure, report a semantic reason and only then record one breaker failure.
-
-Failure reasons distinguish at least:
-
-```text
-NO_258_CALLBACK
-NO_516_CALLBACK
-```
-
-This avoids declaring an OEM MCU path broken simply because it did not confirm
-within 450ms. The overall brightness breaker remains process-local and isolated
-from compact/nav behaviour.
+A dashboard acknowledgement still means **policy saved/consumed**, not hardware
+success.
 
 ## Configuration source of truth
 
-Persisted keys remain:
+Persisted module policy remains:
 
 ```text
 ts18_brightness_policy_version=1
@@ -214,62 +240,33 @@ ts18_brightness_debug=0|1
 
 `-1` means preserve current. Mutation defaults off.
 
-The normal configuration path is the **TS18 System UI** dashboard. The bridge:
-
-- is a dynamic receiver inside SystemUI, not a manifest SystemUI component;
-- is package-targeted;
-- requires the module's signature-level configuration permission;
-- requires a private framework `ResultReceiver` in every request;
-- validates the complete requested policy;
-- writes enable off first, publishes coherent fields/generation, then enable
-  last;
-- returns live runtime status with the acknowledgement;
-- never grants the normal APK Android privileged settings authority.
-
-The bounded root helper remains recovery/development fallback:
-
-```sh
-su -c 'sh /storage/emulated/0/Download/ts18-brightness-config.sh disable'
-```
-
-## Test Day / Test Night
-
-The dashboard provides explicit test actions. A test requires the corresponding
-managed Day or Night level to be selected from the safe 1..10 range.
-
-Before the test, the dashboard retains the previous policy in memory and enables
-a Restore action. The test then selects the requested fixed mode and waits for
-live callback confirmation. It does not claim success merely because the policy
-was written.
-
-These controls are a physical qualification aid, not a substitute for the
-lifecycle matrix.
-
 ## Safety and rollback
 
-If exact identity/classes fail, no active Topway write occurs. If transport is
-not ready or required callbacks are absent, the dashboard reports the block. If
-the bounded confirmation sequence fails repeatedly, the brightness-only breaker
-opens until SystemUI restarts.
+Do not respond to a failed physical test by:
 
-Do not remove the hash gate, widen LSPosed scope or substitute a generic Android
-brightness/sysfs write to make the test pass.
+- restoring ordinary Topway 516 physical writes;
+- writing backlight sysfs;
+- changing Factory Backlight Current;
+- hooking CarSetting or `system_server`;
+- broadening SystemUI/CarSetting hash matching;
+- enabling logical level 0.
+
+If the exact Settings write succeeds and readback converges but the panel still
+does not visibly change, that is a new physical discrepancy. Capture the
+runtime diagnostics and compare the stock CarSetting interaction before changing
+actuator authority again.
 
 ## Physical validation still required
 
-Before release qualification:
+Before describing this correction as physically proven:
 
-1. verify exact identity/hook/transport state in the dashboard;
-2. inspect detected Day/Night values;
-3. choose deliberately distinct safe non-zero values;
-4. test fixed Day and require 258/516 confirmation plus a physical change;
-5. test fixed Night the same way;
-6. test Set auto in both directions;
-7. test stock slider/CarSetting coexistence while module disabled;
-8. exercise headlights/ILL, reverse camera and normal apps;
-9. qualify SystemUI restart, warm reboot, cold boot and ACC sleep/wake;
-10. verify the brightness kill switch/LSPosed recovery path.
-
-If a module-generated 258/516 change is semantically callback-confirmed but
-physical brightness still does not change, STOP and collect a narrow stock vs
-module marker trace before reconsidering the actuator.
+1. verify exact SystemUI and CarSetting compatibility reports READY;
+2. confirm current raw `screen_brightness` is observed;
+3. test a clearly different safe fixed Day level and require readback plus visible change;
+4. test fixed Night likewise;
+5. verify both 258 transaction stages and callback confirmation;
+6. test stock Auto with distinct Day/Night managed levels and effective-night observation;
+7. test local Set auto in both directions;
+8. disable the controller and confirm stock CarSetting slider ownership is restored;
+9. exercise headlights/ILL, reverse camera, fullscreen/projection and normal apps;
+10. qualify SystemUI restart, warm reboot, cold boot and repeated ACC sleep/wake.

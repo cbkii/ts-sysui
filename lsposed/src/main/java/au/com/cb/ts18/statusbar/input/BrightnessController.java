@@ -16,7 +16,7 @@ import java.util.Calendar;
 
 import de.robv.android.xposed.XposedBridge;
 
-/** Exact-device policy engine; Topway callbacks are semantic authority. */
+/** Exact-device policy engine; Topway state is semantic authority and CarSetting defines physical output. */
 final class BrightnessController {
     private static final long STATE_RETRY_MS = 1200L;
     private static final BrightnessState STATE = new BrightnessState();
@@ -44,10 +44,18 @@ final class BrightnessController {
     private static volatile long last516CallbackAt;
     private static volatile long lastObservedStockWriteAt;
     private static volatile long lastModuleWriteAt;
+    private static volatile long lastPhysicalWriteAt;
+    private static volatile long lastPhysicalReadAt;
+    private static volatile long lastModeStage1At;
+    private static volatile long lastModeStage2At;
     private static volatile String lastObservedStockWrite = "none";
     private static volatile String lastModuleAction = "none";
+    private static volatile String lastModeTransaction = "none";
     private static volatile String confirmationResult = "not-started";
     private static volatile boolean moduleInvocationInFlight;
+    private static volatile int lastObservedScreenBrightnessRaw = -1;
+    private static volatile int lastRequestedLogicalLevel = BrightnessPolicy.PRESERVE_LEVEL;
+    private static volatile int lastRequestedScreenBrightnessRaw = -1;
 
     private static final Runnable RECONCILE = BrightnessController::reconcileOnWorker;
 
@@ -59,6 +67,7 @@ final class BrightnessController {
             if (attached || halted) return;
             attached = true;
             context = appContext.getApplicationContext();
+            if (context == null) context = appContext;
             workerThread = new HandlerThread("TS18-Brightness");
             workerThread.start();
             worker = new Handler(workerThread.getLooper());
@@ -74,7 +83,7 @@ final class BrightnessController {
         Handler current = worker;
         if (current != null && BrightnessFeatureRuntime.isOperational() && !halted) {
             current.post(() -> {
-                confirmationResult = "transport-ready; querying 258/516 state";
+                confirmationResult = "transport-ready; querying Topway 258/516 observation state";
                 queryStateOnWorker();
                 scheduleReconcile(STATE_RETRY_MS);
             });
@@ -124,11 +133,13 @@ final class BrightnessController {
         if (current == null || halted) return;
         current.post(() -> {
             pending = null;
-            confirmationResult = "policy-saved; reconciliation requested";
+            refreshPhysicalBrightnessOnWorker();
+            confirmationResult = "policy-saved; reconciliation requested; screen_brightness="
+                    + lastObservedScreenBrightnessRaw;
             if (transportReady && BrightnessFeatureRuntime.isOperational()) {
-                queryStateOnWorker();
-                scheduleReconcile(STATE_RETRY_MS);
+                queryTopwayStateOnWorker();
             }
+            scheduleReconcile(0L);
         });
     }
 
@@ -145,8 +156,20 @@ final class BrightnessController {
         out.putBoolean("brightness_effective_night", state.effectiveNight);
         out.putInt("brightness_detected_day_level", state.levelsKnown ? state.dayLevel : -1);
         out.putInt("brightness_detected_night_level", state.levelsKnown ? state.nightLevel : -1);
+        out.putBoolean("brightness_topway_slots_observation_only", true);
         out.putBoolean("brightness_detected_levels_equal",
                 state.levelsKnown && state.dayLevel == state.nightLevel);
+        out.putString("brightness_physical_backend", "Settings.System.SCREEN_BRIGHTNESS");
+        out.putString("brightness_carsetting_contract_sha256",
+                BrightnessCompatibility.EXPECTED_CARSETTING_SHA256);
+        out.putInt("brightness_screen_raw", lastObservedScreenBrightnessRaw);
+        out.putInt("brightness_requested_logical_level", lastRequestedLogicalLevel);
+        out.putInt("brightness_requested_screen_raw", lastRequestedScreenBrightnessRaw);
+        out.putLong("brightness_last_physical_write_at", lastPhysicalWriteAt);
+        out.putLong("brightness_last_physical_read_at", lastPhysicalReadAt);
+        out.putLong("brightness_last_mode_stage1_at", lastModeStage1At);
+        out.putLong("brightness_last_mode_stage2_at", lastModeStage2At);
+        out.putString("brightness_mode_transaction", lastModeTransaction);
         out.putLong("brightness_last_258_callback_at", last258CallbackAt);
         out.putLong("brightness_last_516_callback_at", last516CallbackAt);
         out.putLong("brightness_last_stock_write_at", lastObservedStockWriteAt);
@@ -247,13 +270,14 @@ final class BrightnessController {
             write3.setAccessible(true);
             registerWatchersOnWorker();
             BrightnessFeatureRuntime.markCompatible();
-            confirmationResult = "identity/classes verified; waiting for Topway transport";
-            XposedBridge.log("TS18Brightness: exact SystemUI compatibility verified sha256="
-                    + result.detail + "; waiting for stock TWSystemUI transport readiness; controller remains inert unless ts18_brightness_enabled=1");
-            if (transportReady) {
-                queryStateOnWorker();
-                scheduleReconcile(STATE_RETRY_MS);
-            }
+            refreshPhysicalBrightnessOnWorker();
+            confirmationResult = "exact SystemUI/CarSetting contract verified; screen_brightness="
+                    + lastObservedScreenBrightnessRaw + "; waiting for Topway transport";
+            XposedBridge.log("TS18Brightness: exact brightness contract verified "
+                    + result.detail + "; physical backend=Settings.System.SCREEN_BRIGHTNESS; "
+                    + "Topway 516 retained as observation-only; controller remains inert unless ts18_brightness_enabled=1");
+            if (transportReady) queryTopwayStateOnWorker();
+            scheduleReconcile(STATE_RETRY_MS);
         } catch (Throwable t) {
             confirmationResult = "ERROR: initialise " + t.getClass().getSimpleName();
             BrightnessFeatureRuntime.recordFailure("initialise", t);
@@ -269,7 +293,11 @@ final class BrightnessController {
             filter.addAction(Intent.ACTION_SCREEN_ON);
             timeReceiver = new BroadcastReceiver() {
                 @Override public void onReceive(Context receiverContext, Intent intent) {
-                    if (transportReady) scheduleReconcile(0L);
+                    Handler current = worker;
+                    if (current != null) current.post(() -> {
+                        refreshPhysicalBrightnessOnWorker();
+                        scheduleReconcile(0L);
+                    });
                 }
             };
             context.registerReceiver(timeReceiver, filter, null, worker);
@@ -278,20 +306,23 @@ final class BrightnessController {
         if (!observerRegistered) {
             settingsObserver = new ContentObserver(worker) {
                 @Override public void onChange(boolean selfChange) {
-                    if (transportReady) scheduleReconcile(80L);
+                    refreshPhysicalBrightnessOnWorker();
+                    scheduleReconcile(80L);
                 }
             };
             for (String key : BrightnessConfig.OBSERVED_KEYS) {
                 context.getContentResolver().registerContentObserver(
                         Settings.Global.getUriFor(key), false, settingsObserver);
             }
+            context.getContentResolver().registerContentObserver(
+                    Settings.System.getUriFor(Settings.System.SCREEN_BRIGHTNESS),
+                    false, settingsObserver);
             observerRegistered = true;
         }
     }
 
     private static void reconcileOnWorker() {
-        if (halted || !transportReady || !BrightnessFeatureRuntime.isOperational()
-                || context == null) return;
+        if (halted || !BrightnessFeatureRuntime.isOperational() || context == null) return;
         BrightnessPolicy.Config config = BrightnessConfig.read(context);
         if (!config.enabled) {
             pending = null;
@@ -303,19 +334,26 @@ final class BrightnessController {
             return;
         }
 
+        if (lastObservedScreenBrightnessRaw < 0) refreshPhysicalBrightnessOnWorker();
+        if (!transportReady) {
+            confirmationResult = "BLOCKED: Topway transport not ready; physical screen_brightness observed="
+                    + lastObservedScreenBrightnessRaw;
+            scheduleReconcile(STATE_RETRY_MS);
+            return;
+        }
+
         BrightnessPolicy.State state = STATE.snapshot();
-        if (!state.modeKnown || !state.levelsKnown) {
-            confirmationResult = !state.modeKnown
-                    ? "BLOCKED: waiting for Topway 258 mode callback"
-                    : "BLOCKED: waiting for Topway 516 levels callback";
-            queryStateOnWorker();
+        if (!state.modeKnown) {
+            confirmationResult = "BLOCKED: waiting for Topway 258 mode callback";
+            queryTopwayStateOnWorker();
             scheduleReconcile(STATE_RETRY_MS);
             return;
         }
 
         if (pending != null) {
-            if (BrightnessActionTracker.matches(pending.action, state)) {
-                confirmationResult = "CALLBACK_CONFIRMED: " + pending.action.key();
+            if (BrightnessActionTracker.matches(pending.action, state,
+                    lastObservedScreenBrightnessRaw)) {
+                confirmationResult = confirmedMessage(pending.action);
                 pending = null;
             } else {
                 handlePendingDeadlineOnWorker();
@@ -325,23 +363,66 @@ final class BrightnessController {
         }
 
         int localMinute = currentLocalMinute();
-        BrightnessPolicy.Action action = BrightnessPolicy.nextAction(config, state, localMinute);
+        BrightnessPolicy.LevelTarget target =
+                BrightnessPolicy.targetPhysicalLevel(config, state, localMinute);
+        if (!target.known) {
+            confirmationResult = "BLOCKED:AUTO_EFFECTIVE_STATE_UNKNOWN: 516 observation required; "
+                    + "physical screen_brightness remains stock/current="
+                    + lastObservedScreenBrightnessRaw;
+            queryTopwayStateOnWorker();
+            scheduleReconcile(STATE_RETRY_MS);
+            return;
+        }
+        if (target.managed() && lastObservedScreenBrightnessRaw < 0) {
+            confirmationResult = "BLOCKED:SCREEN_BRIGHTNESS_UNKNOWN";
+            refreshPhysicalBrightnessOnWorker();
+            scheduleReconcile(STATE_RETRY_MS);
+            return;
+        }
+
+        BrightnessPolicy.Action action = BrightnessPolicy.nextAction(
+                config, state, localMinute, lastObservedScreenBrightnessRaw);
         if (action.type == BrightnessPolicy.ActionType.NONE) {
-            confirmationResult = "ACTIVE/SETTLED: Topway policy matches requested state";
+            confirmationResult = settledMessage(config, state, target);
             scheduleNextTransitionOnWorker(config, localMinute);
-            if (config.debug) logState("settled", config, state, localMinute);
+            if (config.debug) logState("settled", config, state, localMinute, target);
             return;
         }
 
         startPendingActionOnWorker(action);
     }
 
+    private static String settledMessage(BrightnessPolicy.Config config,
+                                         BrightnessPolicy.State state,
+                                         BrightnessPolicy.LevelTarget target) {
+        String targetText = target.managed()
+                ? (target.selector == BrightnessPolicy.SLOT_NIGHT ? "night" : "day")
+                + " logical=" + target.logicalLevel
+                + " raw=" + BrightnessLevelMapper.logicalToRaw(target.logicalLevel)
+                : target.reason;
+        return "ACTIVE/SETTLED: mode=" + state.topwayMode
+                + " target=" + targetText
+                + " observedRaw=" + lastObservedScreenBrightnessRaw
+                + "; Topway516=observation-only";
+    }
+
+    private static String confirmedMessage(BrightnessPolicy.Action action) {
+        if (action.type == BrightnessPolicy.ActionType.SET_PHYSICAL_LEVEL) {
+            return "READBACK_CONFIRMED: logical=" + action.value
+                    + " raw=" + action.rawBrightness()
+                    + " observedRaw=" + lastObservedScreenBrightnessRaw;
+        }
+        return "CALLBACK_CONFIRMED: " + action.key()
+                + " modeTransaction=" + lastModeTransaction;
+    }
+
     private static void confirmPendingFromCurrentState() {
         PendingAction current = pending;
         if (current == null) return;
         BrightnessPolicy.State state = STATE.snapshot();
-        if (BrightnessActionTracker.matches(current.action, state)) {
-            confirmationResult = "CALLBACK_CONFIRMED: " + current.action.key();
+        if (BrightnessActionTracker.matches(current.action, state,
+                lastObservedScreenBrightnessRaw)) {
+            confirmationResult = confirmedMessage(current.action);
             pending = null;
         }
     }
@@ -352,6 +433,10 @@ final class BrightnessController {
                 now, now + BrightnessActionTracker.WRITE_CONFIRM_MS);
         confirmationResult = "ACTION_PENDING: " + action.key();
         lastModuleAction = action.key();
+        if (action.type == BrightnessPolicy.ActionType.SET_PHYSICAL_LEVEL) {
+            lastRequestedLogicalLevel = action.value;
+            lastRequestedScreenBrightnessRaw = action.rawBrightness();
+        }
         postActionToMain(action);
         scheduleReconcile(BrightnessActionTracker.WRITE_CONFIRM_MS + 50L);
     }
@@ -370,9 +455,17 @@ final class BrightnessController {
             case QUERY:
                 current.queriedAfterWrite = true;
                 current.deadlineMs = now + BrightnessActionTracker.QUERY_CONFIRM_MS;
-                confirmationResult = "ACTION_PENDING: unconfirmed; querying 258/516 before retry";
-                queryStateOnWorker();
-                scheduleReconcile(BrightnessActionTracker.QUERY_CONFIRM_MS + 50L);
+                if (current.action.type == BrightnessPolicy.ActionType.SET_PHYSICAL_LEVEL) {
+                    confirmationResult = "ACTION_PENDING: physical write unconfirmed; reading screen_brightness before retry";
+                    refreshPhysicalBrightnessOnWorker();
+                } else {
+                    confirmationResult = "ACTION_PENDING: mode unconfirmed; querying Topway 258 before retry";
+                    queryTopwayStateOnWorker();
+                }
+                confirmPendingFromCurrentState();
+                if (pending != null) {
+                    scheduleReconcile(BrightnessActionTracker.QUERY_CONFIRM_MS + 50L);
+                }
                 return;
             case RETRY_WRITE:
                 current.writeAttempts++;
@@ -388,40 +481,67 @@ final class BrightnessController {
                 return;
             case FAIL:
             default:
-                String reason = BrightnessActionTracker.missingCallbackReason(current.action);
+                String reason = BrightnessActionTracker.missingConfirmationReason(current.action);
                 String actionKey = current.action.key();
                 pending = null;
-                confirmationResult = "ERROR: " + reason + " for " + actionKey;
+                confirmationResult = "ERROR: " + reason + " for " + actionKey
+                        + " observedRaw=" + lastObservedScreenBrightnessRaw
+                        + " modeTransaction=" + lastModeTransaction;
                 BrightnessFeatureRuntime.recordFailure("unconfirmed-" + reason,
-                        new IllegalStateException("Topway state did not confirm " + actionKey
-                                + " after bounded query/retry sequence"));
+                        new IllegalStateException("brightness state did not confirm " + actionKey
+                                + " after bounded read/query/retry sequence"));
         }
     }
 
     private static void postActionToMain(BrightnessPolicy.Action action) {
         MAIN.post(() -> {
-            if (halted || !transportReady || !BrightnessFeatureRuntime.isOperational()) return;
+            if (halted || !BrightnessFeatureRuntime.isOperational()) return;
             try {
+                if (action.type == BrightnessPolicy.ActionType.SET_PHYSICAL_LEVEL) {
+                    Context currentContext = context;
+                    if (currentContext == null) throw new IllegalStateException("SystemUI context is null");
+                    int raw = action.rawBrightness();
+                    boolean written = Settings.System.putInt(currentContext.getContentResolver(),
+                            Settings.System.SCREEN_BRIGHTNESS, raw);
+                    lastPhysicalWriteAt = android.os.SystemClock.elapsedRealtime();
+                    lastModuleWriteAt = lastPhysicalWriteAt;
+                    if (!written) {
+                        throw new IllegalStateException("Settings.System rejected screen_brightness=" + raw);
+                    }
+                    DiagnosticJournal.record("INFO", "brightness-physical-write",
+                            "logical=" + action.value + " raw=" + raw
+                                    + " backend=Settings.System.SCREEN_BRIGHTNESS");
+                    Handler current = worker;
+                    if (current != null) current.post(BrightnessController::refreshPhysicalBrightnessOnWorker);
+                    return;
+                }
+
+                if (action.type != BrightnessPolicy.ActionType.SET_MODE) return;
+                if (!transportReady) throw new IllegalStateException("Topway transport is not ready");
                 Object instance = getInstance.invoke(null);
                 if (instance == null) throw new IllegalStateException("TWSystemUI singleton is null");
                 moduleInvocationInFlight = true;
-                switch (action.type) {
-                    case SET_DAY_LEVEL:
-                    case SET_NIGHT_LEVEL:
-                        write3.invoke(instance, BrightnessProtocol.COMMAND_BRIGHTNESS,
-                                action.selector, action.value);
-                        break;
-                    case SET_MODE:
-                        write3.invoke(instance, BrightnessProtocol.COMMAND_MODE,
-                                BrightnessProtocol.MODE_WRITE_SELECTOR, action.value);
-                        break;
-                    case NONE:
-                    default:
-                        break;
-                }
+                lastModeTransaction = "stage1-pending";
+                write3.invoke(instance, BrightnessProtocol.COMMAND_MODE,
+                        BrightnessProtocol.MODE_WRITE_SELECTOR, action.value);
+                lastModeStage1At = android.os.SystemClock.elapsedRealtime();
+                lastModuleWriteAt = lastModeStage1At;
+                lastModeTransaction = "stage1-sent;stage2-pending";
+                write2.invoke(instance, BrightnessProtocol.COMMAND_MODE,
+                        BrightnessProtocol.MODE_TRANSACTION_SECOND_VALUE);
+                lastModeStage2At = android.os.SystemClock.elapsedRealtime();
+                lastModuleWriteAt = lastModeStage2At;
+                lastModeTransaction = "stage1-sent;stage2-sent";
+                DiagnosticJournal.record("INFO", "brightness-mode-transaction",
+                        "258,1," + action.value + " -> 258,"
+                                + BrightnessProtocol.MODE_TRANSACTION_SECOND_VALUE);
             } catch (Throwable t) {
-                confirmationResult = "ERROR: Topway write " + unwrap(t).getClass().getSimpleName();
-                BrightnessFeatureRuntime.recordFailure("topway-write", unwrap(t));
+                Throwable error = unwrap(t);
+                confirmationResult = "ERROR: brightness action "
+                        + error.getClass().getSimpleName()
+                        + " action=" + action.key()
+                        + " modeTransaction=" + lastModeTransaction;
+                BrightnessFeatureRuntime.recordFailure("action", error);
             } finally {
                 moduleInvocationInFlight = false;
             }
@@ -429,6 +549,11 @@ final class BrightnessController {
     }
 
     private static void queryStateOnWorker() {
+        refreshPhysicalBrightnessOnWorker();
+        if (transportReady) queryTopwayStateOnWorker();
+    }
+
+    private static void queryTopwayStateOnWorker() {
         if (halted || !transportReady || !BrightnessFeatureRuntime.isOperational()) return;
         long now = android.os.SystemClock.elapsedRealtime();
         if (now - lastQueryAt < 350L) return;
@@ -441,6 +566,8 @@ final class BrightnessController {
                 moduleInvocationInFlight = true;
                 write2.invoke(instance, BrightnessProtocol.COMMAND_MODE,
                         BrightnessProtocol.QUERY_VALUE);
+                // 516 is observation-only on this exact CarSetting build. Querying
+                // it is retained solely for effective Day/Night/slot observation.
                 write2.invoke(instance, BrightnessProtocol.COMMAND_BRIGHTNESS,
                         BrightnessProtocol.QUERY_VALUE);
             } catch (Throwable t) {
@@ -452,16 +579,34 @@ final class BrightnessController {
         });
     }
 
+    private static void refreshPhysicalBrightnessOnWorker() {
+        Context currentContext = context;
+        if (currentContext == null || halted) return;
+        try {
+            int raw = Settings.System.getInt(currentContext.getContentResolver(),
+                    Settings.System.SCREEN_BRIGHTNESS, -1);
+            lastObservedScreenBrightnessRaw = raw;
+            lastPhysicalReadAt = android.os.SystemClock.elapsedRealtime();
+            DiagnosticJournal.record("DEBUG", "brightness-physical-read",
+                    "screen_brightness=" + raw);
+            confirmPendingFromCurrentState();
+        } catch (Throwable t) {
+            lastObservedScreenBrightnessRaw = -1;
+            RateLimitedLog.error("brightness-physical-read",
+                    "could not read Settings.System.SCREEN_BRIGHTNESS", t);
+        }
+    }
+
     private static void scheduleReconcile(long delayMs) {
         Handler current = worker;
-        if (current == null || halted || !transportReady) return;
+        if (current == null || halted) return;
         current.removeCallbacks(RECONCILE);
         current.postDelayed(RECONCILE, Math.max(0L, delayMs));
     }
 
     private static void scheduleNextTransitionOnWorker(BrightnessPolicy.Config config, int localMinute) {
         Handler current = worker;
-        if (current == null || halted || !transportReady) return;
+        if (current == null || halted) return;
         current.removeCallbacks(RECONCILE);
         if (config.mode != BrightnessPolicy.ControlMode.SET_AUTO || !config.scheduleValid()) return;
         int minutes = BrightnessPolicy.minutesUntilNextTransition(config, localMinute);
@@ -479,10 +624,15 @@ final class BrightnessController {
     }
 
     private static void logState(String reason, BrightnessPolicy.Config config,
-                                 BrightnessPolicy.State state, int localMinute) {
+                                 BrightnessPolicy.State state, int localMinute,
+                                 BrightnessPolicy.LevelTarget target) {
         XposedBridge.log("TS18Brightness: " + reason + " policy=" + config.mode.persisted
-                + " topwayMode=" + state.topwayMode + " day=" + state.dayLevel
-                + " night=" + state.nightLevel + " effectiveNight=" + state.effectiveNight
+                + " topwayMode=" + state.topwayMode
+                + " callback516Day=" + state.dayLevel
+                + " callback516Night=" + state.nightLevel
+                + " effectiveNight=" + state.effectiveNight
+                + " target=" + target.reason + ':' + target.logicalLevel
+                + " screenBrightnessRaw=" + lastObservedScreenBrightnessRaw
                 + " localMinute=" + localMinute);
     }
 
@@ -490,12 +640,22 @@ final class BrightnessController {
         if (BrightnessFeatureRuntime.isBreakerOpen() || halted) return "ERROR:BREAKER_OPEN";
         if (!attached) return "BLOCKED:HOOK_NOT_ATTACHED";
         if (!BrightnessFeatureRuntime.isCompatible()) return "BLOCKED:IDENTITY_OR_CLASS_CONTRACT";
+        Context currentContext = context;
+        if (currentContext == null) return "BLOCKED:CONTEXT_UNAVAILABLE";
+        BrightnessPolicy.Config config = BrightnessConfig.read(currentContext);
+        if (!config.enabled) return "READY/OFF";
         if (!transportReady) return "BLOCKED:TRANSPORT_NOT_READY";
         if (!state.modeKnown) return "BLOCKED:MODE_STATE_UNKNOWN";
-        if (!state.levelsKnown) return "BLOCKED:LEVEL_STATE_UNKNOWN";
+        if (config.mode == BrightnessPolicy.ControlMode.AUTO
+                && config.hasManagedLevel() && !state.levelsKnown) {
+            return "BLOCKED:AUTO_EFFECTIVE_STATE_UNKNOWN";
+        }
+        BrightnessPolicy.LevelTarget target =
+                BrightnessPolicy.targetPhysicalLevel(config, state, currentLocalMinute());
+        if (target.managed() && lastObservedScreenBrightnessRaw < 0) {
+            return "BLOCKED:SCREEN_BRIGHTNESS_UNKNOWN";
+        }
         if (pending != null) return "ACTION_PENDING";
-        Context currentContext = context;
-        if (currentContext == null || !BrightnessConfig.read(currentContext).enabled) return "READY/OFF";
         return "ACTIVE/SETTLED";
     }
 

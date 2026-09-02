@@ -29,14 +29,15 @@ final class ExactTopwayNavController {
     private static final long CONFIGURATION_POLL_MS = 2500L;
     private static final Object OWNER = new Object();
 
-    // The five controls physically reported on the current unit are mandatory.
-    // The exact decoded layout also contains power/screen and an app slot; those
-    // are known OEM children but may be GONE/omitted by runtime configuration.
+    // Exact names recovered from the supplied SystemUI.apk. The five controls
+    // physically reported on the current unit are mandatory. Screen/power and
+    // the app slot are known decoded children but may be GONE/omitted at runtime.
     private static final String[] REQUIRED_STOCK_IDS = {
-            "home", "back", "recent_apps", "navbar_volume_plus", "navbar_volume_reduce"
+            "navbar_home", "navbar_back", "navbar_history",
+            "navbar_volume_plus", "navbar_volume_reduce"
     };
     private static final String[] OPTIONAL_STOCK_IDS = {
-            "navbar_guanping", "app"
+            "navbar_guanping", "navbar_app"
     };
 
     private static Binding current;
@@ -76,6 +77,7 @@ final class ExactTopwayNavController {
         out.putBoolean("nav_horizontal_preferred_met",
                 binding != null && binding.lastHorizontalPreferredMet);
         out.putString("nav_stock_summary", binding == null ? "" : binding.lastStockSummary);
+        out.putString("nav_direct_children", binding == null ? "" : binding.lastDirectChildren);
         out.putString("nav_injected_actions", binding == null ? "none"
                 : actionIds(binding.ownedActions));
         NavMediaSessionRepository.Snapshot media = binding == null
@@ -125,6 +127,7 @@ final class ExactTopwayNavController {
         int lastHorizontalPreferredPx;
         boolean lastHorizontalPreferredMet;
         String lastStockSummary = "";
+        String lastDirectChildren = "";
         final Runnable reconcileRunnable = this::reconcile;
         final Runnable configurationPoll = this::reconcile;
 
@@ -239,8 +242,6 @@ final class ExactTopwayNavController {
                 root.removeCallbacks(configurationPoll);
                 if (!detached && config != null
                         && (config.enabled || config.probeEnabled)) {
-                    // Armed-only polling remains a resilience fallback. Normal UI
-                    // configuration calls requestReconcile() immediately.
                     root.postDelayed(configurationPoll, CONFIGURATION_POLL_MS);
                 }
             }
@@ -261,6 +262,8 @@ final class ExactTopwayNavController {
             lastHostHeightPx = exactHost.getHeight()
                     - exactHost.getPaddingTop() - exactHost.getPaddingBottom();
             lastDensity = exactHost.getResources().getDisplayMetrics().density;
+            lastDirectChildren = directChildSummary(resources, exactHost);
+            lastStockSummary = "direct=" + lastDirectChildren;
             if (exactHost.getOrientation() != LinearLayout.VERTICAL) {
                 return Preflight.failure("navbar_left-not-vertical");
             }
@@ -314,7 +317,8 @@ final class ExactTopwayNavController {
                 View child = exactHost.getChildAt(i);
                 if (child == ownedGroup && isOwned(child)) continue;
                 if (!knownIds.contains(child.getId()) || !seenDirectIds.add(child.getId())) {
-                    return Preflight.failure("unknown-or-duplicate-direct-child-id-" + child.getId());
+                    return Preflight.failure("unknown-or-duplicate-direct-child-"
+                            + resourceEntryName(resources, child.getId()));
                 }
             }
             if (!seenDirectIds.containsAll(requiredIds)) {
@@ -328,7 +332,7 @@ final class ExactTopwayNavController {
                 insertionIndex--;
             }
 
-            lastStockSummary = summary.toString();
+            lastStockSummary = "direct=" + lastDirectChildren + "; known=" + summary;
             TopwayWeightedNavPolicy.Result policy = TopwayWeightedNavPolicy.evaluate(
                     lastHostWidthPx, lastHostHeightPx, lastDensity,
                     visibleWeights, config.actions.size(), config.minTouchDp);
@@ -409,7 +413,6 @@ final class ExactTopwayNavController {
             button.setPadding(padding, padding, padding, padding);
             button.setImageDrawable(drawable(moduleContext, iconFor(action, false)));
             button.setContentDescription(moduleContext.getString(labelFor(action)));
-            // No session never hides the group. Controls remain visible but disabled.
             button.setVisibility(View.VISIBLE);
             button.setEnabled(false);
             button.setAlpha(0.38f);
@@ -464,10 +467,34 @@ final class ExactTopwayNavController {
         private void stop(String reason, boolean debug) {
             if (!reason.equals(lastStopReason)) {
                 lastStopReason = reason;
-                RateLimitedLog.always("right-nav kept stock: " + reason);
+                RateLimitedLog.always("right-nav kept stock: " + reason
+                        + " directChildren=" + lastDirectChildren);
             } else {
-                RateLimitedLog.debug(debug, "right-nav kept stock: " + reason);
+                RateLimitedLog.debug(debug, "right-nav kept stock: " + reason
+                        + " directChildren=" + lastDirectChildren);
             }
+        }
+    }
+
+    private static String directChildSummary(Resources resources, LinearLayout host) {
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < host.getChildCount(); i++) {
+            View child = host.getChildAt(i);
+            if (child == null) continue;
+            if (out.length() > 0) out.append(';');
+            out.append(i).append(':').append(resourceEntryName(resources, child.getId()))
+                    .append(':').append(visibility(child.getVisibility()));
+        }
+        return out.toString();
+    }
+
+    private static String resourceEntryName(Resources resources, int id) {
+        if (id == View.NO_ID) return "NO_ID";
+        try {
+            return resources.getResourcePackageName(id) + ":id/"
+                    + resources.getResourceEntryName(id);
+        } catch (Throwable ignored) {
+            return "id=" + id;
         }
     }
 
@@ -542,7 +569,7 @@ final class ExactTopwayNavController {
 
         static Preflight success(LinearLayout host, int insertionIndex,
                                  TopwayWeightedNavPolicy.Result policy) {
-            return new Preflight(true, "", host, insertionIndex, policy);
+            return new Preflight(true, "safe", host, insertionIndex, policy);
         }
     }
 }
