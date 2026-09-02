@@ -41,8 +41,6 @@ android {
     lint {
         abortOnError = true
         checkReleaseBuilds = true
-        // This private exact-device module deliberately targets Android 10/API 29;
-        // it is not a Google Play application and must preserve API29 target behaviour.
         disable += "ExpiredTargetSdkVersion"
     }
 
@@ -50,6 +48,12 @@ android {
         release {
             isMinifyEnabled = false
             if (releaseSigning != null) signingConfig = releaseSigning
+        }
+        create("diagnostic") {
+            initWith(getByName("release"))
+            versionNameSuffix = "-diagnostic"
+            signingConfig = releaseSigning ?: signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release", "debug")
         }
     }
 }

@@ -110,6 +110,33 @@ narrow the strip or increase a gap, never weaken these limits.
 - Factory Backlight Current limits, panel files, `DIM_ADJ`/`LED_PWM`, VCOM/AVDD
   and screen-power command `33281` are separate protected domains.
 
+## Diagnostic and development builds
+
+- Follow `docs/DIAGNOSTIC-BUILD-POLICY.md` for every new SystemUI-facing runtime
+  feature, hook, bridge, build variant and diagnostic export.
+- Emit the module-entry event before risky hook installation. Each required or
+  optional hook-install stage must have a stable stage name and explicit
+  installing/success/failure state so all-or-nothing rollback is diagnosable.
+- `debug` and `diagnostic` builds force bounded verbose diagnostics. `release`
+  keeps conservative rate limits but retains structural state transitions.
+- Diagnostic output must use safe sinks: Android logcat tag `TS18SysUI`, the
+  LSPosed/Xposed log where available, and the bounded in-process journal.
+- The normal APK process must remain safe if Xposed classes are absent.
+- Diagnostic logging must be bounded, non-blocking and free of synchronous shell,
+  package-manager CLI, Binder-heavy probing or filesystem scans on UI/render/touch
+  hot paths.
+- Do not log media titles, user text, credentials, tokens, contacts, messages or
+  unrelated application/file data.
+- Mounted RRO files are not proof of effective overlays; diagnostic builds should
+  expose resource values resolved by the live framework/SystemUI process.
+- The release-derived `diagnostic` variant keeps the production application ID.
+  A trusted Manual Diagnostic Build may use the configured release certificate
+  solely to permit exact-device upgrade testing. It must never tag, publish a
+  GitHub Release or push source metadata.
+- PR CI must compile/lint diagnostic variants and enforce that release builds
+  cannot accidentally enable forced diagnostic logging or the diagnostic
+  launcher.
+
 ## Change discipline
 
 1. Keep geometry, visuals, compact input, nav and brightness independently
@@ -120,5 +147,6 @@ narrow the strip or increase a gap, never weaken these limits.
 5. Validate staged SystemUI restart, reboot, cold boot and ACC sleep/wake before
    describing a release as physically proven.
 6. Follow `docs/EXACT-TS18-SYSTEMUI-FINALISATION.md`,
-   `docs/RIGHT-NAV-MEDIA-ROADMAP.md`, `docs/BRIGHTNESS-CONTROLLER.md` and the
-   current physical-remediation runbook for STOP conditions and evidence labels.
+   `docs/RIGHT-NAV-MEDIA-ROADMAP.md`, `docs/BRIGHTNESS-CONTROLLER.md`,
+   `docs/DIAGNOSTIC-BUILD-POLICY.md` and the current physical-remediation
+   runbook for STOP conditions and evidence labels.

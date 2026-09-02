@@ -25,12 +25,18 @@ android {
     namespace = "au.com.cb.ts18.statusbar.input"
     compileSdk = 35
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         applicationId = "au.com.cb.ts18.statusbar.input"
         minSdk = 29
         targetSdk = 29
         versionCode = ts18VersionCode
         versionName = ts18VersionName
+        buildConfigField("boolean", "TS18_DIAGNOSTIC", "false")
+        buildConfigField("String", "TS18_BUILD_KIND", "\"base\"")
     }
 
     compileOptions {
@@ -41,15 +47,28 @@ android {
     lint {
         abortOnError = true
         checkReleaseBuilds = true
-        // This private exact-device module deliberately targets Android 10/API 29;
-        // it is not a Google Play application and must preserve API29 target behaviour.
         disable += "ExpiredTargetSdkVersion"
     }
 
     buildTypes {
+        debug {
+            buildConfigField("boolean", "TS18_DIAGNOSTIC", "true")
+            buildConfigField("String", "TS18_BUILD_KIND", "\"debug\"")
+        }
         release {
             isMinifyEnabled = false
+            buildConfigField("boolean", "TS18_DIAGNOSTIC", "false")
+            buildConfigField("String", "TS18_BUILD_KIND", "\"release\"")
             if (releaseSigning != null) signingConfig = releaseSigning
+        }
+        create("diagnostic") {
+            initWith(getByName("release"))
+            isDebuggable = true
+            versionNameSuffix = "-diagnostic"
+            buildConfigField("boolean", "TS18_DIAGNOSTIC", "true")
+            buildConfigField("String", "TS18_BUILD_KIND", "\"diagnostic\"")
+            signingConfig = releaseSigning ?: signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release", "debug")
         }
     }
 }

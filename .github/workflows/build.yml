@@ -11,7 +11,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
@@ -44,6 +44,7 @@ jobs:
           bash tools/test-visual-overlay-contract.sh
           bash tools/test-proprietary-artifacts.sh
           bash tools/test-remediation-contract.sh
+          bash tools/test-diagnostic-contract.sh
           bash tools/test-xposed-stubs.sh
           bash tools/test-release-tools.sh
           bash tools/test-source-manifest.sh
@@ -56,11 +57,16 @@ jobs:
           ./gradlew --no-daemon clean test \
             :overlay:lintDebug :visual-overlay:lintDebug :lsposed:lintDebug \
             :overlay:lintRelease :visual-overlay:lintRelease :lsposed:lintRelease \
+            :overlay:lintDiagnostic :visual-overlay:lintDiagnostic :lsposed:lintDiagnostic \
             :overlay:assembleDebug :visual-overlay:assembleDebug :lsposed:assembleDebug \
-            :overlay:assembleRelease :visual-overlay:assembleRelease :lsposed:assembleRelease
+            :overlay:assembleRelease :visual-overlay:assembleRelease :lsposed:assembleRelease \
+            :overlay:assembleDiagnostic :visual-overlay:assembleDiagnostic :lsposed:assembleDiagnostic
           bash tools/test-apk-contract.sh lsposed/build/outputs/apk/debug/lsposed-debug.apk
           bash tools/test-apk-contract.sh lsposed/build/outputs/apk/release/lsposed-release-unsigned.apk
-      - name: Package development artefacts
+          bash tools/test-apk-contract.sh lsposed/build/outputs/apk/diagnostic/lsposed-diagnostic.apk
+          bash tools/test-diagnostic-apk-contract.sh release lsposed/build/outputs/apk/release/lsposed-release-unsigned.apk
+          bash tools/test-diagnostic-apk-contract.sh diagnostic lsposed/build/outputs/apk/diagnostic/lsposed-diagnostic.apk
+      - name: Package debug artefacts
         env:
           ALLOW_DEBUG_SIGNING: '1'
         run: |
@@ -71,3 +77,18 @@ jobs:
           name: ts18-systemui-debug
           path: dist/*
           if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+      - name: Package CI diagnostic artefacts
+        env:
+          ALLOW_DIAGNOSTIC_DEBUG_SIGNING: '1'
+        run: |
+          bash tools/package-release.sh diagnostic
+          bash tools/test-packaged-artifacts.sh diagnostic
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ts18-systemui-diagnostic-ci
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
