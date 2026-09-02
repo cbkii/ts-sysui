@@ -469,7 +469,9 @@ public final class BrightnessSettingsActivity extends Activity {
                 .append(" 516-day=").append(detectedDay < 0 ? "unknown" : detectedDay)
                 .append(" 516-night=").append(detectedNight < 0 ? "unknown" : detectedNight)
                 .append(" effectiveNight=")
-                .append(yesNo(status.getBoolean("brightness_effective_night")))
+                .append(status.getBoolean("brightness_levels_known")
+                        ? yesNo(status.getBoolean("brightness_effective_night"))
+                        : "unknown")
                 .append("\n516 slots are observation-only; physical output confirms by screen_brightness readback.");
         detectedBrightness.setText(detected.toString());
         diagnostics.setText(formatDiagnostics(status));

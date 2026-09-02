@@ -108,7 +108,9 @@ if 'getDeclaredMethod("setTouchableInsets", int.class)' not in insets:
     raise SystemExit("FAILED: InternalInsetsAccess no longer resolves setTouchableInsets(int)")
 if 'contract.setTouchableInsets.invoke(info, contract.regionMode)' not in insets:
     raise SystemExit("FAILED: InternalInsetsAccess no longer switches FRAME/default state to REGION")
-for exact_name in ("navbar_home", "navbar_back", "navbar_history", "navbar_app"):
+for exact_name in (
+        "navbar_home", "navbar_back", "navbar_history", "navbar_app",
+        "navbar_volume_plus", "navbar_volume_reduce"):
     if f'"{exact_name}"' not in nav:
         raise SystemExit(f"FAILED: exact navbar controller lacks {exact_name}")
 for obsolete in ('"home"', '"back"', '"recent_apps"', '"app"'):

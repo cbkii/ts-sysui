@@ -29,7 +29,7 @@ require reference/exact-ts18-carsetting-contract.json '06060263e3968a4203c6c37ef
 require reference/exact-ts18-carsetting-contract.json 'Settings.System.SCREEN_BRIGHTNESS'
 require reference/exact-ts18-carsetting-contract.json '"command": 258'
 require reference/exact-ts18-carsetting-contract.json '"arg1": 128'
-require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessCompatibility.java 'EXPECTED_CARSETTING_SHA256'
+require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessCompatibility.java 'EXPECTED_CARSETTING_SHA256 = "06060263e3968a4203c6c37efe95858cd959ac39481dc133de576023b7de2b71"'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessLevelMapper.java 'RAW_MIN = 30'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessLevelMapper.java 'RAW_MAX = 255'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessActionTracker.java 'QUERY_CONFIRM_MS'
