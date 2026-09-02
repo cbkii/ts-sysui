@@ -33,7 +33,7 @@ a3648413b47ef77af21d5ebc36c687c7d103aaef3e17f33de7d4f080a6f300a3  ./gradlew
 6eba43c686bebb9f9516e9fdbeee750923eb56e68649f5d7a790984fcda7c996  ./lsposed/src/main/assets/xposed_init
 de9a8f475d6d3f211212799f84767b40703661513d35d3998ad57db7895d97e9  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessActionTracker.java
 83c850bc3a7abd706bda15c031fcc84cc2ebaf085ccfcec128ed64200ea61a1d  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessCompatibility.java
-63f2dfdd9a6d6bde287587039d643bd495b12c43eeaafefef1758548d9f1aab1  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessConfig.java
+63f2dfdd9a5d6bde287587039d643bd495b12c43eeaafefef1758548d9f1aab1  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessConfig.java
 73f65d2e570f389cc8a23f67962a01899c08e1a0d8d825d3c1abc919d518b5a6  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessController.java
 5b42e795cb0f3fabfe110b162ea0edb1fbb973271c5151048e94301789bc8962  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessFeatureRuntime.java
 2fd0ecc6f45c98abb56ceb6a023c26d0da3c064defe8df02d14c291815b3bcf0  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessHooks.java
