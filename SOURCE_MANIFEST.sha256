@@ -36,8 +36,7 @@ a3648413b47ef77af21d5ebc36c687c7d103aaef3e17f33de7d4f080a6f300a3  ./gradlew
 1abccc2c1ef3173f1f0ae3cad9271c48e7f001b91d5f9d05aaff31f103b866f8  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessController.java
 5b42e795cb0f3fabfe110b162ea0edb1fbb973271c5151048e94301789bc8962  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessFeatureRuntime.java
 2fd0ecc6f45c98abb56ceb6a023c26d0da3c064defe8df02d14c291815b3bcf0  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessHooks.java
-c2dbb5b0e7aaaa22349efc83168f5af0ddbe26e306e9da18c9a223385fb016db  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessPolicy.java
-dffc2b9dcab3d26123c88c4a638e45492e286d6b3681cd3245d73b43869f7736  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessProtocol.java
+c2dbb5b0e7aaaa22349efc83168f5af0ddbe26e306e9da18c9c4488962078a59b7f  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessProtocol.java
 debfe734bce4d5b01b173384b44feac3eca6c026bffc2c9c4488962078a59b7f  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessSettingsActivity.java
 de3c7358f2e10a880d8f99f0a90cc834e55d99e5c3e9ef9784ad0b210b19e384  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessState.java
 37ab7318ff9078b16854cd7e0570ce42f45cb51446186e81198ac846483a869c  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/CircuitBreaker.java
@@ -45,7 +44,7 @@ de3c7358f2e10a880d8f99f0a90cc834e55d99e5c3e9ef9784ad0b210b19e384  ./lsposed/src/
 56b111b613f4c07defa70e8eadf9a9f79ffe9a4aa8c43d942488b8195954cae7  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/CoordinateSpacePolicy.java
 453ca4afea7f8899394689b2df495b8bf9dd0383d7e54a6645288f22676a6bab  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/CoordinateSpaceVerifier.java
 4070f728207dfc2ab3ed7bdb3efbe934bb865898b9b5010ff4e3ad2b63d4efe9  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/DiagnosticJournal.java
-34389146bd133b9d4292ee370a961a8b8a30c525152754be119cffcc0168e208  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/DiagnosticSettingsActivity.java
+63e901559f5e6a815b05af786044e7e6d2c787437b6658ac9dd2d2b213d44b7b  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/DiagnosticSettingsActivity.java
 f5b09a837a6c53bbe6fc24621fdf13f8f754603e3baf8f3ef4c417b7e5ee35e0  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactSystemUiIdentity.java
 f24ccb5ded7bb8ef61b6ddb43309bd268a9ab506f809e4008ec98814453a7b6e  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactTopwayNavAdapter.java
 cb682ceb5c8405b604c7574096cc3bffa6e7d80b0ce4027936ecd1725c787cd6  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactTopwayNavController.java
@@ -122,7 +121,7 @@ e25e7b045532e8cdff15cddc4b2a03b0f0e62ab9641e661e373e110a9ffc8892  ./tools/Geomet
 9af847483ea1fd3e4634a255f339ef7eddc63dfcc4815dd7fb047d8c5856bc81  ./tools/resolve-release-version.sh
 41fed45a2952784a9c393fd32c04cb9efaaa58a742cb73bb5c6724ac56d4e410  ./tools/test-apk-contract.sh
 06fa9002f0593d9f122347fcc69ff2820cf01728e804c5257f390444bfcbe99c  ./tools/test-diagnostic-apk-contract.sh
-2f7993032eda2aecc7aa08da74b03f83dc3c6841db1464dbfdc178ace243878d  ./tools/test-diagnostic-contract.sh
+9ee6e0735f57937697a62c8aec14717b768f52efe93e400d2aa3ebb4b4fe1fe3  ./tools/test-diagnostic-contract.sh
 1fefeb5085a6d09313aee7347f351998e0b093eca6c1f7ab0c1eb3b0077f405a  ./tools/test-exact-systemui-contract.sh
 af44839a40a5b36d443425aaf05276477db2692dbf247d7acc8984bc58ac8bbc  ./tools/test-geometry.sh
 94d2ae29e476e999f9694257266c66fb70eadfd5dadf4ccfb01e9433db313d13  ./tools/test-gradle-wrapper.sh
@@ -133,7 +132,7 @@ d1fdcb429cf0c98841f7bae6c189b91c2dcfbd67cda22d25de8ae6515c7682f8  ./tools/test-r
 61c4e0307f0dd934445870031dcc920243ffe9f33142584614ddb17774586612  ./tools/test-remediation-contract.sh
 237af416e1f21d14ca67088725fbf64f5515f507958aa384c2ee27295bdaac61  ./tools/test-source-manifest.sh
 88602294ba9b2b4ba451badfc088cc071f2338d51336911cd3159c01df8fdeb1  ./tools/test-visual-overlay-contract.sh
-cc596059929522179a01df74bf922546b75af0c5c5d1d04c5384ca395fed36e2  ./tools/test-xposed-stubs.sh
+cc596059929522179a01df74bf922546b75af0c5d5d1d04c5384ca395fed36e2  ./tools/test-xposed-stubs.sh
 287709819c07177a71984c94cd4c992d4642922d527d9ec29330a3c5f4494a88  ./tools/ts18-brightness-config.sh
 4ceff5c4e1d2de20899a623e61c1b3ccfd3f2590b6be863c392a4e7be58681de  ./tools/ts18-migrate-magisk-modules.sh
 8e9e5ae1752a53feb2f725de32070861ae8e7be188b050b28373b5af437c6ba3  ./tools/ts18-right-nav-evidence.sh
