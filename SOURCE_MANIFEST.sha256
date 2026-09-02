@@ -141,7 +141,7 @@ c2f603ebd65f7decc5ce7b838ed5db32fe631539b50c3957efd024f4a0c3dd40  ./tools/ts18-s
 d1ed24f756eb8c95aa2769bad89c2c8ac7d3be9215f179ed46712c1cdebd18c6  ./tools/ts18-statusbar-validate.sh
 136f7ab7b746ead1830e76fc5430983dc01224b275addd0c89b41b070d3b2add  ./tools/ts18-systemui-contract.sh
 d03aaa44406f32f7edeab475ad0e73869937299563c687a47effa9177e2a35df  ./tools/update-source-manifest.sh
-f0e12ccb2825b6b1dcee7296406262c8c6eb90711174c8ff7008fe0f21fb8247  ./version.properties
+8f1ba47b82bb80413048a18edebf6c5a2b0edfb63c9af538aa57c71cd4cda31b  ./version.properties
 2953f53d505e3e37951c14567ed2c0246b1acd7774b2c7aa6bfa9aed828ac157  ./visual-overlay/build.gradle.kts
 ee00960cac6ee5ad0f822ee84ceeea863c9c795f2406afc38ef848f7438adb43  ./visual-overlay/src/main/AndroidManifest.xml
 733c572784642575226e45c16cd3c96e00329d7d1d59d96a7a8d882517a3ff65  ./visual-overlay/src/main/res/values/dimens.xml
