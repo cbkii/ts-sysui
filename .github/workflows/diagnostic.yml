@@ -1,0 +1,190 @@
+name: Manual Diagnostic Build
+
+on:
+  workflow_dispatch:
+
+run-name: Diagnostic build from ${{ github.ref_name }}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ts-sysui-manual-diagnostic
+  cancel-in-progress: false
+
+jobs:
+  diagnostic:
+    name: Build release-signed diagnostic bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: release
+
+    steps:
+      - name: Checkout trusted default branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate diagnostic context
+        shell: bash
+        run: |
+          set -euo pipefail
+          default_branch='${{ github.event.repository.default_branch }}'
+          [ "${GITHUB_REF_TYPE}" = branch ] || { echo '::error::Diagnostic build must be dispatched from a branch.'; exit 1; }
+          [ "${GITHUB_REF_NAME}" = "$default_branch" ] || {
+            echo "::error::Dispatch Manual Diagnostic Build from $default_branch, not ${GITHUB_REF_NAME}."
+            exit 1
+          }
+          git fetch --force origin "+refs/heads/${GITHUB_REF_NAME}:refs/remotes/origin/${GITHUB_REF_NAME}"
+          [ "$(git rev-parse HEAD)" = "$(git rev-parse "origin/${GITHUB_REF_NAME}")" ] || {
+            echo '::error::Diagnostic checkout is stale relative to the remote default branch.'
+            exit 1
+          }
+          git diff --quiet && git diff --cached --quiet || {
+            echo '::error::Diagnostic build requires a clean source tree.'
+            exit 1
+          }
+
+      - name: Set up Java 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          check-latest: false
+
+      - name: Validate release signing secrets
+        id: signing
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -n "$KEYSTORE_B64" ] || missing+=(KEYSTORE_BASE64)
+          [ -n "$STORE_PASSWORD" ] || missing+=(KEYSTORE_PASSWORD)
+          [ -n "$KEY_ALIAS" ] || missing+=(KEY_ALIAS)
+          [ -n "$KEY_PASSWORD" ] || missing+=(KEY_PASSWORD)
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf '::error::Missing required release secrets: %s\n' "${missing[*]}"
+            exit 1
+          fi
+          echo "::add-mask::$STORE_PASSWORD"
+          echo "::add-mask::$KEY_ALIAS"
+          echo "::add-mask::$KEY_PASSWORD"
+          umask 077
+          printf '%s' "$KEYSTORE_B64" | tr -d '[:space:]' | base64 --decode > "$RUNNER_TEMP/ts18-diagnostic.jks" || {
+            echo '::error::KEYSTORE_BASE64 is not valid base64.'
+            exit 1
+          }
+          chmod 600 "$RUNNER_TEMP/ts18-diagnostic.jks"
+          keytool -list -keystore "$RUNNER_TEMP/ts18-diagnostic.jks" \
+            -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null || {
+              echo '::error::Keystore password or alias validation failed.'
+              exit 1
+            }
+          keytool -exportcert -keystore "$RUNNER_TEMP/ts18-diagnostic.jks" \
+            -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" \
+            -file "$RUNNER_TEMP/ts18-diagnostic-cert.der" >/dev/null
+          signer_sha256="$(sha256sum "$RUNNER_TEMP/ts18-diagnostic-cert.der" | awk '{print toupper($1)}')"
+          [[ "$signer_sha256" =~ ^[0-9A-F]{64}$ ]] || { echo '::error::Unable to derive signer SHA-256.'; exit 1; }
+          echo "signer_sha256=$signer_sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Provision Android SDK packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$SDKMANAGER" || { echo "FAILED: sdkmanager not found at $SDKMANAGER" >&2; exit 3; }
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "$SDK_ROOT/build-tools/35.0.0" >> "$GITHUB_PATH"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
+        with:
+          validate-wrappers: false
+
+      - name: Validate source and build diagnostic variants
+        shell: bash
+        env:
+          TS18_KEYSTORE_PATH: ${{ runner.temp }}/ts18-diagnostic.jks
+          TS18_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          TS18_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          TS18_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          bash -n tools/*.sh
+          sh -n magisk-combined/customize.sh
+          bash tools/test-geometry.sh
+          bash tools/test-nav-observation-contract.sh
+          bash tools/test-exact-systemui-contract.sh
+          bash tools/test-visual-overlay-contract.sh
+          bash tools/test-proprietary-artifacts.sh
+          bash tools/test-remediation-contract.sh
+          bash tools/test-diagnostic-contract.sh
+          bash tools/test-xposed-stubs.sh
+          bash tools/test-release-tools.sh
+          bash tools/test-source-manifest.sh
+          bash tools/bootstrap-gradle-wrapper.sh
+          bash tools/test-gradle-wrapper.sh
+          ./gradlew --no-daemon clean test \
+            :overlay:lintDiagnostic :visual-overlay:lintDiagnostic :lsposed:lintDiagnostic \
+            :overlay:assembleDiagnostic :visual-overlay:assembleDiagnostic :lsposed:assembleDiagnostic
+          bash tools/test-apk-contract.sh lsposed/build/outputs/apk/diagnostic/lsposed-diagnostic.apk
+          bash tools/test-diagnostic-apk-contract.sh diagnostic lsposed/build/outputs/apk/diagnostic/lsposed-diagnostic.apk
+          bash tools/package-release.sh diagnostic
+          bash tools/test-packaged-artifacts.sh diagnostic
+          (cd dist && sha256sum -c SHA256SUMS.txt)
+
+      - name: Verify all diagnostic APKs use release certificate
+        shell: bash
+        env:
+          EXPECTED_SIGNER: ${{ steps.signing.outputs.signer_sha256 }}
+        run: |
+          set -euo pipefail
+          for apk in \
+            overlay/build/outputs/apk/diagnostic/overlay-diagnostic.apk \
+            visual-overlay/build/outputs/apk/diagnostic/visual-overlay-diagnostic.apk \
+            lsposed/build/outputs/apk/diagnostic/lsposed-diagnostic.apk
+          do
+            output="$(apksigner verify --print-certs "$apk")"
+            actual="$(printf '%s\n' "$output" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+            [ -n "$actual" ] || { echo "::error::Could not read signer SHA-256 from $apk"; exit 1; }
+            [ "$actual" = "$EXPECTED_SIGNER" ] || {
+              echo "::error::Signer mismatch for $apk: $actual != $EXPECTED_SIGNER"
+              exit 1
+            }
+          done
+          echo 'All diagnostic APKs match the configured release certificate.'
+
+      - name: Record immutable source/build summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/^versionName=//p' version.properties | head -n1)"
+          {
+            echo '## TS18 System UI diagnostic build'
+            echo
+            echo "- source: \`$(git rev-parse HEAD)\`"
+            echo "- base version: \`$version\`"
+            echo '- application ID: `au.com.cb.ts18.statusbar.input`'
+            echo '- signer: release certificate verified'
+            echo '- diagnostic console: enabled'
+            echo '- bounded verbose runtime journal: forced on'
+            echo '- source/tag/release metadata mutation: none'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload release-signed diagnostic bundle
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ts18-systemui-diagnostic-${{ github.sha }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
