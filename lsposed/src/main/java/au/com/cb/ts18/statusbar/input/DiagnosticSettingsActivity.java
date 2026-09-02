@@ -43,8 +43,11 @@ public final class DiagnosticSettingsActivity extends Activity {
     });
     private TextView status;
     private TextView report;
+    private Button copyButton;
+    private Button saveButton;
     private String pendingNonce;
     private int renderGeneration;
+    private boolean reportReady;
 
     private final ResultReceiver receiver = new ResultReceiver(main) {
         @Override protected void onReceiveResult(int resultCode, Bundle data) {
@@ -85,6 +88,10 @@ public final class DiagnosticSettingsActivity extends Activity {
     }
 
     @Override protected void onStop() {
+        // Invalidate any report worker from the previous visible Activity lifetime.
+        // A resumed refresh must never be overwritten by a stale callback.
+        renderGeneration++;
+        setReportReady(false);
         main.removeCallbacks(timeout);
         pendingNonce = null;
         super.onStop();
@@ -121,22 +128,25 @@ public final class DiagnosticSettingsActivity extends Activity {
         refresh.setOnClickListener(v -> refresh());
         root.addView(refresh);
 
-        Button copy = button("Copy report");
-        copy.setOnClickListener(v -> copy());
-        root.addView(copy);
+        copyButton = button("Copy report");
+        copyButton.setOnClickListener(v -> copy());
+        root.addView(copyButton);
 
-        Button save = button("Save report to Downloads");
-        save.setOnClickListener(v -> save());
-        root.addView(save);
+        saveButton = button("Save report to Downloads");
+        saveButton.setOnClickListener(v -> save());
+        root.addView(saveButton);
 
         report = text("No report yet.", 12f);
         report.setTextIsSelectable(true);
         root.addView(report);
+        setReportReady(false);
         return scroll;
     }
 
     private void refresh() {
         if (pendingNonce != null) return;
+        setReportReady(false);
+        report.setText("Waiting for SystemUI bridge status...");
         DiagnosticJournal.record("INFO", "diagnostic-activity", "status refresh requested");
         String nonce = UUID.randomUUID().toString();
         Intent request = new Intent(SystemUiBridge.ACTION_QUERY_STATUS)
@@ -164,6 +174,7 @@ public final class DiagnosticSettingsActivity extends Activity {
         final Bundle snapshot = state == null ? null : new Bundle(state);
         Context application = getApplicationContext();
         final Context localContext = application == null ? this : application;
+        setReportReady(false);
         report.setText("Collecting local diagnostics off the UI thread...");
         diagnostics.execute(() -> {
             String rendered;
@@ -180,6 +191,7 @@ public final class DiagnosticSettingsActivity extends Activity {
             main.post(() -> {
                 if (generation != renderGeneration || isFinishing() || isDestroyed()) return;
                 report.setText(result);
+                setReportReady(true);
             });
         });
     }
@@ -282,6 +294,10 @@ public final class DiagnosticSettingsActivity extends Activity {
     }
 
     private void copy() {
+        if (!reportReady) {
+            toast("Diagnostic report is still being collected.");
+            return;
+        }
         ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
         if (clipboard == null) {
             toast("Clipboard unavailable.");
@@ -293,6 +309,10 @@ public final class DiagnosticSettingsActivity extends Activity {
     }
 
     private void save() {
+        if (!reportReady) {
+            toast("Diagnostic report is still being collected.");
+            return;
+        }
         String value = report.getText().toString();
         if (value.trim().isEmpty()) {
             toast("No diagnostic report to save.");
@@ -326,6 +346,12 @@ public final class DiagnosticSettingsActivity extends Activity {
             DiagnosticJournal.failure("diagnostic-save", "MediaStore export failed", t);
             toast("Save failed: " + t.getClass().getSimpleName());
         }
+    }
+
+    private void setReportReady(boolean ready) {
+        reportReady = ready;
+        if (copyButton != null) copyButton.setEnabled(ready);
+        if (saveButton != null) saveButton.setEnabled(ready);
     }
 
     private Button button(String value) {
