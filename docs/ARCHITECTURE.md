@@ -4,71 +4,77 @@
 
 | Layer | Authority | Artifact | Independent recovery |
 |---|---|---|---|
-| status geometry | Android framework resources | geometry Magisk RRO | disable `ts18_statusbar_geometry` |
-| status visuals | exact SystemUI resources | visual Magisk RRO | disable `ts18_statusbar_visuals` |
-| collapsed input | exact SystemUI touch manager | LSPosed APK | `input-off` / compact kill switch |
-| right-nav media | exact Topway navbar + existing media sessions | LSPosed APK | `nav-disable` / nav breaker |
+| status geometry | Android framework resources | geometry RRO inside `ts18_sysui` | disable combined Magisk module |
+| status visuals | exact SystemUI resources | visual RRO inside `ts18_sysui` | disable combined Magisk module |
+| collapsed input | exact Android-Q SystemUI touch manager | LSPosed APK | compact kill switch / LSPosed disable |
+| right-nav media | exact Topway navbar + existing media sessions | LSPosed APK | nav disable / nav breaker |
+| brightness | Topway 258 mode + exact CarSetting `SCREEN_BRIGHTNESS` physical path | LSPosed APK | brightness disable / brightness breaker |
 
-No layer rewrites another layer's authority. In particular, the LSPosed code
-does not change status-window height or framework navigation dimensions.
+The two RRO projects remain independently built/tested but are packaged together
+for installation. Behavioural layers remain independently disableable. No layer
+rewrites another layer's authority.
 
-## Exact identity gate
+## Exact binary gates
 
-`ExactSystemUiIdentity` hooks `SystemUIApplication.onCreate`, resolves the
-installed application `sourceDir` and computes SHA-256 on a daemon worker. Its
-state is `UNCHECKED`, `CHECKING`, `SUPPORTED` or `UNSUPPORTED`. Exact touch and
-nav paths require `SUPPORTED`; a read/reflection mismatch leaves them inert.
+`ExactSystemUiIdentity` verifies the installed SystemUI source asynchronously and
+requires the exact API/device/package/hash contract before private SystemUI
+mutation:
 
-The current contract is API 29, device/product token `s9863a1h10`, package
-`com.android.systemui` and APK SHA-256
-`668dec9ac14fbabd76ae73d693dcdd1518190f7941b6ac0b00d16587d6c4bd3f`.
-The root pre-arm script verifies the same values before publishing an enabled
-setting.
+```text
+API 29
+s9863a1h10
+com.android.systemui
+/system/priv-app/SystemUI/SystemUI.apk
+SHA-256 668dec9ac14fbabd76ae73d693dcdd1518190f7941b6ac0b00d16587d6c4bd3f
+```
 
-## Geometry RRO
+Callbacks that can touch Views/SystemUI lifecycle state are marshalled back to
+the main looper.
 
-The exact OEM sysbar overlay uses framework geometry resources. The project
-follows that mechanism and changes only:
+The CarSetting-derived managed brightness backend has an additional exact gate:
+
+```text
+com.dofun.carsetting
+SHA-256 06060263e3968a4203c6c37efe95858cd959ac39481dc133de576023b7de2b71
+```
+
+A binary/class/member/resource/topology mismatch fails open. Compatibility is not
+silently broadened.
+
+## Geometry and visual RROs
+
+The framework RRO is the sole status-bar-height authority and changes only:
 
 - `status_bar_height`;
 - `status_bar_height_landscape`; and
 - `status_bar_height_portrait`.
 
-Each becomes 43dp. `navigation_bar_*` and `navigation_key_width` are untouched.
+Each becomes 43dp. Navigation dimensions are untouched.
 
-## SystemUI visual RRO
-
-The independent static overlay targets `com.android.systemui` and changes only:
+The exact-SystemUI visual RRO changes only the reviewed allow-list:
 
 - `status_bar_icon_size = 18dp`;
 - `status_bar_icon_drawing_size = 13dp`; and
 - `status_bar_clock_size = 10.5sp`.
 
-These names are the exact static-analysis allow-list. The overlay does not own
-height, padding, navigation dimensions or shared resources. Android 10
-overlay/idmap acceptance is intentionally a device qualification gate. Failure
-retains stock visual resources; no code traversal compensates for it.
+Overlay/idmap rejection is a clean STOP; runtime View-tree scaling is not used as
+a fallback.
 
 ## Exact collapsed touch adapter
 
-The Android-Q `StatusBarTouchableRegionManager` is the touch authority. The
-adapter reflection-preflights its exact constructor, methods and fields, then
-hooks after stock:
+The Android-Q `StatusBarTouchableRegionManager` remains stock touch authority.
+The exact adapter reflection/type-checks its required private contract, including
+boolean `mShouldAdjustInsets`.
 
-- constructor `(Context, HeadsUpManagerPhone, StatusBar, View)`;
-- `updateTouchableRegion()`; and
-- `onComputeInternalInsets(InternalInsetsInfo)`.
+One persistent module-owned post-stock `OnComputeInternalInsetsListener` owns the
+exact mutation path. Constructor/`updateTouchableRegion()` lifecycle hooks only
+keep that listener correctly attached/ordered; the project does not reintroduce
+a second direct `onComputeInternalInsets()` mutation hook.
 
-Because the hidden `OnComputeInternalInsetsListener` is not in public SDK stubs,
-the module attaches a runtime-reflected proxy to the manager's exact root. The
-stock method hook and owned listener are idempotent; cleanup unregisters only
-the owned proxy.
-
-Mutation requires exact identity, armed compact generation 4/exact adapter, an
-attached full-physical-width root at `(0,0)`, ordinary rectangular full-width
-stock region and matching compact height. The safety policy rejects expanded,
-keyguard/bouncer, pinned/departing HUN, bubble and force-collapsed-transition
-states. It then computes:
+If `mShouldAdjustInsets` is true or a special/ambiguous state is active, the
+module leaves `InternalInsetsInfo` untouched. In safe ordinary collapsed state it
+may explicitly establish `TOUCHABLE_INSETS_REGION` from Android-Q's normal
+FRAME/empty starting state and constrain the strip by runtime geometry:
 
 ```text
 cornerGapPx >= 64
@@ -78,59 +84,124 @@ stripRight <= fullPhysicalWidth - cornerGapPx
 stripRight <= fullPhysicalWidth - rightSystemInset
 ```
 
-The explicitly selected compatibility adapter remains isolated in the older
-WindowManager/dispatch observation path. It is never an automatic fallback.
+The explicit compatibility adapter remains diagnostic-only and is never an
+automatic fallback after exact failure.
 
-## Exact Topway right-nav adapter
+## Exact Topway right navigation
 
-`ExactTopwayNavAdapter` hooks `NavigationBarView.onFinishInflate` after stock.
-`ExactTopwayNavController` owns attach/detach/layout/reinflation reconciliation.
-It resolves `navbar_left` in the SystemUI resource namespace and accepts only:
+`ExactTopwayNavAdapter` hooks `NavigationBarView.onFinishInflate` after stock and
+binds only the exact vertical `com.android.systemui:id/navbar_left` host.
 
-- direct vertical `LinearLayout` host;
-- the exact seven direct IDs for power, Home, Back, Recents, app slot, volume up
-  and volume down;
-- no explicit host weight sum and no unknown direct child;
-- visible stock children with height `0` and uniform positive weights; and
-- a live measured cell projection of at least 56dp.
+Required direct stock resource entry names:
 
-One tagged, generated-ID group is inserted before the two stock volume controls.
-Its outer weight is `stockUnitWeight * actionCount`; enabled action children
-have inner weight 1. Stock children are not edited. The owner tag plus retained
-reference makes exactly-once injection and ownership-bounded removal explicit.
+```text
+navbar_home
+navbar_back
+navbar_history
+navbar_volume_plus
+navbar_volume_reduce
+```
 
-Nav generation 2 remains mutation/probe off by default. Probe and functional
-state share the exact lifecycle root but the bounded probe is independently
-armed.
+Known optional direct names:
+
+```text
+navbar_guanping
+navbar_app
+```
+
+Unknown/duplicate direct children, unsafe weights or unsafe measured geometry are
+STOP conditions. Current runtime order, every OEM View/ID/listener/LayoutParams
+and Topway command remain untouched.
+
+One owner-tagged weighted group may contain a unique configured subset/order of:
+
+```text
+previous,play_pause,next
+```
+
+It uses the existing full sidebar width, requires >=48dp horizontal width and
+>=56dp projected vertical cells, and never widens the OEM strip. A public-View
+visibility monitor removes/suspends module controls whenever stock hides,
+detaches or stops showing the panel, then reruns full exact preflight when stock
+returns.
 
 ## Existing-session media client
 
-`NavMediaSessionRepository` uses public API29 surfaces available inside the
-already-authorised SystemUI process. A dedicated `HandlerThread` registers an
-active-session listener, chooses a sticky controller deterministically and
-registers one callback on the selected controller. UI snapshots return to the
-main handler.
+Media authority is only:
 
-Selection priority is sticky playing controller, first playing controller,
-sticky usable controller, first paused controller, then first usable controller.
-A click posts once to the worker; pure dispatch policy maps it to at most one
-supported previous/play/pause/next `TransportControls` call. There is no media
-key, vendor command or second playback authority.
+```text
+MediaSessionManager -> existing MediaController -> TransportControls
+```
 
-Detach/disable stops the repository, unregisters listener/callback, drops main
-callbacks and quits the worker safely.
+`NavMediaSessionRepository` observes active sessions on a dedicated HandlerThread,
+selects one controller deterministically/stickily while valid, and publishes UI
+state on the main thread. One accepted tap yields at most one supported previous,
+play, pause or next transport operation.
+
+No MediaSession, service, queue, notification, audio-focus owner, media-key
+fallback or guessed Topway media command is created.
+
+## Exact CarSetting-backed brightness
+
+The supplied CarSetting build establishes two separate authority domains:
+
+- **Topway 258** — semantic mode (`0=Auto`, `1=Day`, `2=Night`);
+- **`Settings.System.SCREEN_BRIGHTNESS`** — active physical slider output,
+  raw 30..255.
+
+A mode change reproduces the exact observed stock transaction on the SystemUI
+main looper after transport readiness:
+
+```text
+write(258, 1, selectedMode)
+write(258, 128)
+```
+
+The private meaning of the second stock operation is not guessed.
+
+Topway 516 is retained as observation-only input for packed Day/Night slots and
+the effective Day/Night state. It is not the ordinary physical actuator and is
+not physical success evidence.
+
+The user-facing logical range remains 1..10, mapped linearly to raw 30..255.
+Level 0 is blocked. `-1` preserves the corresponding configured physical level.
+
+The reconciliation engine changes one required variable at a time. It confirms
+258 through mode callback/state and physical output through exact raw
+`SCREEN_BRIGHTNESS` readback. On non-convergence it performs one matching
+query/read before at most one bounded retry, then records a brightness-only
+breaker failure.
+
+Stock Auto remains Topway authority. If managed Day/Night levels are configured,
+the physical target is chosen only when a valid 516 effective-state observation
+is known; unknown state fails open.
+
+The brightness breaker stops future project writes and cleans up only its owned
+receiver, settings observer, queued work and HandlerThread. It does not change
+stock Topway state.
+
+## Dashboard and bridge
+
+The companion **TS18 System UI** Activity communicates with a
+signature-protected, package-targeted dynamic bridge inside the already
+privileged exact SystemUI process. Mutating requests require a private
+`ResultReceiver`, exact identity and valid complete policy.
+
+Status reports keep semantic and physical state separate, including navbar live
+child names/preflight, media selection, 258/516 observation, exact CarSetting
+compatibility, requested logical/raw brightness, observed raw brightness,
+physical write/read timestamps, mode transaction stages and independent breaker
+state.
+
+Policy persistence acknowledgement never means hardware success.
 
 ## Failure isolation and defaults
 
-Hook registration is transactional. Required hook failure unhooks partial work
-before `HookRuntime` activates. Exact adapter preflight failure installs no
-mutation for that adapter.
+Compact, nav and brightness have independent process-local failure domains.
+Persistent behavioural mutation defaults off. Exact failure does not activate a
+generic fallback or modify another feature domain.
 
-Compact and nav failures have independent three-strike process breakers. The
-compact breaker detaches exact touch listeners and clears compact state. The nav
-breaker removes the owned group, stops media observation, detaches the probe and
-clears nav state. Neither breaker edits persistent settings; a SystemUI restart
-resets only process-local state.
-
-Persistent defaults are compact generation 4 and nav generation 2 with all
-mutation flags off. No `system_server` hook exists.
+The implementation never replaces/resigns SystemUI, writes Android partitions,
+hooks `system_server`, broadens LSPosed beyond main `com.android.systemui`, or
+uses backlight sysfs/factory panel calibration/screen-power commands as automatic
+brightness fallbacks.
