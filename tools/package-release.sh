@@ -3,7 +3,7 @@
 # Required inputs are validated; the script never signs or mutates APK binaries.
 
 MODE="${1:-release}"
-case "$MODE" in debug|release) ;; *) printf 'FAILED: mode must be debug or release\n' >&2; exit 3 ;; esac
+case "$MODE" in debug|diagnostic|release) ;; *) printf 'FAILED: mode must be debug, diagnostic or release\n' >&2; exit 3 ;; esac
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)" || exit 3
 ROOT="$(dirname -- "$SCRIPT_DIR")"
@@ -49,6 +49,11 @@ if [ "$MODE" = "debug" ] && [ "${ALLOW_DEBUG_SIGNING:-0}" != "1" ]; then
     printf 'STOPPED FOR SAFETY: debug packaging changes signer between clean build environments. Set ALLOW_DEBUG_SIGNING=1 only for first-device development.\n' >&2
     exit 4
 fi
+if [ "$MODE" = "diagnostic" ] && [ -z "${TS18_KEYSTORE_PATH:-}" ] \
+        && [ "${ALLOW_DIAGNOSTIC_DEBUG_SIGNING:-0}" != "1" ]; then
+    printf 'STOPPED FOR SAFETY: device-installable diagnostic builds should use the release certificate. Set ALLOW_DIAGNOSTIC_DEBUG_SIGNING=1 only for CI/package-contract testing.\n' >&2
+    exit 4
+fi
 
 overlay="$ROOT/overlay/build/outputs/apk/$MODE/overlay-$MODE.apk"
 visual_overlay="$ROOT/visual-overlay/build/outputs/apk/$MODE/visual-overlay-$MODE.apk"
@@ -57,20 +62,20 @@ if [ ! -s "$overlay" ]; then printf 'FAILED: missing built overlay APK: %s\n' "$
 if [ ! -s "$visual_overlay" ]; then printf 'FAILED: missing built visual overlay APK: %s\n' "$visual_overlay" >&2; exit 2; fi
 if [ ! -s "$lsposed" ]; then printf 'FAILED: missing built LSPosed APK: %s\n' "$lsposed" >&2; exit 2; fi
 
-if [ "$MODE" = "release" ]; then
-    APKSIGNER=""
+APKSIGNER=""
+if [ "$MODE" != "debug" ]; then
     SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
     if command -v apksigner >/dev/null 2>&1; then APKSIGNER="$(command -v apksigner)"; fi
     if [ -z "$APKSIGNER" ] && [ -n "$SDK_ROOT" ] && [ -x "$SDK_ROOT/build-tools/35.0.0/apksigner" ]; then
         APKSIGNER="$SDK_ROOT/build-tools/35.0.0/apksigner"
     fi
     if [ -z "$APKSIGNER" ]; then
-        printf 'FAILED: apksigner is required to verify release APK signatures\n' >&2
+        printf 'FAILED: apksigner is required to verify %s APK signatures\n' "$MODE" >&2
         exit 3
     fi
-    "$APKSIGNER" verify "$overlay" >/dev/null || { printf 'FAILED: overlay release APK is not validly signed\n' >&2; exit 2; }
-    "$APKSIGNER" verify "$visual_overlay" >/dev/null || { printf 'FAILED: visual overlay release APK is not validly signed\n' >&2; exit 2; }
-    "$APKSIGNER" verify "$lsposed" >/dev/null || { printf 'FAILED: LSPosed release APK is not validly signed\n' >&2; exit 2; }
+    "$APKSIGNER" verify "$overlay" >/dev/null || { printf 'FAILED: overlay %s APK is not validly signed\n' "$MODE" >&2; exit 2; }
+    "$APKSIGNER" verify "$visual_overlay" >/dev/null || { printf 'FAILED: visual overlay %s APK is not validly signed\n' "$MODE" >&2; exit 2; }
+    "$APKSIGNER" verify "$lsposed" >/dev/null || { printf 'FAILED: LSPosed %s APK is not validly signed\n' "$MODE" >&2; exit 2; }
 fi
 
 rm -rf -- "$DIST"
@@ -80,7 +85,9 @@ if [ ! -s "$TMP/magisk/module.prop.in" ]; then
     printf 'FAILED: missing magisk-combined/module.prop.in\n' >&2
     exit 2
 fi
-sed -e "s/@VERSION_NAME@/$VERSION/g" -e "s/@VERSION_CODE@/$VERSION_CODE/g" \
+MODULE_VERSION="$VERSION"
+if [ "$MODE" = "diagnostic" ]; then MODULE_VERSION="$VERSION-diagnostic"; fi
+sed -e "s/@VERSION_NAME@/$MODULE_VERSION/g" -e "s/@VERSION_CODE@/$VERSION_CODE/g" \
     "$TMP/magisk/module.prop.in" > "$TMP/magisk/module.prop" || exit 2
 rm -f -- "$TMP/magisk/module.prop.in"
 cp -- "$overlay" "$TMP/magisk/system/product/overlay/TS18StatusBarGeometry.apk" || exit 2
@@ -101,13 +108,38 @@ cp -- "$DIST/$LSPOSED_NAME" "$TMP/bundle/" || exit 2
 cp -- "$ROOT/docs/INSTALL.md" "$ROOT/docs/RECOVERY.md" "$ROOT/docs/VALIDATION.md" \
     "$ROOT/docs/ROADMAP.md" "$ROOT/docs/RIGHT-NAV-MEDIA-ROADMAP.md" \
     "$ROOT/docs/LSPOSED-COMPATIBILITY.md" "$ROOT/docs/BRIGHTNESS-CONTROLLER.md" \
-    "$ROOT/docs/PHYSICAL-0.5.1-REMEDIATION.md" "$TMP/bundle/" || exit 2
+    "$ROOT/docs/PHYSICAL-0.5.1-REMEDIATION.md" "$ROOT/docs/DIAGNOSTIC-BUILD-POLICY.md" \
+    "$TMP/bundle/" || exit 2
 cp -- "$ROOT/tools/ts18-statusbar-config.sh" \
     "$ROOT/tools/ts18-systemui-contract.sh" \
     "$ROOT/tools/ts18-statusbar-validate.sh" \
     "$ROOT/tools/ts18-right-nav-evidence.sh" \
     "$ROOT/tools/ts18-brightness-config.sh" \
     "$ROOT/tools/ts18-migrate-magisk-modules.sh" "$TMP/bundle/" || exit 2
+
+if [ "$MODE" = "diagnostic" ]; then
+    SOURCE_SHA="${GITHUB_SHA:-}"
+    if [ -z "$SOURCE_SHA" ] && command -v git >/dev/null 2>&1; then
+        SOURCE_SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || true)"
+    fi
+    [ -n "$SOURCE_SHA" ] || SOURCE_SHA="unknown"
+    SIGNING_KIND="release-certificate"
+    [ -n "${TS18_KEYSTORE_PATH:-}" ] || SIGNING_KIND="debug-certificate-ci-only"
+    cat > "$DIST/BUILD-INFO.txt" <<EOF
+product=TS18 System UI
+mode=diagnostic
+baseVersion=$VERSION
+versionCode=$VERSION_CODE
+apkVersionName=$VERSION-diagnostic
+sourceCommit=$SOURCE_SHA
+signing=$SIGNING_KIND
+diagnosticConsole=enabled
+runtimeJournal=forced-bounded-verbose
+mutationSafety=unchanged
+EOF
+    cp -- "$DIST/BUILD-INFO.txt" "$TMP/bundle/" || exit 2
+fi
+
 (
     cd "$TMP/bundle" || exit 3
     zip -qr "$DIST/$BUNDLE_NAME" .
