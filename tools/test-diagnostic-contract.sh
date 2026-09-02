@@ -84,14 +84,19 @@ if grep -F 'ACTION_APPLY' \
 fi
 
 # Export actions must stay disabled/guarded until a complete report is ready, and
-# stopped Activity lifetimes must invalidate old worker callbacks before resume.
+# every new refresh or stopped Activity lifetime must invalidate old workers.
 activity='lsposed/src/main/java/au/com/cb/ts18/statusbar/input/DiagnosticSettingsActivity.java'
 report_guard_count="$(grep -F -c 'if (!reportReady)' "$activity" || true)"
 if [ "$report_guard_count" -lt 2 ]; then
     echo 'FAILED: Diagnostic Console copy/save paths must both reject incomplete reports.' >&2
     exit 2
 fi
-if ! grep -A8 -F 'private void refresh()' "$activity" | grep -F 'setReportReady(false);' >/dev/null; then
+refresh_block="$(grep -A12 -F 'private void refresh()' "$activity")"
+if ! printf '%s\n' "$refresh_block" | grep -F 'renderGeneration++;' >/dev/null; then
+    echo 'FAILED: Diagnostic Console refresh must invalidate an in-flight report before requesting new state.' >&2
+    exit 2
+fi
+if ! printf '%s\n' "$refresh_block" | grep -F 'setReportReady(false);' >/dev/null; then
     echo 'FAILED: Diagnostic Console refresh must disable report export before collecting new state.' >&2
     exit 2
 fi
