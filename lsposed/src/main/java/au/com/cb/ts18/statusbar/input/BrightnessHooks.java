@@ -16,6 +16,7 @@ final class BrightnessHooks {
 
     static int installSafely(ClassLoader classLoader) {
         List<XC_MethodHook.Unhook> installed = new ArrayList<>();
+        List<String> installedStages = new ArrayList<>();
         DiagnosticJournal.state("brightness-hook-set", "INSTALLING",
                 "SystemUIApplication/TW callback/TW init/TW write");
         try {
@@ -28,6 +29,7 @@ final class BrightnessHooks {
                     BrightnessController.attach((Context) param.thisObject, classLoader);
                 }
             }));
+            installedStages.add("brightness-hook-app");
             DiagnosticJournal.state("brightness-hook-app", "INSTALLED",
                     "SystemUIApplication.onCreate");
 
@@ -40,7 +42,7 @@ final class BrightnessHooks {
                             if (BuildConfig.TS18_DIAGNOSTIC
                                     && (command == BrightnessProtocol.COMMAND_MODE
                                     || command == BrightnessProtocol.COMMAND_BRIGHTNESS)) {
-                                DiagnosticJournal.record("DEBUG", "brightness-callback",
+                                RateLimitedLog.debug(true, "brightness-callback",
                                         "command=" + command + " arg1=" + param.args[1]
                                                 + " arg2=" + param.args[2]);
                             }
@@ -48,6 +50,7 @@ final class BrightnessHooks {
                                     (Integer) param.args[1], (Integer) param.args[2]);
                         }
                     }));
+            installedStages.add("brightness-hook-callback");
             DiagnosticJournal.state("brightness-hook-callback", "INSTALLED",
                     "StatusBarViewInit.sendTWCallBack(int,int,int)");
 
@@ -59,11 +62,12 @@ final class BrightnessHooks {
                                 "stock TWSystemUI.init completed");
                         BrightnessController.onTransportReady();
                     } else {
-                        DiagnosticJournal.failure("brightness-transport",
+                        RateLimitedLog.error("brightness-transport",
                                 "stock TWSystemUI.init returned throwable", param.getThrowable());
                     }
                 }
             }));
+            installedStages.add("brightness-hook-init");
             DiagnosticJournal.state("brightness-hook-init", "INSTALLED", "TWSystemUI.init");
 
             installed.add(XposedHelpers.findAndHookMethod(twClass, "write",
@@ -74,7 +78,7 @@ final class BrightnessHooks {
                             if (BuildConfig.TS18_DIAGNOSTIC
                                     && (command == BrightnessProtocol.COMMAND_MODE
                                     || command == BrightnessProtocol.COMMAND_BRIGHTNESS)) {
-                                DiagnosticJournal.record("DEBUG", "brightness-write-observed",
+                                RateLimitedLog.debug(true, "brightness-write-observed",
                                         "command=" + command + " arg1=" + param.args[1]
                                                 + " arg2=" + param.args[2]);
                             }
@@ -82,6 +86,7 @@ final class BrightnessHooks {
                                     (Integer) param.args[1], (Integer) param.args[2]);
                         }
                     }));
+            installedStages.add("brightness-hook-write");
             DiagnosticJournal.state("brightness-hook-write", "INSTALLED",
                     "TWSystemUI.write(int,int,int)");
 
@@ -100,14 +105,16 @@ final class BrightnessHooks {
                 try { if (installed.get(i) != null) installed.get(i).unhook(); }
                 catch (Throwable ignored) { }
             }
-            DiagnosticJournal.failure("brightness-hook-set",
-                    "hook installation failed; partial hooks removed", t);
+            for (String stage : installedStages) {
+                DiagnosticJournal.state(stage, "ROLLED_BACK",
+                        "brightness hook set failed; registration removed");
+            }
             DiagnosticJournal.state("brightness-hook-set", "FAILED",
                     t.getClass().getSimpleName());
             BrightnessFeatureRuntime.markIncompatible("private hook contract mismatch: "
                     + t.getClass().getSimpleName());
             RateLimitedLog.error("brightness-hooks",
-                    "hook installation failed open without affecting compact/nav features", t);
+                    "hook installation failed open; partial hooks removed without affecting compact/nav features", t);
             return 0;
         }
     }

@@ -33,8 +33,6 @@ final class BrightnessFeatureRuntime {
 
     static synchronized void recordFailure(String stage, Throwable error) {
         failures++;
-        DiagnosticJournal.failure("brightness-" + stage,
-                "failure " + failures + "/" + FAILURE_LIMIT, error);
         RateLimitedLog.error("brightness-" + stage,
                 "failure " + failures + "/" + FAILURE_LIMIT, error);
         if (failures >= FAILURE_LIMIT) {

@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.ContentValues;
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -24,6 +25,8 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Read-only diagnostic console exposed only by the diagnostic source-set manifest.
@@ -33,9 +36,15 @@ public final class DiagnosticSettingsActivity extends Activity {
     private static final long BRIDGE_TIMEOUT_MS = 4000L;
 
     private final Handler main = new Handler(Looper.getMainLooper());
+    private final ExecutorService diagnostics = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "TS18-DiagnosticReport");
+        thread.setDaemon(true);
+        return thread;
+    });
     private TextView status;
     private TextView report;
     private String pendingNonce;
+    private int renderGeneration;
 
     private final ResultReceiver receiver = new ResultReceiver(main) {
         @Override protected void onReceiveResult(int resultCode, Bundle data) {
@@ -79,6 +88,12 @@ public final class DiagnosticSettingsActivity extends Activity {
         main.removeCallbacks(timeout);
         pendingNonce = null;
         super.onStop();
+    }
+
+    @Override protected void onDestroy() {
+        renderGeneration++;
+        diagnostics.shutdownNow();
+        super.onDestroy();
     }
 
     private View buildUi() {
@@ -144,16 +159,40 @@ public final class DiagnosticSettingsActivity extends Activity {
         main.postDelayed(timeout, BRIDGE_TIMEOUT_MS);
     }
 
-    private void render(Bundle s, String bridgeState) {
+    private void render(Bundle state, String bridgeState) {
+        final int generation = ++renderGeneration;
+        final Bundle snapshot = state == null ? null : new Bundle(state);
+        Context application = getApplicationContext();
+        final Context localContext = application == null ? this : application;
+        report.setText("Collecting local diagnostics off the UI thread...");
+        diagnostics.execute(() -> {
+            String rendered;
+            try {
+                String local = LocalSelfDiagnostics.collect(localContext, bridgeState);
+                rendered = buildReport(snapshot, local);
+            } catch (Throwable t) {
+                DiagnosticJournal.failure("diagnostic-render",
+                        "background report generation failed", t);
+                rendered = "Diagnostic report generation failed: "
+                        + t.getClass().getSimpleName() + "\n";
+            }
+            final String result = rendered;
+            main.post(() -> {
+                if (generation != renderGeneration || isFinishing() || isDestroyed()) return;
+                report.setText(result);
+            });
+        });
+    }
+
+    private static String buildReport(Bundle s, String localDiagnostics) {
         StringBuilder out = new StringBuilder();
         out.append("=== LOCAL APK SELF-TEST ===\n");
-        out.append(LocalSelfDiagnostics.collect(this, bridgeState));
+        out.append(localDiagnostics == null ? "[local diagnostics unavailable]\n" : localDiagnostics);
         out.append('\n');
 
         if (s == null) {
             out.append("=== SYSTEMUI BRIDGE ===\nNO RESPONSE\n");
-            report.setText(out.toString());
-            return;
+            return out.toString();
         }
 
         out.append("=== SYSTEMUI BRIDGE / BUILD ===\n");
@@ -239,7 +278,7 @@ public final class DiagnosticSettingsActivity extends Activity {
         String journal = s.getString("diagnostic_journal");
         out.append(journal == null || journal.trim().isEmpty()
                 ? "[journal unavailable]\n" : journal);
-        report.setText(out.toString());
+        return out.toString();
     }
 
     private void copy() {

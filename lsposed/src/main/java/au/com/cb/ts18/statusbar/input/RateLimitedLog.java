@@ -65,20 +65,22 @@ final class RateLimitedLog {
     static void error(String stage, String message, Throwable throwable) {
         String key = boundedStage(stage);
         long now = SystemClock.elapsedRealtime();
+        long interval = BuildConfig.TS18_DIAGNOSTIC
+                ? DIAGNOSTIC_INTERVAL_MS : RELEASE_INTERVAL_MS;
         boolean logLine;
         boolean logTrace;
         synchronized (LOCK) {
             Long previous = lastErrorAt.get(key);
-            logLine = BuildConfig.TS18_DIAGNOSTIC
-                    || previous == null || now - previous >= RELEASE_INTERVAL_MS;
+            logLine = previous == null || now - previous >= interval;
             if (logLine) lastErrorAt.put(key, now);
 
             if (BuildConfig.TS18_DIAGNOSTIC) {
                 int count = traceCounts.containsKey(key) ? traceCounts.get(key) : 0;
-                logTrace = throwable != null && count < MAX_DIAGNOSTIC_TRACES_PER_STAGE;
+                logTrace = throwable != null && logLine
+                        && count < MAX_DIAGNOSTIC_TRACES_PER_STAGE;
                 if (logTrace) traceCounts.put(key, count + 1);
             } else {
-                logTrace = throwable != null && releaseTracedStages.add(key);
+                logTrace = throwable != null && logLine && releaseTracedStages.add(key);
             }
             trimMap(lastErrorAt, MAX_ERROR_STAGES);
             trimMap(traceCounts, MAX_ERROR_STAGES);
@@ -88,11 +90,10 @@ final class RateLimitedLog {
             }
         }
 
+        if (!logLine) return;
         DiagnosticJournal.failure(key, message, throwable);
-        if (logLine) {
-            emitLine(Log.ERROR, key, message
-                    + (throwable == null ? "" : ": " + throwable));
-        }
+        emitLine(Log.ERROR, key, message
+                + (throwable == null ? "" : ": " + throwable));
         if (logTrace) emitThrowable(key, throwable);
     }
 

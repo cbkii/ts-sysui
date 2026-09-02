@@ -80,7 +80,6 @@ final class ExactSystemUiIdentity {
         } catch (Throwable t) {
             state = State.UNSUPPORTED;
             detail = "worker-start-" + t.getClass().getSimpleName();
-            DiagnosticJournal.failure("identity", "worker start failed", t);
             DiagnosticJournal.state("identity", "UNSUPPORTED", detail);
             notifyResolved();
             RateLimitedLog.error("contract-worker",
@@ -137,7 +136,6 @@ final class ExactSystemUiIdentity {
             notifyResolved();
         } catch (Throwable t) {
             reject("hash-" + t.getClass().getSimpleName());
-            DiagnosticJournal.failure("identity", "verification failed", t);
             RateLimitedLog.error("contract-hash",
                     "exact SystemUI identity verification failed; mutation stays off", t);
         }
@@ -172,8 +170,6 @@ final class ExactSystemUiIdentity {
         try {
             posted = MAIN.post(() -> runListenerNow(listener));
         } catch (Throwable t) {
-            DiagnosticJournal.failure("identity-listener",
-                    "main-looper post failed", t);
             RateLimitedLog.error("contract-listener-dispatch",
                     "exact SystemUI resolution callback could not be posted to main", t);
             return;
@@ -190,8 +186,6 @@ final class ExactSystemUiIdentity {
         try {
             listener.run();
         } catch (Throwable t) {
-            DiagnosticJournal.failure("identity-listener",
-                    "resolution listener failed", t);
             RateLimitedLog.error("contract-listener",
                     "exact SystemUI resolution listener failed", t);
         }

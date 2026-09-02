@@ -2,6 +2,8 @@
 # Package already-built APKs into one user-facing Magisk module plus LSPosed APK.
 # Required inputs are validated; the script never signs or mutates APK binaries.
 
+set -euo pipefail
+
 MODE="${1:-release}"
 case "$MODE" in debug|diagnostic|release) ;; *) printf 'FAILED: mode must be debug, diagnostic or release\n' >&2; exit 3 ;; esac
 
@@ -63,6 +65,8 @@ if [ ! -s "$visual_overlay" ]; then printf 'FAILED: missing built visual overlay
 if [ ! -s "$lsposed" ]; then printf 'FAILED: missing built LSPosed APK: %s\n' "$lsposed" >&2; exit 2; fi
 
 APKSIGNER=""
+SIGNING_KIND=""
+EXPECTED_SIGNER_SHA256=""
 if [ "$MODE" != "debug" ]; then
     SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
     if command -v apksigner >/dev/null 2>&1; then APKSIGNER="$(command -v apksigner)"; fi
@@ -76,6 +80,64 @@ if [ "$MODE" != "debug" ]; then
     "$APKSIGNER" verify "$overlay" >/dev/null || { printf 'FAILED: overlay %s APK is not validly signed\n' "$MODE" >&2; exit 2; }
     "$APKSIGNER" verify "$visual_overlay" >/dev/null || { printf 'FAILED: visual overlay %s APK is not validly signed\n' "$MODE" >&2; exit 2; }
     "$APKSIGNER" verify "$lsposed" >/dev/null || { printf 'FAILED: LSPosed %s APK is not validly signed\n' "$MODE" >&2; exit 2; }
+fi
+
+require_env_value() {
+    variable="$1"
+    eval "value=\${$variable:-}"
+    if [ -z "$value" ]; then
+        printf 'STOPPED FOR SAFETY: %s is required when TS18_KEYSTORE_PATH is set.\n' "$variable" >&2
+        exit 4
+    fi
+}
+
+apk_signer_sha256() {
+    apk="$1"
+    "$APKSIGNER" verify --print-certs "$apk" \
+        | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' \
+        | head -n 1 \
+        | tr -d ':' \
+        | tr '[:lower:]' '[:upper:]'
+}
+
+if [ "$MODE" = "diagnostic" ]; then
+    if [ -n "${TS18_KEYSTORE_PATH:-}" ]; then
+        [ -f "$TS18_KEYSTORE_PATH" ] || {
+            printf 'STOPPED FOR SAFETY: configured release keystore does not exist: %s\n' "$TS18_KEYSTORE_PATH" >&2
+            exit 4
+        }
+        require_env_value TS18_KEYSTORE_PASSWORD
+        require_env_value TS18_KEY_ALIAS
+        command -v keytool >/dev/null 2>&1 || {
+            printf 'FAILED: keytool is required to verify diagnostic release signer\n' >&2
+            exit 3
+        }
+        keytool -exportcert -keystore "$TS18_KEYSTORE_PATH" \
+            -storepass "$TS18_KEYSTORE_PASSWORD" -alias "$TS18_KEY_ALIAS" \
+            -file "$TMP/release-cert.der" >/dev/null 2>&1 || {
+                printf 'STOPPED FOR SAFETY: could not export configured release certificate; check keystore password and alias.\n' >&2
+                exit 4
+            }
+        EXPECTED_SIGNER_SHA256="$(sha256sum "$TMP/release-cert.der" | awk '{print toupper($1)}')"
+        case "$EXPECTED_SIGNER_SHA256" in
+            ''|*[!0-9A-F]*) printf 'STOPPED FOR SAFETY: could not derive configured release signer SHA-256.\n' >&2; exit 4 ;;
+        esac
+        [ "${#EXPECTED_SIGNER_SHA256}" -eq 64 ] || {
+            printf 'STOPPED FOR SAFETY: configured release signer SHA-256 has invalid length.\n' >&2
+            exit 4
+        }
+        for apk in "$overlay" "$visual_overlay" "$lsposed"; do
+            actual="$(apk_signer_sha256 "$apk")"
+            if [ -z "$actual" ] || [ "$actual" != "$EXPECTED_SIGNER_SHA256" ]; then
+                printf 'STOPPED FOR SAFETY: diagnostic APK signer mismatch for %s: %s != %s\n' \
+                    "$apk" "${actual:-unreadable}" "$EXPECTED_SIGNER_SHA256" >&2
+                exit 4
+            fi
+        done
+        SIGNING_KIND="release-certificate"
+    else
+        SIGNING_KIND="debug-certificate-ci-only"
+    fi
 fi
 
 rm -rf -- "$DIST"
@@ -123,8 +185,6 @@ if [ "$MODE" = "diagnostic" ]; then
         SOURCE_SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || true)"
     fi
     [ -n "$SOURCE_SHA" ] || SOURCE_SHA="unknown"
-    SIGNING_KIND="release-certificate"
-    [ -n "${TS18_KEYSTORE_PATH:-}" ] || SIGNING_KIND="debug-certificate-ci-only"
     cat > "$DIST/BUILD-INFO.txt" <<EOF
 product=TS18 System UI
 mode=diagnostic

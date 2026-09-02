@@ -90,14 +90,19 @@ do
 done
 if [ "$MODE" = "diagnostic" ]; then
     require_zip_entry "$DIST/$BUNDLE" BUILD-INFO.txt
-    grep -Fx 'mode=diagnostic' "$DIST/BUILD-INFO.txt" >/dev/null || {
-        printf 'FAILED: diagnostic BUILD-INFO.txt lacks mode marker\n' >&2
+    bundle_build_info="$(unzip -p "$DIST/$BUNDLE" BUILD-INFO.txt)"
+    printf '%s\n' "$bundle_build_info" | grep -Fx 'mode=diagnostic' >/dev/null || {
+        printf 'FAILED: bundled diagnostic BUILD-INFO.txt lacks mode marker\n' >&2
         exit 2
     }
-    grep -Fx 'diagnosticConsole=enabled' "$DIST/BUILD-INFO.txt" >/dev/null || {
-        printf 'FAILED: diagnostic BUILD-INFO.txt lacks console marker\n' >&2
+    printf '%s\n' "$bundle_build_info" | grep -Fx 'diagnosticConsole=enabled' >/dev/null || {
+        printf 'FAILED: bundled diagnostic BUILD-INFO.txt lacks console marker\n' >&2
         exit 2
     }
+    if [ "$bundle_build_info" != "$(cat "$DIST/BUILD-INFO.txt")" ]; then
+        printf 'FAILED: bundled BUILD-INFO.txt differs from packaged BUILD-INFO.txt\n' >&2
+        exit 2
+    fi
 fi
 
 (cd "$DIST" && sha256sum -c SHA256SUMS.txt) >/dev/null || {

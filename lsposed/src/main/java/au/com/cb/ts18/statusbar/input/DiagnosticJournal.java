@@ -24,6 +24,7 @@ final class DiagnosticJournal {
     private static final int MAX_STAGE_CHARS = 64;
     private static final int MAX_DETAIL_CHARS = BuildConfig.TS18_DIAGNOSTIC ? 640 : 256;
     private static final int MAX_SNAPSHOT_CHARS = 96 * 1024;
+    private static final String SNAPSHOT_TRUNCATED = "[snapshot truncated]\n";
 
     private static final Object LOCK = new Object();
     private static final ArrayDeque<String> ENTRIES = new ArrayDeque<>();
@@ -40,11 +41,15 @@ final class DiagnosticJournal {
         long elapsed = SystemClock.elapsedRealtime();
         long wall = System.currentTimeMillis();
         Thread thread = Thread.currentThread();
-        String line = String.format(Locale.ROOT,
-                "%06d wall=%d elapsed=%d pid=%d tid=%d thread=%s level=%s stage=%s detail=%s",
-                nextSequence(), wall, elapsed, Process.myPid(), Process.myTid(),
-                bounded(thread.getName(), 48, "unknown"), safeLevel, safeStage, safeDetail);
+        int pid = Process.myPid();
+        int tid = Process.myTid();
+        String threadName = bounded(thread.getName(), 48, "unknown");
         synchronized (LOCK) {
+            long entrySequence = ++sequence;
+            String line = String.format(Locale.ROOT,
+                    "%06d wall=%d elapsed=%d pid=%d tid=%d thread=%s level=%s stage=%s detail=%s",
+                    entrySequence, wall, elapsed, pid, tid,
+                    threadName, safeLevel, safeStage, safeDetail);
             while (ENTRIES.size() >= MAX_ENTRIES) {
                 ENTRIES.removeFirst();
                 dropped++;
@@ -102,12 +107,6 @@ final class DiagnosticJournal {
         }
     }
 
-    private static long nextSequence() {
-        synchronized (LOCK) {
-            return ++sequence;
-        }
-    }
-
     private static String stageSummaryLocked() {
         StringBuilder out = new StringBuilder();
         for (Map.Entry<String, String> entry : STATES.entrySet()) {
@@ -136,18 +135,24 @@ final class DiagnosticJournal {
         out.append("-- events --\n");
         for (String line : lines) {
             if (out.length() + line.length() + 1 > MAX_SNAPSHOT_CHARS) {
-                out.append("[snapshot truncated at ").append(MAX_SNAPSHOT_CHARS)
-                        .append(" chars]\n");
+                appendTruncationMarker(out);
                 break;
             }
             out.append(line).append('\n');
         }
-        return out.toString();
+        return boundedSnapshot(out.toString());
+    }
+
+    private static void appendTruncationMarker(StringBuilder out) {
+        int remaining = MAX_SNAPSHOT_CHARS - out.length();
+        if (remaining <= 0) return;
+        out.append(SNAPSHOT_TRUNCATED, 0, Math.min(remaining, SNAPSHOT_TRUNCATED.length()));
     }
 
     private static String boundedSnapshot(String value) {
         if (value == null || value.length() <= MAX_SNAPSHOT_CHARS) return value;
-        return value.substring(0, MAX_SNAPSHOT_CHARS) + "\n[snapshot truncated]";
+        int prefixLength = Math.max(0, MAX_SNAPSHOT_CHARS - SNAPSHOT_TRUNCATED.length());
+        return value.substring(0, prefixLength) + SNAPSHOT_TRUNCATED;
     }
 
     private static String bounded(String value, int max, String fallback) {

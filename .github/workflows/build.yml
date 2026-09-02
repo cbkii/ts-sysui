@@ -47,6 +47,7 @@ jobs:
           bash tools/test-diagnostic-contract.sh
           bash tools/test-xposed-stubs.sh
           bash tools/test-release-tools.sh
+          bash tools/test-source-manifest.sh
           bash tools/bootstrap-gradle-wrapper.sh
           bash tools/test-gradle-wrapper.sh
           ./gradlew --version
@@ -65,9 +66,6 @@ jobs:
           bash tools/test-apk-contract.sh lsposed/build/outputs/apk/diagnostic/lsposed-diagnostic.apk
           bash tools/test-diagnostic-apk-contract.sh release lsposed/build/outputs/apk/release/lsposed-release-unsigned.apk
           bash tools/test-diagnostic-apk-contract.sh diagnostic lsposed/build/outputs/apk/diagnostic/lsposed-diagnostic.apk
-      - name: Source manifest integrity
-        shell: bash
-        run: bash tools/test-source-manifest.sh
       - name: Package debug artefacts
         env:
           ALLOW_DEBUG_SIGNING: '1'

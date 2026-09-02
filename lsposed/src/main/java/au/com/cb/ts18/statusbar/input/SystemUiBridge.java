@@ -87,7 +87,6 @@ final class SystemUiBridge {
                     "TS18 SystemUI control/status bridge registered");
         } catch (Throwable t) {
             installDetail = "register-" + t.getClass().getSimpleName();
-            DiagnosticJournal.failure("systemui-bridge", "registration failed", t);
             DiagnosticJournal.state("systemui-bridge", "FAILED", installDetail);
             RateLimitedLog.error("systemui-bridge-register",
                     "TS18 SystemUI bridge registration failed", t);
@@ -143,8 +142,7 @@ final class SystemUiBridge {
                         intent.getBooleanExtra(EXTRA_NAV_PROBE, false),
                         intent.getStringExtra(EXTRA_NAV_ACTIONS),
                         intent.getIntExtra(EXTRA_NAV_MIN_TOUCH_DP, NavConfig.DEFAULT_TOUCH_DP),
-                        intent.getBooleanExtra(BrightnessConfig.EXTRA_DEBUG, false)
-                                || BuildConfig.TS18_DIAGNOSTIC);
+                        intent.getBooleanExtra(BrightnessConfig.EXTRA_DEBUG, false));
                 ExactTopwayNavController.requestReconcile();
                 send(result, nonce, true, RESPONSE_APPLY,
                         "right-nav policy consumed; reconciliation requested immediately",
@@ -157,8 +155,7 @@ final class SystemUiBridge {
                         intent.getFloatExtra(EXTRA_COMPACT_FRACTION, 0.20f),
                         intent.getIntExtra(EXTRA_COMPACT_CORNER_GAP,
                                 TouchStripGeometry.MIN_CORNER_GAP_PX),
-                        intent.getBooleanExtra(BrightnessConfig.EXTRA_DEBUG, false)
-                                || BuildConfig.TS18_DIAGNOSTIC);
+                        intent.getBooleanExtra(BrightnessConfig.EXTRA_DEBUG, false));
                 send(result, nonce, true, RESPONSE_APPLY,
                         "compact policy consumed; exact adapter will use it on the next stock inset computation",
                         buildStatus(receiverContext));
@@ -170,8 +167,7 @@ final class SystemUiBridge {
                         intent.getIntExtra(BrightnessConfig.EXTRA_NIGHT_LEVEL, Integer.MIN_VALUE),
                         intent.getIntExtra(BrightnessConfig.EXTRA_DAY_START_MINUTE, -1),
                         intent.getIntExtra(BrightnessConfig.EXTRA_NIGHT_START_MINUTE, -1),
-                        intent.getBooleanExtra(BrightnessConfig.EXTRA_DEBUG, false)
-                                || BuildConfig.TS18_DIAGNOSTIC));
+                        intent.getBooleanExtra(BrightnessConfig.EXTRA_DEBUG, false)));
                 send(result, nonce, true, RESPONSE_APPLY,
                         "brightness policy saved; hardware confirmation pending runtime 258/516 state",
                         buildStatus(receiverContext));
@@ -179,7 +175,6 @@ final class SystemUiBridge {
                 throw new IllegalArgumentException("unknown bridge section");
             }
         } catch (Throwable t) {
-            DiagnosticJournal.failure("bridge-request", "request rejected", t);
             RateLimitedLog.error("systemui-bridge-request",
                     "TS18 SystemUI bridge rejected request", t);
             send(result, nonce, false, RESPONSE_APPLY,
@@ -266,7 +261,6 @@ final class SystemUiBridge {
                             + " drawing=" + out.getInt("resolved_status_icon_drawing_size_px", -1)
                             + " clock=" + out.getInt("resolved_status_clock_size_px", -1));
         } catch (Throwable t) {
-            DiagnosticJournal.failure("resolved-resources", "resource resolution failed", t);
             RateLimitedLog.error("resolved-resources",
                     "could not resolve effective status-bar resource dimensions", t);
         }
@@ -310,7 +304,6 @@ final class SystemUiBridge {
             DiagnosticJournal.record("DEBUG", "bridge-result",
                     "type=" + safeMessage(responseType) + " success=" + success);
         } catch (Throwable t) {
-            DiagnosticJournal.failure("bridge-result", "private result delivery failed", t);
             RateLimitedLog.error("systemui-bridge-result",
                     "TS18 SystemUI bridge could not return private result", t);
         }
