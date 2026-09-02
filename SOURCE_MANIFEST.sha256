@@ -133,7 +133,7 @@ d1fdcb429cf0c98841f7bae6c189b91c2dcfbd67cda22d25de8ae6515c7682f8  ./tools/test-r
 61c4e0307f0dd934445870031dcc920243ffe9f33142584614ddb17774586612  ./tools/test-remediation-contract.sh
 237af416e1f21d14ca67088725fbf64f5515f507958aa384c2ee27295bdaac61  ./tools/test-source-manifest.sh
 88602294ba9b2b4ba451badfc088cc071f2338d51336911cd3159c01df8fdeb1  ./tools/test-visual-overlay-contract.sh
-cc596059929522179a01df74bf922546b75af0c5d5d1d04c5384ca395fed36e2  ./tools/test-xposed-stubs.sh
+cc596059929522179a01df74bf922546b75af0c5c5d1d04c5384ca395fed36e2  ./tools/test-xposed-stubs.sh
 287709819c07177a71984c94cd4c992d4642922d527d9ec29330a3c5f4494a88  ./tools/ts18-brightness-config.sh
 4ceff5c4e1d2de20899a623e61c1b3ccfd3f2590b6be863c392a4e7be58681de  ./tools/ts18-migrate-magisk-modules.sh
 8e9e5ae1752a53feb2f725de32070861ae8e7be188b050b28373b5af437c6ba3  ./tools/ts18-right-nav-evidence.sh
