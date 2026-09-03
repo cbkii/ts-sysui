@@ -86,7 +86,7 @@ ee815c0190f1e0a67efcf1eb671488b5d210c5e32f116182d52cf0ecc9892bfb  ./lsposed/src/
 873ecc65f4cb71434f8c10dd360486cc4dfea9235bc4b5042470941298cd6b47  ./lsposed/src/main/res/values/ids.xml
 f2e4e420f43e9167bbbc991771d29455501277237bf34c02d49ee4652a07603f  ./lsposed/src/main/res/values/strings.xml
 04611ce17c949de8bbd76aa46eef73b64b030552a202f3987922f296d31fab65  ./lsposed/src/test/java/au/com/cb/ts18/statusbar/input/BrightnessActionTrackerTest.java
-261c60ac642b65383e6cb4cadc6af161acbc93973152a574b9db98fbdb43ce  ./lsposed/src/test/java/au/com/cb/ts18/statusbar/input/BrightnessLevelMapperTest.java
+261c60ac642b65383e6cb4cadc6af161acbc93973152a574b9db98fbfbdb43ce  ./lsposed/src/test/java/au/com/cb/ts18/statusbar/input/BrightnessLevelMapperTest.java
 c51c367c7361b360b888f7454054b45485f702c4ecfad963b426ea303a7d7c46  ./lsposed/src/test/java/au/com/cb/ts18/statusbar/input/BrightnessPolicyTest.java
 42030ee5cfd220b241572f6734412f74f5f6cdd87bb5956cc554bcceeee2d564  ./lsposed/src/test/java/au/com/cb/ts18/statusbar/input/BrightnessStateTest.java
 5c75d2d22d0e8ab4f04b21f237cd4c9b12a862dc9bf86df7f68080ab28fb7ff7  ./lsposed/src/test/java/au/com/cb/ts18/statusbar/input/CoordinateSpacePolicyTest.java
