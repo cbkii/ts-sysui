@@ -139,8 +139,16 @@ final class BrightnessController {
         if (current == null || halted) return;
         current.post(() -> {
             pending = null;
+            BrightnessPolicy.Config config = context == null ? null : BrightnessConfig.read(context);
+            boolean needsFreshAutoObservation = requiresFreshAutoObservation(config);
+            if (needsFreshAutoObservation) {
+                STATE.invalidate516Observation();
+            }
             refreshPhysicalBrightnessOnWorker();
-            confirmationResult = "policy-saved; reconciliation requested; screen_brightness="
+            confirmationResult = needsFreshAutoObservation
+                    ? "policy-saved; stock Auto effective state invalidated; fresh 516 observation requested; screen_brightness="
+                    + lastObservedScreenBrightnessRaw
+                    : "policy-saved; reconciliation requested; screen_brightness="
                     + lastObservedScreenBrightnessRaw;
             if (transportReady && BrightnessFeatureRuntime.isOperational()) {
                 queryTopwayStateOnWorker();
@@ -301,11 +309,11 @@ final class BrightnessController {
             filter.addAction(Intent.ACTION_SCREEN_ON);
             timeReceiver = new BroadcastReceiver() {
                 @Override public void onReceive(Context receiverContext, Intent intent) {
+                    String eventAction = intent == null ? "unknown" : intent.getAction();
                     Handler current = worker;
-                    if (current != null) current.post(() -> {
-                        refreshPhysicalBrightnessOnWorker();
-                        scheduleReconcile(0L);
-                    });
+                    if (current != null) {
+                        current.post(() -> handleEnvironmentEventOnWorker(eventAction));
+                    }
                 }
             };
             context.registerReceiver(timeReceiver, filter, null, worker);
@@ -327,6 +335,30 @@ final class BrightnessController {
                     false, settingsObserver);
             observerRegistered = true;
         }
+    }
+
+    private static void handleEnvironmentEventOnWorker(String eventAction) {
+        refreshPhysicalBrightnessOnWorker();
+        Context currentContext = context;
+        BrightnessPolicy.Config config = currentContext == null
+                ? null : BrightnessConfig.read(currentContext);
+        if (requiresFreshAutoObservation(config)) {
+            STATE.invalidate516Observation();
+            confirmationResult = "AUTO_EFFECTIVE_STATE_REFRESH: " + eventAction
+                    + "; fresh 516 observation required";
+            DiagnosticJournal.record("DEBUG", "brightness-auto-refresh",
+                    "event=" + eventAction + "; invalidated pre-event 516 state");
+            if (transportReady && BrightnessFeatureRuntime.isOperational()) {
+                queryTopwayStateOnWorker();
+            }
+        }
+        scheduleReconcile(0L);
+    }
+
+    private static boolean requiresFreshAutoObservation(BrightnessPolicy.Config config) {
+        return config != null && config.enabled
+                && config.mode == BrightnessPolicy.ControlMode.AUTO
+                && config.hasManagedLevel();
     }
 
     private static void reconcileOnWorker() {
