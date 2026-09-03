@@ -6,12 +6,9 @@ classes. Current exact-device evidence is now:
 - compact top-right collapsed-shade routing is physically working;
 - the previously installed right-nav media feature produced no custom controls;
 - the previously installed brightness options produced no useful physical
-  brightness result;
-- exact SystemUI analysis corrected the live navbar resource IDs;
-- exact CarSetting analysis corrected the two-stage 258 mode transaction; and
-- retained exact-device runtime plus exact current SystemUI evidence establishes
-  Topway 516 as the active Day/Night 0..10 brightness authority, while Android
-  `screen_brightness` remained unchanged during that trace.
+  brightness result; and
+- exact supplied SystemUI/CarSetting analysis identified concrete source
+  corrections for both failed paths.
 
 The corrected nav/brightness implementation is not physically successful until
 the applicable stages below are recorded on the exact `s9863a1h10` Android
@@ -39,7 +36,7 @@ shell commands known to be unreliable on this firmware.
 
 - exact SystemUI = `SUPPORTED` with SHA-256
   `668dec9ac14fbabd76ae73d693dcdd1518190f7941b6ac0b00d16587d6c4bd3f`;
-- this qualification build also recognises supplied CarSetting SHA-256
+- managed brightness additionally reports exact CarSetting contract SHA-256
   `06060263e3968a4203c6c37efe95858cd959ac39481dc133de576023b7de2b71`;
 - LSPosed scope remains only main `com.android.systemui`;
 - no SystemUI crash loop, ANR, input lockout or repeated breaker opening;
@@ -50,11 +47,9 @@ shell commands known to be unreliable on this firmware.
 - every injected media control uses the existing sidebar width >=48dp and
   projected vertical size >=56dp;
 - one accepted media tap results in at most one transport operation;
-- brightness success is never inferred from policy persistence alone;
-- managed Day/Night slot success requires matching 516 callback state **and** a
-  visible panel change during physical qualification;
-- mode success requires matching 258 state after the two-stage stock transaction;
-- Android `screen_brightness` is diagnostic-only and is not a success predicate;
+- brightness success is never inferred from policy persistence or 516 state;
+- physical brightness success requires `SCREEN_BRIGHTNESS` readback convergence
+  and a visible panel change; and
 - disabling one behavioural layer restores stock ownership of that layer.
 
 At the last-observed 1280px width, the maximum collapsed strip remains 256px;
@@ -67,8 +62,8 @@ geometry.
 ## Stage I0 — stock/recovery reference
 
 Before installing the correction build, record current stock/project behaviour,
-confirm Home/Back/Recents/Volume+/Volume−, confirm stock CarSetting/SystemUI
-brightness, and confirm Magisk/LSPosed recovery routes.
+confirm Home/Back/Recents/Volume+/Volume−, confirm stock CarSetting brightness,
+and confirm Magisk/LSPosed recovery routes.
 
 Acceptance: known stable reference and rollback route.
 
@@ -98,9 +93,9 @@ Acceptance:
 - bridge responds;
 - exact SystemUI identity reports `SUPPORTED`;
 - navbar hook status is visible;
-- brightness compatibility is explained;
-- Topway 258/516 state and Android `screen_brightness` diagnostic mirror are
-  observable;
+- brightness compatibility reports exact CarSetting contract rather than only
+  the SystemUI hash;
+- physical raw `screen_brightness` is observable;
 - no behavioural mutation occurs merely from installation; and
 - no breaker is open.
 
@@ -134,7 +129,7 @@ horizontal floor/preferred result
 nav breaker state
 ```
 
-Expected exact resource names:
+The expected exact resource names from the supplied SystemUI are:
 
 ```text
 required:
@@ -149,9 +144,10 @@ navbar_guanping
 navbar_app
 ```
 
-Acceptance: runtime topology is explained with those names. Unknown/duplicate
-direct child, missing mandatory control or unsafe geometry is a STOP. Do not
-reintroduce generic `home`, `back`, `recent_apps` or `app` matching.
+Acceptance: the runtime topology is explained and uses those exact resource
+names. Unknown/duplicate direct child, missing mandatory control or unsafe
+geometry is a STOP. Do not reintroduce generic `home`, `back`, `recent_apps` or
+`app` matching.
 
 ## Stage N1 — Play/Pause only, no session
 
@@ -192,97 +188,103 @@ Acceptance:
 
 # Brightness correction stages
 
-## Stage BR0 — exact authority observation, mutation off
+## Stage BR0 — exact backend observation, mutation off
 
 Record:
 
 ```text
 brightness hooks/compatibility
+CarSetting contract SHA-256
 Topway transport ready
-Topway 258 mode known/current
-516 levelsKnown/effectiveNight/daySlot/nightSlot
+Topway mode known/current
+516 observation known/effectiveNight/daySlot/nightSlot
+physical backend
+observed raw screen_brightness
+last physical read timestamp
 last 258/516 callbacks
-last observed stock Topway write
-Android screen_brightness diagnostic mirror
+last stock Topway write
 breaker state
 ```
 
-Operate the stock SystemUI/CarSetting brightness UI through several safe values
-and refresh diagnostics.
+Operate the stock CarSetting brightness slider through several safe values and
+refresh diagnostics.
 
 Acceptance:
 
-- 516 Day/Night values or effective state respond consistently with the stock
-  Topway brightness interaction;
-- Android `screen_brightness` is clearly labelled diagnostic-only;
-- no module write is attributed while disabled.
+- raw `screen_brightness` changes in the same direction as the stock slider;
+- module reports 516 values as observation-only;
+- no module physical write is attributed while disabled.
 
-If the stock UI visibly changes panel brightness without any corresponding
-258/516 evidence, STOP and capture a narrow marker-assisted trace before
-mutation. Do not automatically switch actuator authority.
+If stock CarSetting visibly changes the panel but raw `screen_brightness` does
+not track at all, STOP: the supplied static branch is not the current runtime
+path and must be re-investigated before mutation.
 
-## Stage BR1 — managed Day slot + Day mode
+## Stage BR1 — fixed Day physical output
 
-Choose a safe non-zero Day level clearly different from the currently observed
-516 Day slot and apply **Test Day**.
+Choose a safe managed Day level clearly different from the current raw value and
+apply **Test Day**.
 
 Required evidence:
 
 ```text
 policy saved
 -> exact compatibility ready
--> Topway transport/state ready
--> write(516,0,<Day>) if slot differs
--> 516 callback confirms Day slot
--> write(258,1,1) if mode differs
--> write(258,128)
+-> Topway transport/mode state ready
+-> 258 mode action if needed
+-> 258,1,<DAY> stage sent
+-> 258,128 stage sent
 -> 258 callback/state confirms Day
+-> physical logical level mapped to raw 30..255
+-> SCREEN_BRIGHTNESS write
+-> SCREEN_BRIGHTNESS readback matches requested raw
 -> ACTIVE/SETTLED
 ```
 
-Acceptance: semantic state converges and panel brightness visibly changes to the
-intended safe Day level. Policy persistence or an unrelated Android setting
-change is not success.
+Acceptance: readback converges **and** panel brightness visibly changes to the
+intended safe Day level. A policy acknowledgement or 516 callback alone is not
+success.
 
-## Stage BR2 — managed Night slot + Night mode
+## Stage BR2 — fixed Night physical output
 
 Repeat BR1 with a deliberately distinct safe Night level.
 
-Acceptance: 516 Night slot and 258 Night mode converge, both mode transaction
-stages are observed, and the visible panel result is distinct from Day.
+Acceptance: Topway Night mode transaction/state confirms, raw physical readback
+converges, and the visible panel result is distinct from Day.
 
 Relevant STOP reasons include:
 
 ```text
 NO_258_CALLBACK
-NO_516_CALLBACK
+SCREEN_BRIGHTNESS_READBACK_MISMATCH
 BLOCKED:TRANSPORT_NOT_READY
 BLOCKED:IDENTITY_OR_CLASS_CONTRACT
 ERROR:BREAKER_OPEN
 ```
 
-## Stage BR3 — stock Auto
+## Stage BR3 — stock Auto with managed levels
 
-Select **Auto (stock)** with deliberately distinct safe Day/Night managed slots.
+Select **Auto (stock)** and deliberately distinct safe Day/Night managed levels.
 Exercise a safe stock condition that changes effective Day/Night if available
 (e.g. headlights/ILL while parked).
 
 Acceptance:
 
 - Topway remains in mode 0;
-- configured 516 Day/Night slots remain confirmed;
-- effectiveNight changes only according to stock Topway behaviour;
-- no local-clock Day/Night forcing occurs in stock Auto;
-- visible output follows the stock effective condition.
+- no local-clock Day/Night mode forcing occurs;
+- valid 516 observation establishes `effectiveNight` before the module chooses a
+  managed physical level;
+- unknown effective state produces `BLOCKED:AUTO_EFFECTIVE_STATE_UNKNOWN` and no
+  guessed physical write; and
+- physical output confirms by raw readback.
 
 ## Stage BR4 — local Set auto
 
 Choose near-future transitions and test Day->Night and Night->Day separately,
 including screen-off/on across a boundary.
 
-Acceptance: configured 516 slots remain settled, one required two-stage 258 mode
-transaction occurs per boundary, callbacks converge and there is no continuous
-rewriting.
+Acceptance: one required explicit Day/Night mode transaction per boundary,
+corresponding managed physical level/readback, no continuous rewriting and
+correct recovery after sleep/missed boundary.
 
 ## Stage BR5 — coexistence and restore
 
@@ -295,8 +297,8 @@ Test:
 - ordinary launcher/app use.
 
 Acceptance: disabled module does not fight stock writers. Re-enabling reconciles
-only after exact gates/state are ready. The module never falls back to Android
-`screen_brightness`, sysfs, panel calibration or a second actuator.
+only after exact gates/state are ready. The module never falls back to 516
+physical writes, sysfs, panel calibration or a second actuator.
 
 # Combined lifecycle qualification
 
@@ -318,8 +320,8 @@ Acceptance:
 
 - exactly one module-owned nav group;
 - no duplicate media command;
-- brightness re-establishes exact gates, Topway transport and 258/516 state before
-  mutation;
+- brightness re-establishes both exact binary gates, Topway transport/state and
+  physical readback before mutation;
 - intended settings survive only where designed;
 - independent kill switches/recovery remain usable; and
 - no repeated SystemUI exception/ANR or vehicle-UI regression.
@@ -332,13 +334,13 @@ physical reproduction and disable only the affected layer.
 Do not respond to a STOP by broadening hashes/topology, widening LSPosed scope,
 reducing nav safety targets, hiding/replacing OEM controls, introducing another
 media authority, replacing/resigning SystemUI, writing Android partitions,
-using brightness level 0, switching to Android `screen_brightness`, or adding a
+using brightness level 0, restoring ordinary 516 physical writes, or adding a
 sysfs fallback.
 
-If module-generated 258/516 state is callback-confirmed but physical brightness
-still does not change, collect a narrow stock-vs-module marker trace before
-changing actuator authority.
+If `SCREEN_BRIGHTNESS` write/readback converges but physical brightness still
+does not change, collect a narrow stock-CarSetting-vs-module runtime trace before
+changing actuator authority again.
 
-Only after applicable stages pass may the build be called physically qualified.
-Until then use `source-validated`, `CI-validated` and `physical TS18 validation
-outstanding` precisely.
+Only after the applicable stages pass may the build be called physically
+qualified. Until then use `source-validated`, `CI-validated` and `physical TS18
+validation outstanding` precisely.

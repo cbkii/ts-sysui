@@ -13,9 +13,9 @@ The project keeps five authorities separate:
 4. **Right-nav media** — the same LSPosed APK can add a reversible media group to
    the recognised Topway `navbar_left` host and command an existing
    `MediaController`.
-5. **Brightness** — an independently gated controller uses the exact current
-   SystemUI Topway 516 Day/Night brightness path and the corrected two-stage 258
-   mode transaction.
+5. **Brightness** — an independently gated controller follows the newly supplied
+   exact CarSetting binary's selected slider path: Topway 258 for mode/state and
+   Android `Settings.System.SCREEN_BRIGHTNESS` for the candidate physical output.
 
 The implementation never replaces `SystemUI.apk`, writes an Android partition,
 hooks `system_server`, creates a playback service/session/queue/notification or
@@ -23,28 +23,29 @@ takes audio focus.
 
 ## Current physical remediation
 
-On the exact unit, the compact top-right drag-down restriction is physically
+On the exact unit, the compact top-right drag-down restriction is now physically
 confirmed working. The same installed generation produced **no right-sidebar
-media controls and no useful brightness behaviour**.
+media controls and no useful brightness behaviour**. Fresh analysis of the
+supplied exact `SystemUI.apk` and `CarSetting.apk` then identified two concrete
+implementation mismatches:
 
-The exact APK/runtime review identified two concrete causes/corrections:
-
-- sidebar preflight used generic IDs (`home`, `back`, `recent_apps`, optional
-  `app`) rather than the exact Topway IDs: required `navbar_home`,
+- the module's navbar preflight used generic IDs (`home`, `back`, `recent_apps`,
+  `app`) rather than the exact Topway contract: required `navbar_home`,
   `navbar_back`, `navbar_history`, `navbar_volume_plus`,
-  `navbar_volume_reduce`, with optional `navbar_guanping` and `navbar_app`;
-- the earlier brightness implementation omitted the second operation in the
-  stock CarSetting mode transaction. The corrected sequence is
-  `write(258,1,<mode>)` then `write(258,128)`.
+  `navbar_volume_reduce`, with optional `navbar_guanping` and `navbar_app`; and
+- the newly supplied CarSetting binary's selected slider branch writes
+  `screen_brightness=30..255`, while its Topway mode path uses command 258 and
+  its 516 path remains useful semantic observation.
 
-Fresh static analysis of the newly supplied CarSetting APK also exposed an
-alternate branch that writes Android `screen_brightness`. It is **not promoted
-to the primary actuator** because stronger exact-device evidence shows the
-current stock SystemUI/physical interaction using Topway 516 while Android
-`screen_brightness` remained unchanged. The module observes the Android value
-for diagnostics only.
+An earlier exact-device brightness trace showed Topway 516 activity while the
+Android brightness mirror remained unchanged. That evidence is retained rather
+than erased: the current `SCREEN_BRIGHTNESS` backend is therefore an
+**exact-binary-derived correction that still requires physical confirmation**,
+not a claim that the older trace was invalid. The build keeps 516 observation
+and detailed readback/Topway diagnostics so the next device test can resolve the
+remaining execution-path discrepancy without weakening safety gates.
 
-The governing reconciliation is documented in
+The current correction is specified in
 [`docs/EXACT-APK-NAV-BRIGHTNESS-CORRECTION.md`](docs/EXACT-APK-NAV-BRIGHTNESS-CORRECTION.md).
 Repository/CI success remains distinct from physical TS18 qualification.
 
@@ -61,17 +62,17 @@ Behavioural SystemUI mutation requires:
 | SystemUI APK SHA-256 | `668dec9ac14fbabd76ae73d693dcdd1518190f7941b6ac0b00d16587d6c4bd3f` |
 | shared UID | `android.uid.systemui` |
 
-During qualification, managed brightness additionally verifies the supplied
-CarSetting contract:
+Managed brightness additionally requires the exact supplied/current
+`CarSetting.apk` contract:
 
 ```text
 package: com.dofun.carsetting
 SHA-256: 06060263e3968a4203c6c37efe95858cd959ac39481dc133de576023b7de2b71
 ```
 
-Hashes are computed from the injected SystemUI process off the UI thread.
-Unknown/changed protected binaries fail open rather than broadening a private
-contract.
+Both hashes are checked from the injected SystemUI process off the UI thread.
+Changing either protected binary blocks the affected private mutation rather
+than broadening compatibility.
 
 ## Hard collapsed-input boundary
 
@@ -110,8 +111,8 @@ navbar_app
 
 The module preserves every OEM View, ID, listener, current order and
 `LayoutParams`. Unknown or duplicate direct children remain a STOP. Diagnostics
-report actual live direct-child resource entry names before any compatibility
-change is considered.
+report the actual live direct-child resource entry names before any attempt to
+relax the contract.
 
 The configurable media subset/order remains:
 
@@ -131,22 +132,26 @@ MediaSessionManager -> existing MediaController -> TransportControls
 There is no second MediaSession/service, media-key fallback or guessed Topway
 media command.
 
-## Exact TS18 brightness controller
+## Exact CarSetting-backed brightness controller
 
-The strongest exact evidence establishes Topway command/callback **516** as the
-active Day/Night brightness authority:
+The newly supplied exact CarSetting binary's selected slider path writes:
 
 ```text
-write(516, 0, dayLevel)
-write(516, 1, nightLevel)
-managed level range: 1..10
+Settings.System.SCREEN_BRIGHTNESS
+raw range: 30..255
 ```
 
-The callback provides both Day/Night slots and the current effective condition.
-Managed level 0 remains blocked.
+The module retains logical managed levels **1..10** and maps them linearly:
+
+```text
+1=30, 2=55, 3=80, 4=105, 5=130,
+6=155, 7=180, 8=205, 9=230, 10=255
+```
+
+Logical level 0 remains blocked.
 
 Topway command 258 remains mode authority (`0=Auto`, `1=Day`, `2=Night`). The
-fresh CarSetting analysis corrected the mode transaction to:
+exact CarSetting mode transaction is reproduced in order:
 
 ```text
 write(258, 1, selectedMode)
@@ -156,26 +161,23 @@ write(258, 128)
 The private semantic name of the second stock operation is intentionally not
 guessed.
 
-The module queries both authorities through the existing SystemUI transport:
+Topway 516 is retained for **semantic observation only by this correction**: it
+exposes packed Day/Night slots and the effective Day/Night state. It is not used
+as physical-write confirmation. Physical success for this backend requires
+writing `SCREEN_BRIGHTNESS`, reading the same setting back to the requested raw
+value, **and** observing the intended panel change during exact-device
+qualification.
 
-```text
-write(258, 255)
-write(516, 255)
-```
+Supported modes remain Auto (stock), Day, Night and Set auto (scheduled). In
+stock Auto, Topway continues to decide effective Day/Night; if managed Day/Night
+levels are configured, the controller waits for a valid 516 effective-state
+observation before choosing which physical level applies. Unknown state fails
+open rather than guessing.
 
-Managed 516 slot writes and mode changes are confirmed by the corresponding
-callbacks. Each action gets one initial write, one query before retry, at most
-one controlled retry and an independent brightness breaker on repeated
-non-convergence.
-
-Android `Settings.System.SCREEN_BRIGHTNESS` is sampled and reported only as a
-**diagnostic mirror**. It is not written by this controller and does not define
-Topway brightness success. Backlight sysfs, Factory Backlight Current, theme
-state and screen power likewise remain separate domains.
-
-Queued mutations are generation-gated and re-authorised against current policy
-and live 258/516 state immediately before the main-looper private call, so a fast
-configuration change cannot apply a stale queued Day/Night/mode action.
+Mode and physical confirmation are bounded independently: 258 callback/state for
+mode, `SCREEN_BRIGHTNESS` readback for the candidate physical output,
+query/read before retry, and at most one controlled retry. Repeated
+non-convergence opens only the brightness breaker.
 
 See [`docs/BRIGHTNESS-CONTROLLER.md`](docs/BRIGHTNESS-CONTROLLER.md).
 
@@ -183,14 +185,14 @@ See [`docs/BRIGHTNESS-CONTROLLER.md`](docs/BRIGHTNESS-CONTROLLER.md).
 
 The normal dashboard reports, among other state:
 
-- exact SystemUI/brightness compatibility;
+- exact SystemUI and brightness compatibility;
 - live navbar direct-child names, preflight reason and measurements;
 - media-controller selection/action bits;
-- Topway 258 mode and 516 Day/Night/effective state;
-- both 258 transaction-stage timestamps;
-- last observed stock and module Topway writes;
-- pending brightness action/attempts/generation and callback confirmation;
-- Android `screen_brightness` explicitly as a diagnostic mirror;
+- Topway 258 mode and 516 observation state;
+- physical brightness backend, requested logical/raw level and observed raw
+  `screen_brightness`;
+- both 258 transaction stage timestamps;
+- physical read/write timestamps and convergence result;
 - feature-specific breaker/failure state.
 
 The release-derived diagnostic build adds the bounded Diagnostic Console and
@@ -235,12 +237,12 @@ diagnostic lint and assembly, APK contracts and packaging.
 ## Validation status
 
 Compact collapsed-input narrowing is physically confirmed on the exact unit.
-The corrected exact navbar IDs, 516 slot writes and two-stage 258 mode
-transaction remain **physical validation outstanding** until a new build is
-installed and tested. Qualification must include one-command media dispatch,
-fixed Day/Night visible brightness change plus 258/516 confirmation, stock Auto,
-scheduled transitions, stock SystemUI/CarSetting coexistence, reverse/fullscreen,
-SystemUI restart, reboot, cold boot and ACC sleep/wake.
+The corrected right-nav IDs and CarSetting-backed brightness path remain
+**physical validation outstanding** until a new build is installed and tested.
+Qualification must include one-command media dispatch, fixed Day/Night physical
+readback and visible change, stock Auto, scheduled transitions, stock CarSetting
+coexistence, reverse/fullscreen, SystemUI restart, reboot, cold boot and ACC
+sleep/wake.
 
 See [`docs/INSTALL.md`](docs/INSTALL.md), [`docs/VALIDATION.md`](docs/VALIDATION.md),
 [`docs/RECOVERY.md`](docs/RECOVERY.md) and the exact correction plan.
