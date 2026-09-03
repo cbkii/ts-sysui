@@ -19,6 +19,7 @@ require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/NavConfig.java 'sta
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/NavConfig.java 'persistFromSystemUi'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactTopwayNavController.java 'OPTIONAL_STOCK_IDS'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactTopwayNavController.java '"navbar_home", "navbar_back", "navbar_history"'
+require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactTopwayNavController.java '"navbar_volume_plus", "navbar_volume_reduce"'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactTopwayNavController.java '"navbar_guanping", "navbar_app"'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactTopwayNavController.java 'button.setVisibility(View.VISIBLE)'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactTopwayNavController.java 'nav_direct_children'
@@ -27,6 +28,7 @@ require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/TopwayWeightedNavPo
 
 EXPECTED_CARSETTING_SHA256='06060263e3968a4203c6c37efe95858cd959ac39481dc133de576023b7de2b71'
 require reference/exact-ts18-carsetting-contract.json "$EXPECTED_CARSETTING_SHA256"
+require reference/SHA256SUMS-supplied.txt "$EXPECTED_CARSETTING_SHA256  CarSetting.apk"
 require reference/exact-ts18-carsetting-contract.json 'Settings.System.SCREEN_BRIGHTNESS'
 require reference/exact-ts18-carsetting-contract.json '"command": 258'
 require reference/exact-ts18-carsetting-contract.json '"arg1": 128'
@@ -62,13 +64,19 @@ require magisk-combined/customize.sh 'TS18StatusBarVisuals.apk'
 require tools/package-release.sh 'TS18-SystemUI-Magisk-v'
 require tools/test-packaged-artifacts.sh 'single combined Magisk'
 
-# 516 remains query/observation-only. A three-argument 516 write in the module
-# controller would reintroduce the disproven physical actuator.
-if grep -E 'write3\.invoke\([^\n]*BrightnessProtocol\.COMMAND_BRIGHTNESS|write3\.invoke\([^\n]*516' \
-        lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessController.java >/dev/null; then
-    echo 'FAILED: controller reintroduced Topway 516 as a physical brightness write.' >&2
-    exit 2
-fi
+# 516 remains query/observation-only. Collapse Java whitespace and inspect each
+# write3 invocation through its terminating semicolon so a multiline call cannot
+# evade the contract check.
+python3 - <<'PY'
+from pathlib import Path
+import re
+
+path = Path('lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessController.java')
+source = path.read_text(encoding='utf-8')
+flat = re.sub(r'\s+', ' ', source)
+if re.search(r'write3\.invoke\([^;]*(?:BrightnessProtocol\.COMMAND_BRIGHTNESS|\b516\b)', flat):
+    raise SystemExit('FAILED: controller reintroduced Topway 516 as a physical brightness write.')
+PY
 
 # Keep pull-request validation and the manual signed-release path aligned.
 require .github/workflows/build.yml 'sh -n magisk-combined/customize.sh'
