@@ -3,6 +3,7 @@ package au.com.cb.ts18.statusbar.input;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+
 import org.junit.Test;
 
 public class BrightnessPolicyTest {
@@ -29,69 +30,45 @@ public class BrightnessPolicyTest {
                 BrightnessPolicy.desiredTopwayMode(cfg, 1320));
     }
 
-    @Test public void modeIsReconciledBeforePhysicalLevel() {
+    @Test public void managed516SlotsAreConfirmedBeforeModeChange() {
         BrightnessPolicy.Config cfg = new BrightnessPolicy.Config(true,
                 BrightnessPolicy.ControlMode.DAY, 9, 4, 420, 1140, false);
-        BrightnessPolicy.State wrongMode = new BrightnessPolicy.State(
+        BrightnessPolicy.State initial = new BrightnessPolicy.State(
                 true, BrightnessPolicy.TOPWAY_MODE_AUTO, true, 8, 6, false);
-        BrightnessPolicy.Action first = BrightnessPolicy.nextAction(cfg, wrongMode, 720,
-                BrightnessLevelMapper.logicalToRaw(9));
-        assertEquals(BrightnessPolicy.ActionType.SET_MODE, first.type);
-        assertEquals(BrightnessPolicy.TOPWAY_MODE_DAY, first.value);
+        BrightnessPolicy.Action first = BrightnessPolicy.nextAction(cfg, initial, 720);
+        assertEquals(BrightnessPolicy.ActionType.SET_DAY_LEVEL, first.type);
+        assertEquals(BrightnessPolicy.SLOT_DAY, first.selector);
+        assertEquals(9, first.value);
 
-        BrightnessPolicy.State dayMode = new BrightnessPolicy.State(
-                true, BrightnessPolicy.TOPWAY_MODE_DAY, true, 8, 6, false);
-        BrightnessPolicy.Action second = BrightnessPolicy.nextAction(cfg, dayMode, 720,
-                BrightnessLevelMapper.logicalToRaw(8));
-        assertEquals(BrightnessPolicy.ActionType.SET_PHYSICAL_LEVEL, second.type);
-        assertEquals(BrightnessPolicy.SLOT_DAY, second.selector);
-        assertEquals(9, second.value);
+        BrightnessPolicy.State dayAligned = new BrightnessPolicy.State(
+                true, BrightnessPolicy.TOPWAY_MODE_AUTO, true, 9, 6, false);
+        BrightnessPolicy.Action second = BrightnessPolicy.nextAction(cfg, dayAligned, 720);
+        assertEquals(BrightnessPolicy.ActionType.SET_NIGHT_LEVEL, second.type);
+        assertEquals(4, second.value);
+
+        BrightnessPolicy.State levelsAligned = new BrightnessPolicy.State(
+                true, BrightnessPolicy.TOPWAY_MODE_AUTO, true, 9, 4, false);
+        BrightnessPolicy.Action third = BrightnessPolicy.nextAction(cfg, levelsAligned, 720);
+        assertEquals(BrightnessPolicy.ActionType.SET_MODE, third.type);
+        assertEquals(BrightnessPolicy.TOPWAY_MODE_DAY, third.value);
     }
 
-    @Test public void fixedModePhysicalLevelDoesNotDependOn516Slots() {
-        BrightnessPolicy.Config cfg = new BrightnessPolicy.Config(true,
-                BrightnessPolicy.ControlMode.NIGHT, 9, 4, 420, 1140, false);
-        BrightnessPolicy.State state = new BrightnessPolicy.State(
-                true, BrightnessPolicy.TOPWAY_MODE_NIGHT,
-                false, 0, 0, false);
-        BrightnessPolicy.Action action = BrightnessPolicy.nextAction(cfg, state, 720,
-                BrightnessLevelMapper.logicalToRaw(5));
-        assertEquals(BrightnessPolicy.ActionType.SET_PHYSICAL_LEVEL, action.type);
-        assertEquals(BrightnessPolicy.SLOT_NIGHT, action.selector);
-        assertEquals(4, action.value);
-    }
-
-    @Test public void stockAutoManagedLevelsRequireEffective516Observation() {
-        BrightnessPolicy.Config cfg = new BrightnessPolicy.Config(true,
-                BrightnessPolicy.ControlMode.AUTO, 9, 4, 420, 1140, false);
-        BrightnessPolicy.State unknown = new BrightnessPolicy.State(
-                true, BrightnessPolicy.TOPWAY_MODE_AUTO,
-                false, 0, 0, false);
-        BrightnessPolicy.LevelTarget target = BrightnessPolicy.targetPhysicalLevel(
-                cfg, unknown, 720);
-        assertFalse(target.known);
-        assertEquals("stock-auto-effective-state-unknown", target.reason);
-        assertEquals(BrightnessPolicy.ActionType.NONE,
-                BrightnessPolicy.nextAction(cfg, unknown, 720, 255).type);
-
-        BrightnessPolicy.State night = new BrightnessPolicy.State(
-                true, BrightnessPolicy.TOPWAY_MODE_AUTO,
-                true, 10, 2, true);
-        BrightnessPolicy.Action action = BrightnessPolicy.nextAction(cfg, night, 720,
-                BrightnessLevelMapper.logicalToRaw(9));
-        assertEquals(BrightnessPolicy.ActionType.SET_PHYSICAL_LEVEL, action.type);
-        assertEquals(BrightnessPolicy.SLOT_NIGHT, action.selector);
-        assertEquals(4, action.value);
-    }
-
-    @Test public void preserveLevelLeavesPhysicalBrightnessUntouched() {
+    @Test public void preserveLevelsLeaves516SlotsUntouched() {
         BrightnessPolicy.Config cfg = new BrightnessPolicy.Config(true,
                 BrightnessPolicy.ControlMode.NIGHT, -1, -1, 420, 1140, false);
         BrightnessPolicy.State state = new BrightnessPolicy.State(
-                true, BrightnessPolicy.TOPWAY_MODE_NIGHT,
-                false, 0, 0, false);
-        BrightnessPolicy.Action action = BrightnessPolicy.nextAction(cfg, state, 720, 180);
-        assertEquals(BrightnessPolicy.ActionType.NONE, action.type);
+                true, BrightnessPolicy.TOPWAY_MODE_NIGHT, true, 8, 6, true);
+        assertEquals(BrightnessPolicy.ActionType.NONE,
+                BrightnessPolicy.nextAction(cfg, state, 720).type);
+    }
+
+    @Test public void managedLevelsRequireKnown516State() {
+        BrightnessPolicy.Config cfg = new BrightnessPolicy.Config(true,
+                BrightnessPolicy.ControlMode.AUTO, 9, 4, 420, 1140, false);
+        BrightnessPolicy.State unknown = new BrightnessPolicy.State(
+                true, BrightnessPolicy.TOPWAY_MODE_AUTO, false, 0, 0, false);
+        assertEquals(BrightnessPolicy.ActionType.NONE,
+                BrightnessPolicy.nextAction(cfg, unknown, 720).type);
     }
 
     @Test public void levelZeroIsNotAcceptedAsManagedLevel() {
@@ -115,7 +92,13 @@ public class BrightnessPolicyTest {
         assertEquals(-1, BrightnessPolicy.minutesUntilNextTransition(cfg, 480));
         assertEquals(BrightnessPolicy.ActionType.NONE,
                 BrightnessPolicy.nextAction(cfg,
-                        new BrightnessPolicy.State(true, 0, true, 8, 6, false),
-                        480, 255).type);
+                        new BrightnessPolicy.State(true, 0, true, 8, 6, false), 480).type);
+    }
+
+    @Test public void configurationReportsManagedLevelPresence() {
+        assertFalse(new BrightnessPolicy.Config(true, BrightnessPolicy.ControlMode.AUTO,
+                -1, -1, 420, 1140, false).hasManagedLevel());
+        assertTrue(new BrightnessPolicy.Config(true, BrightnessPolicy.ControlMode.AUTO,
+                8, -1, 420, 1140, false).hasManagedLevel());
     }
 }
