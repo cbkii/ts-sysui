@@ -13,6 +13,7 @@ import android.provider.Settings;
 
 import java.lang.reflect.Method;
 import java.util.Calendar;
+import java.util.concurrent.atomic.AtomicLong;
 
 import de.robv.android.xposed.XposedBridge;
 
@@ -22,6 +23,7 @@ final class BrightnessController {
     private static final BrightnessState STATE = new BrightnessState();
     private static final Object LOCK = new Object();
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
+    private static final AtomicLong ACTION_GENERATION = new AtomicLong();
 
     private static Context context;
     private static HandlerThread workerThread;
@@ -129,6 +131,10 @@ final class BrightnessController {
     }
 
     static void onConfigurationChanged() {
+        // Invalidate any action already queued to the SystemUI main looper before
+        // the worker observes the new policy. The main-looper runnable also
+        // re-authorises against current config/state immediately before mutation.
+        ACTION_GENERATION.incrementAndGet();
         Handler current = worker;
         if (current == null || halted) return;
         current.post(() -> {
@@ -162,6 +168,7 @@ final class BrightnessController {
         out.putString("brightness_physical_backend", "Settings.System.SCREEN_BRIGHTNESS");
         out.putString("brightness_carsetting_contract_sha256",
                 BrightnessCompatibility.EXPECTED_CARSETTING_SHA256);
+        out.putLong("brightness_action_generation", ACTION_GENERATION.get());
         out.putInt("brightness_screen_raw", lastObservedScreenBrightnessRaw);
         out.putInt("brightness_requested_logical_level", lastRequestedLogicalLevel);
         out.putInt("brightness_requested_screen_raw", lastRequestedScreenBrightnessRaw);
@@ -189,6 +196,7 @@ final class BrightnessController {
     }
 
     static void stopMutationForProcess() {
+        ACTION_GENERATION.incrementAndGet();
         halted = true;
         pending = null;
         confirmationResult = "ERROR: brightness circuit breaker open";
@@ -419,6 +427,12 @@ final class BrightnessController {
     private static void confirmPendingFromCurrentState() {
         PendingAction current = pending;
         if (current == null) return;
+        if (current.generation != ACTION_GENERATION.get()) {
+            pending = null;
+            confirmationResult = "ACTION_CANCELLED: policy generation changed before confirmation";
+            scheduleReconcile(0L);
+            return;
+        }
         BrightnessPolicy.State state = STATE.snapshot();
         if (BrightnessActionTracker.matches(current.action, state,
                 lastObservedScreenBrightnessRaw)) {
@@ -429,21 +443,28 @@ final class BrightnessController {
 
     private static void startPendingActionOnWorker(BrightnessPolicy.Action action) {
         long now = android.os.SystemClock.elapsedRealtime();
+        long generation = ACTION_GENERATION.get();
         pending = new PendingAction(action, 1, false,
-                now, now + BrightnessActionTracker.WRITE_CONFIRM_MS);
+                now, now + BrightnessActionTracker.WRITE_CONFIRM_MS, generation);
         confirmationResult = "ACTION_PENDING: " + action.key();
         lastModuleAction = action.key();
         if (action.type == BrightnessPolicy.ActionType.SET_PHYSICAL_LEVEL) {
             lastRequestedLogicalLevel = action.value;
             lastRequestedScreenBrightnessRaw = action.rawBrightness();
         }
-        postActionToMain(action);
+        postActionToMain(action, generation);
         scheduleReconcile(BrightnessActionTracker.WRITE_CONFIRM_MS + 50L);
     }
 
     private static void handlePendingDeadlineOnWorker() {
         PendingAction current = pending;
         if (current == null) return;
+        if (current.generation != ACTION_GENERATION.get()) {
+            pending = null;
+            confirmationResult = "ACTION_CANCELLED: policy generation changed before retry";
+            scheduleReconcile(0L);
+            return;
+        }
         long now = android.os.SystemClock.elapsedRealtime();
         BrightnessActionTracker.DeadlineDecision decision =
                 BrightnessActionTracker.onDeadline(now, current.deadlineMs,
@@ -476,7 +497,7 @@ final class BrightnessController {
                         + '/' + BrightnessActionTracker.MAX_WRITE_ATTEMPTS + " "
                         + current.action.key();
                 lastModuleAction = current.action.key();
-                postActionToMain(current.action);
+                postActionToMain(current.action, current.generation);
                 scheduleReconcile(BrightnessActionTracker.RETRY_CONFIRM_MS + 50L);
                 return;
             case FAIL:
@@ -493,21 +514,39 @@ final class BrightnessController {
         }
     }
 
-    private static void postActionToMain(BrightnessPolicy.Action action) {
+    private static void postActionToMain(BrightnessPolicy.Action action, long generation) {
         MAIN.post(() -> {
-            if (halted || !BrightnessFeatureRuntime.isOperational()) return;
+            if (halted || !BrightnessFeatureRuntime.isOperational()
+                    || generation != ACTION_GENERATION.get()) {
+                cancelPendingAction(action, generation,
+                        "generation/runtime changed before main-looper dispatch");
+                return;
+            }
+            Context currentContext = context;
+            if (currentContext == null) {
+                cancelPendingAction(action, generation, "SystemUI context unavailable");
+                return;
+            }
+
+            BrightnessPolicy.Config currentConfig = BrightnessConfig.read(currentContext);
+            BrightnessPolicy.State currentState = STATE.snapshot();
+            if (!actionStillAuthorised(action, currentConfig, currentState,
+                    currentLocalMinute(), lastObservedScreenBrightnessRaw)) {
+                cancelPendingAction(action, generation,
+                        "policy/state changed before main-looper mutation");
+                return;
+            }
+
             try {
                 if (action.type == BrightnessPolicy.ActionType.SET_PHYSICAL_LEVEL) {
-                    Context currentContext = context;
-                    if (currentContext == null) throw new IllegalStateException("SystemUI context is null");
                     int raw = action.rawBrightness();
                     boolean written = Settings.System.putInt(currentContext.getContentResolver(),
                             Settings.System.SCREEN_BRIGHTNESS, raw);
-                    lastPhysicalWriteAt = android.os.SystemClock.elapsedRealtime();
-                    lastModuleWriteAt = lastPhysicalWriteAt;
                     if (!written) {
                         throw new IllegalStateException("Settings.System rejected screen_brightness=" + raw);
                     }
+                    lastPhysicalWriteAt = android.os.SystemClock.elapsedRealtime();
+                    lastModuleWriteAt = lastPhysicalWriteAt;
                     DiagnosticJournal.record("INFO", "brightness-physical-write",
                             "logical=" + action.value + " raw=" + raw
                                     + " backend=Settings.System.SCREEN_BRIGHTNESS");
@@ -546,6 +585,53 @@ final class BrightnessController {
                 moduleInvocationInFlight = false;
             }
         });
+    }
+
+    private static boolean actionStillAuthorised(BrightnessPolicy.Action action,
+                                                 BrightnessPolicy.Config config,
+                                                 BrightnessPolicy.State state,
+                                                 int localMinute,
+                                                 int observedScreenBrightnessRaw) {
+        if (action == null || config == null || state == null || !config.enabled
+                || !state.modeKnown) return false;
+        int desiredMode = BrightnessPolicy.desiredTopwayMode(config, localMinute);
+        if (action.type == BrightnessPolicy.ActionType.SET_MODE) {
+            return action.value == desiredMode && state.topwayMode != desiredMode;
+        }
+        if (action.type != BrightnessPolicy.ActionType.SET_PHYSICAL_LEVEL
+                || state.topwayMode != desiredMode) return false;
+        BrightnessPolicy.LevelTarget target =
+                BrightnessPolicy.targetPhysicalLevel(config, state, localMinute);
+        return target.known && target.managed()
+                && target.selector == action.selector
+                && target.logicalLevel == action.value
+                && !BrightnessLevelMapper.matchesLogical(target.logicalLevel,
+                        observedScreenBrightnessRaw);
+    }
+
+    private static void cancelPendingAction(BrightnessPolicy.Action action, long generation,
+                                            String reason) {
+        Handler current = worker;
+        if (current == null) return;
+        current.post(() -> {
+            PendingAction active = pending;
+            if (active == null || active.generation != generation
+                    || !sameAction(active.action, action)) return;
+            pending = null;
+            lastModuleAction = "cancelled:" + action.key();
+            confirmationResult = "ACTION_CANCELLED: " + reason + " action=" + action.key();
+            DiagnosticJournal.record("INFO", "brightness-action-cancelled",
+                    "generation=" + generation + " reason=" + reason
+                            + " action=" + action.key());
+            scheduleReconcile(0L);
+        });
+    }
+
+    private static boolean sameAction(BrightnessPolicy.Action left, BrightnessPolicy.Action right) {
+        return left != null && right != null
+                && left.type == right.type
+                && left.selector == right.selector
+                && left.value == right.value;
     }
 
     private static void queryStateOnWorker() {
@@ -666,18 +752,21 @@ final class BrightnessController {
 
     private static final class PendingAction {
         final BrightnessPolicy.Action action;
+        final long generation;
         int writeAttempts;
         boolean queriedAfterWrite;
         long sentAtMs;
         long deadlineMs;
 
         PendingAction(BrightnessPolicy.Action action, int writeAttempts,
-                      boolean queriedAfterWrite, long sentAtMs, long deadlineMs) {
+                      boolean queriedAfterWrite, long sentAtMs, long deadlineMs,
+                      long generation) {
             this.action = action;
             this.writeAttempts = writeAttempts;
             this.queriedAfterWrite = queriedAfterWrite;
             this.sentAtMs = sentAtMs;
             this.deadlineMs = deadlineMs;
+            this.generation = generation;
         }
     }
 }
