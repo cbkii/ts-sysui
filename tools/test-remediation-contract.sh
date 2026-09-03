@@ -51,6 +51,7 @@ require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessLevelMapp
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessActionTracker.java 'QUERY_CONFIRM_MS'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessActionTracker.java 'NO_258_CALLBACK'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessActionTracker.java 'SCREEN_BRIGHTNESS_READBACK_MISMATCH'
+require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessState.java 'invalidate516Observation()'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessController.java 'Settings.System.putInt(currentContext.getContentResolver()'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessController.java 'Settings.System.SCREEN_BRIGHTNESS'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessController.java 'BrightnessProtocol.MODE_TRANSACTION_SECOND_VALUE'
@@ -60,6 +61,8 @@ require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessControlle
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessController.java 'ACTION_GENERATION.incrementAndGet()'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessController.java 'generation != ACTION_GENERATION.get()'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessController.java 'actionStillAuthorised'
+require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessController.java 'handleEnvironmentEventOnWorker'
+require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessController.java 'requiresFreshAutoObservation'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessSettingsActivity.java 'TS18 System UI'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessSettingsActivity.java 'Save diagnostics to Downloads'
 require magisk-combined/module.prop.in 'id=ts18_sysui'
@@ -72,6 +75,8 @@ require tools/test-packaged-artifacts.sh 'single combined Magisk'
 # write3 invocation through its terminating semicolon so a multiline call cannot
 # evade the contract check. Also verify the actual success-path control flow: a
 # rejected Settings write must throw before any physical-write timestamp is set.
+# Stock Auto additionally requires a fresh 516 observation after policy/environment
+# transition boundaries before managed physical output can resume.
 python3 - <<'PY'
 from pathlib import Path
 import re
@@ -93,6 +98,28 @@ if not success_path.search(source):
     raise SystemExit(
         'FAILED: physical write success path must throw on Settings rejection '
         'before recording lastPhysicalWriteAt.'
+    )
+config_refresh = re.compile(
+    r'static void onConfigurationChanged\(\).*?'
+    r'requiresFreshAutoObservation\(config\).*?'
+    r'STATE\.invalidate516Observation\(\).*?'
+    r'queryTopwayStateOnWorker\(\)',
+    re.S,
+)
+if not config_refresh.search(source):
+    raise SystemExit(
+        'FAILED: policy changes must invalidate stale stock-Auto 516 state and request a fresh Topway observation.'
+    )
+event_refresh = re.compile(
+    r'private static void handleEnvironmentEventOnWorker\(String eventAction\).*?'
+    r'requiresFreshAutoObservation\(config\).*?'
+    r'STATE\.invalidate516Observation\(\).*?'
+    r'queryTopwayStateOnWorker\(\)',
+    re.S,
+)
+if not event_refresh.search(source):
+    raise SystemExit(
+        'FAILED: time/date/timezone/screen-on handling must invalidate stale stock-Auto 516 state and query Topway.'
     )
 PY
 
