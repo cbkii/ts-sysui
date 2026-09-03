@@ -70,8 +70,8 @@ require tools/test-packaged-artifacts.sh 'single combined Magisk'
 
 # 516 remains query/observation-only. Collapse Java whitespace and inspect each
 # write3 invocation through its terminating semicolon so a multiline call cannot
-# evade the contract check. Also verify that a rejected Settings write cannot be
-# recorded as a successful physical/module write.
+# evade the contract check. Also verify the actual success-path control flow: a
+# rejected Settings write must throw before any physical-write timestamp is set.
 python3 - <<'PY'
 from pathlib import Path
 import re
@@ -81,11 +81,19 @@ source = path.read_text(encoding='utf-8')
 flat = re.sub(r'\s+', ' ', source)
 if re.search(r'write3\.invoke\([^;]*(?:BrightnessProtocol\.COMMAND_BRIGHTNESS|\b516\b)', flat):
     raise SystemExit('FAILED: controller reintroduced Topway 516 as a physical brightness write.')
-write_at = source.find('boolean written = Settings.System.putInt')
-reject_at = source.find('if (!written)', write_at)
-stamp_at = source.find('lastPhysicalWriteAt =', write_at)
-if min(write_at, reject_at, stamp_at) < 0 or not (write_at < reject_at < stamp_at):
-    raise SystemExit('FAILED: physical write timestamp must occur only after Settings.System accepts the write.')
+success_path = re.compile(
+    r'boolean written = Settings\.System\.putInt\([^;]+;\s*'
+    r'if \(!written\) \{\s*'
+    r'throw new IllegalStateException\([^;]+;\s*'
+    r'\}\s*'
+    r'lastPhysicalWriteAt =',
+    re.S,
+)
+if not success_path.search(source):
+    raise SystemExit(
+        'FAILED: physical write success path must throw on Settings rejection '
+        'before recording lastPhysicalWriteAt.'
+    )
 PY
 
 # Keep pull-request validation and the manual signed-release path aligned.
