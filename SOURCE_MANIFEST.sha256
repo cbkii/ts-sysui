@@ -34,14 +34,14 @@ a3648413b47ef77af21d5ebc36c687c7d103aaef3e17f33de7d4f080a6f300a3  ./gradlew
 de9a8f475d6d3f211212799f84767b40703661513d35d3998ad57db7895d97e9  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessActionTracker.java
 83c850bc3a7abd706bda15c031fcc84cc2ebaf085ccfcec128ed64200ea61a1d  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessCompatibility.java
 63f2dfdd9a5d6bde287587039d643bd495b12c43eeaafefef1758548d9f1aab1  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessConfig.java
-3a934d61e2f449ed71a96f76ddc4b9a0c8411d07fa640b6b00e759f7b9881d9d  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessController.java
+5110d9e5dfb5e972aa6712d4dbb693b8c64d6a7a71e75c1217027942071b3b1e  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessController.java
 5b42e795cb0f3fabfe110b162ea0edb1fbb973271c5151048e94301789bc8962  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessFeatureRuntime.java
 2fd0ecc6f45c98abb56ceb6a023c26d0da3c064defe8df02d14c291815b3bcf0  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessHooks.java
 906acb13c9cb4c135beb3d6d9c47771004c62b6e50d5f5dce06ff53a8ab934a3  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessLevelMapper.java
 de66a37c4884f0de771380f6f51c388c7fedb76e07d4bfcdc856f71f051d487a  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessPolicy.java
 8f0a4cd39eadda48548abb0ac89eb31102067352a1c4923bf2a2b9b6f5d80dcc  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessProtocol.java
 ae07a4dc64753204ba5f5b9edf5605bb15fe248b140629050352153e589686ac  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessSettingsActivity.java
-de3c7358f2e10a880d8f99f0a90cc834e55d99e5c3e9ef9784ad0b210b19e384  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessState.java
+9359f22871d129b7046a6c74d49a2a61b523c21011439103685df6ef128a23e6  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessState.java
 37ab7318ff9078b16854cd7e0570ce42f45cb51446186e81198ac846483a869c  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/CircuitBreaker.java
 89bf240400fa7564ad8f23d4ed4e920864994e5bdc2a575c5b024f742f87ad81  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/Config.java
 56b111b613f4c07defa70e8eadf9a9f79ffe9a4aa8c43d942488b8195954cae7  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/CoordinateSpacePolicy.java
@@ -88,7 +88,7 @@ f2e4e420f43e9167bbbc991771d29455501277237bf34c02d49ee4652a07603f  ./lsposed/src/
 04611ce17c949de8bbd76aa46eef73b64b030552a202f3987922f296d31fab65  ./lsposed/src/test/java/au/com/cb/ts18/statusbar/input/BrightnessActionTrackerTest.java
 261c60ac642b65383e6cb4cadc6af161acbc93973152a574b9db98fbfbdb43ce  ./lsposed/src/test/java/au/com/cb/ts18/statusbar/input/BrightnessLevelMapperTest.java
 c51c367c7361b360b888f7454054b45485f702c4ecfad963b426ea303a7d7c46  ./lsposed/src/test/java/au/com/cb/ts18/statusbar/input/BrightnessPolicyTest.java
-42030ee5cfd220b241572f6734412f74f5f6cdd87bb5956cc554bcceeee2d564  ./lsposed/src/test/java/au/com/cb/ts18/statusbar/input/BrightnessStateTest.java
+c016e0c40de37a063eb6783ab8d60344c3e9300e670974740eaa462547c7b075  ./lsposed/src/test/java/au/com/cb/ts18/statusbar/input/BrightnessStateTest.java
 5c75d2d22d0e8ab4f04b21f237cd4c9b12a862dc9bf86df7f68080ab28fb7ff7  ./lsposed/src/test/java/au/com/cb/ts18/statusbar/input/CoordinateSpacePolicyTest.java
 5de92db32960da4ec45c7ba978cfa9029f97de038ea4a3902470278cbb45dd4d  ./lsposed/src/test/java/au/com/cb/ts18/statusbar/input/ExactTouchSafetyPolicyTest.java
 733d4303339013dc40d9ede6e99b16fc17a1b95d1b04c8aff1420dc2dfb5057f  ./lsposed/src/test/java/au/com/cb/ts18/statusbar/input/NavActionTest.java
@@ -134,7 +134,7 @@ eff69f9201a651d1129d94196ad31f8d19be7cb685e05ebfea406a5001c71d28  ./tools/test-n
 d2fe0cc89c5b7309ea5c4e535a02f0e13cc8405e0aa3cbeafc90e4ac60cfa975  ./tools/test-packaged-artifacts.sh
 02b51adab1f556955b8f5148c9fde8656fd2132fe57a52746589ba974ac08bee  ./tools/test-proprietary-artifacts.sh
 d1fdcb429cf0c98841f7bae6c189b91c2dcfbd67cda22d25de8ae6515c7682f8  ./tools/test-release-tools.sh
-bbc4762d2a63db0e4e37c1b136b62acc45d38bfbe9dd9887250ab653a2965e20  ./tools/test-remediation-contract.sh
+83d0b609492f1ca851fdf8fb8c24221365850808ed3ac8b5411fdb2507389f01  ./tools/test-remediation-contract.sh
 237af416e1f21d14ca67088725fbf64f5515f507958aa384c2ee27295bdaac61  ./tools/test-source-manifest.sh
 88602294ba9b2b4ba451badfc088cc071f2338d51336911cd3159c01df8fdeb1  ./tools/test-visual-overlay-contract.sh
 cc596059929522179a01df74bf922546b75af0c5c5d1d04c5384ca395fed36e2  ./tools/test-xposed-stubs.sh
