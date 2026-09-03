@@ -13,9 +13,9 @@ The project keeps five authorities separate:
 4. **Right-nav media** — the same LSPosed APK can add a reversible media group to
    the recognised Topway `navbar_left` host and command an existing
    `MediaController`.
-5. **Brightness** — an independently gated controller follows the exact supplied
-   CarSetting actuator contract: Topway 258 for mode/state and Android
-   `Settings.System.SCREEN_BRIGHTNESS` for the active physical slider path.
+5. **Brightness** — an independently gated controller follows the newly supplied
+   exact CarSetting binary's selected slider path: Topway 258 for mode/state and
+   Android `Settings.System.SCREEN_BRIGHTNESS` for the candidate physical output.
 
 The implementation never replaces `SystemUI.apk`, writes an Android partition,
 hooks `system_server`, creates a playback service/session/queue/notification or
@@ -25,16 +25,25 @@ takes audio focus.
 
 On the exact unit, the compact top-right drag-down restriction is now physically
 confirmed working. The same installed generation produced **no right-sidebar
-media controls and no useful brightness behaviour**. Exact supplied
-`SystemUI.apk` and `CarSetting.apk` analysis then identified two concrete source
-causes:
+media controls and no useful brightness behaviour**. Fresh analysis of the
+supplied exact `SystemUI.apk` and `CarSetting.apk` then identified two concrete
+implementation mismatches:
 
 - the module's navbar preflight used generic IDs (`home`, `back`, `recent_apps`,
-  `app`) rather than the exact Topway IDs (`navbar_home`, `navbar_back`,
-  `navbar_history`, `navbar_app`); and
-- the active CarSetting brightness slider writes `screen_brightness=30..255`.
-  Topway command 516 exists but is not the active physical brightness actuator
-  for this build.
+  `app`) rather than the exact Topway contract: required `navbar_home`,
+  `navbar_back`, `navbar_history`, `navbar_volume_plus`,
+  `navbar_volume_reduce`, with optional `navbar_guanping` and `navbar_app`; and
+- the newly supplied CarSetting binary's selected slider branch writes
+  `screen_brightness=30..255`, while its Topway mode path uses command 258 and
+  its 516 path remains useful semantic observation.
+
+An earlier exact-device brightness trace showed Topway 516 activity while the
+Android brightness mirror remained unchanged. That evidence is retained rather
+than erased: the current `SCREEN_BRIGHTNESS` backend is therefore an
+**exact-binary-derived correction that still requires physical confirmation**,
+not a claim that the older trace was invalid. The build keeps 516 observation
+and detailed readback/Topway diagnostics so the next device test can resolve the
+remaining execution-path discrepancy without weakening safety gates.
 
 The current correction is specified in
 [`docs/EXACT-APK-NAV-BRIGHTNESS-CORRECTION.md`](docs/EXACT-APK-NAV-BRIGHTNESS-CORRECTION.md).
@@ -125,7 +134,7 @@ media command.
 
 ## Exact CarSetting-backed brightness controller
 
-The exact supplied CarSetting active slider path writes:
+The newly supplied exact CarSetting binary's selected slider path writes:
 
 ```text
 Settings.System.SCREEN_BRIGHTNESS
@@ -152,10 +161,12 @@ write(258, 128)
 The private semantic name of the second stock operation is intentionally not
 guessed.
 
-Topway 516 is retained for **semantic observation only**: it exposes packed
-Day/Night slots and the effective Day/Night state. It is no longer physical
-brightness-write confirmation. Physical success requires writing
-`SCREEN_BRIGHTNESS` and reading the same setting back to the requested raw value.
+Topway 516 is retained for **semantic observation only by this correction**: it
+exposes packed Day/Night slots and the effective Day/Night state. It is not used
+as physical-write confirmation. Physical success for this backend requires
+writing `SCREEN_BRIGHTNESS`, reading the same setting back to the requested raw
+value, **and** observing the intended panel change during exact-device
+qualification.
 
 Supported modes remain Auto (stock), Day, Night and Set auto (scheduled). In
 stock Auto, Topway continues to decide effective Day/Night; if managed Day/Night
@@ -164,9 +175,9 @@ observation before choosing which physical level applies. Unknown state fails
 open rather than guessing.
 
 Mode and physical confirmation are bounded independently: 258 callback/state for
-mode, `SCREEN_BRIGHTNESS` readback for physical output, query/read before retry,
-and at most one controlled retry. Repeated non-convergence opens only the
-brightness breaker.
+mode, `SCREEN_BRIGHTNESS` readback for the candidate physical output,
+query/read before retry, and at most one controlled retry. Repeated
+non-convergence opens only the brightness breaker.
 
 See [`docs/BRIGHTNESS-CONTROLLER.md`](docs/BRIGHTNESS-CONTROLLER.md).
 
