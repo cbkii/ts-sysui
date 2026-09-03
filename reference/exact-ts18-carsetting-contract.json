@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "target": {
     "packageName": "com.dofun.carsetting",
     "sharedUserId": "android.uid.system",
@@ -10,22 +10,36 @@
     ]
   },
   "provenance": {
-    "class": "APK-STATIC",
-    "source": "user-supplied exact TS18 CarSetting.apk reverse-engineering",
-    "temporalStatus": "exact supplied privileged APK; physical behaviour still requires runtime qualification",
+    "staticSource": "user-supplied exact TS18 CarSetting.apk reverse-engineering",
+    "runtimeSource": "exact-device marker-guided brightness capture and exact current SystemUI/CarSetting analysis retained in project evidence",
+    "evidenceRule": "current exact-device runtime plus exact active SystemUI path outranks an ambiguous alternate static branch",
     "binaryNotCommitted": true
   },
   "brightness": {
-    "activePhysicalBackend": "Settings.System.SCREEN_BRIGHTNESS",
-    "androidSettingKey": "screen_brightness",
-    "carSettingSliderMin": 0,
-    "carSettingSliderMax": 225,
-    "rawBrightnessMin": 30,
-    "rawBrightnessMax": 255,
-    "moduleLogicalMin": 1,
-    "moduleLogicalMax": 10,
-    "moduleLogicalZeroAllowed": false,
-    "topway516Role": "semantic-observation-only-for-this-module",
+    "provenPrimaryAuthority": "Topway command 516 through the existing SystemUI TWSystemUI/TWUtil transport",
+    "logicalRangeMin": 1,
+    "logicalRangeMax": 10,
+    "logicalZeroAllowed": false,
+    "topway516": {
+      "writeArity": 3,
+      "daySelector": 0,
+      "nightSelector": 1,
+      "callbackContainsSeparateDayNightSlots": true,
+      "callbackArg1Equals1MeansEffectiveNight": true,
+      "query": { "arity": 2, "command": 516, "arg1": 255 },
+      "role": "active exact-device Day/Night brightness authority and callback confirmation"
+    },
+    "androidScreenBrightness": {
+      "settingKey": "screen_brightness",
+      "alternateStaticBranchObserved": true,
+      "alternateStaticBranchSliderMin": 0,
+      "alternateStaticBranchSliderMax": 225,
+      "alternateStaticBranchRawMin": 30,
+      "alternateStaticBranchRawMax": 255,
+      "runtimeObservation": "remained unchanged during the exact-device Topway 0..10 brightness interaction trace",
+      "moduleRole": "diagnostic mirror only until a future exact runtime trace proves this alternate branch active",
+      "mutationAllowedByCurrentModule": false
+    },
     "modeCommand": 258,
     "modeValues": {
       "auto": 0,
@@ -36,10 +50,13 @@
       { "arity": 3, "command": 258, "arg1": 1, "arg2": "selectedMode" },
       { "arity": 2, "command": 258, "arg1": 128 }
     ],
-    "stateQueriesRetained": [
+    "stateQueries": [
       { "arity": 2, "command": 258, "arg1": 255 },
       { "arity": 2, "command": 516, "arg1": 255 }
-    ]
+    ],
+    "screenPowerSeparate": true,
+    "themeModeSeparate": true,
+    "sysfsNotSemanticAuthority": true
   },
   "navigationSettings": [
     "persist.navibar.position",
@@ -49,6 +66,6 @@
   "scopeDecision": {
     "lsposedPackages": ["com.android.systemui"],
     "carSettingHookRequired": false,
-    "reason": "supplied evidence identifies CarSetting as the reference implementation; required mutations remain achievable from exact-gated SystemUI"
+    "reason": "exact SystemUI already owns a functioning Topway transport and the active 258/516 brightness path; CarSetting remains reference/provenance rather than an added hook target"
   }
 }
