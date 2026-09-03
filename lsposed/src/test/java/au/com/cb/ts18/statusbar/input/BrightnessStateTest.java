@@ -38,6 +38,62 @@ public class BrightnessStateTest {
         assertTrue(snapshot.modeKnown);
         assertEquals(BrightnessPolicy.TOPWAY_MODE_DAY, snapshot.topwayMode);
     }
+    @Test public void enteringStockAutoInvalidatesPreTransition516Observation() {
+        BrightnessState state = new BrightnessState();
+        assertTrue(state.acceptCallback(BrightnessProtocol.COMMAND_MODE, 0,
+                BrightnessPolicy.TOPWAY_MODE_DAY));
+        assertTrue(state.acceptCallback(BrightnessProtocol.COMMAND_BRIGHTNESS, 1,
+                (9 << 8) | 7));
+        assertTrue(state.snapshot().levelsKnown);
+
+        assertTrue(state.acceptCallback(BrightnessProtocol.COMMAND_MODE, 0,
+                BrightnessPolicy.TOPWAY_MODE_AUTO));
+        BrightnessPolicy.State transitioned = state.snapshot();
+        assertTrue(transitioned.modeKnown);
+        assertEquals(BrightnessPolicy.TOPWAY_MODE_AUTO, transitioned.topwayMode);
+        assertFalse(transitioned.levelsKnown);
+        assertFalse(transitioned.effectiveNight);
+
+        assertTrue(state.acceptCallback(BrightnessProtocol.COMMAND_BRIGHTNESS, 0,
+                (8 << 8) | 6));
+        BrightnessPolicy.State refreshed = state.snapshot();
+        assertTrue(refreshed.levelsKnown);
+        assertFalse(refreshed.effectiveNight);
+        assertEquals(6, refreshed.dayLevel);
+        assertEquals(8, refreshed.nightLevel);
+    }
+    @Test public void explicitPolicyRefreshRequiresNew516Callback() {
+        BrightnessState state = new BrightnessState();
+        assertTrue(state.acceptCallback(BrightnessProtocol.COMMAND_MODE, 0,
+                BrightnessPolicy.TOPWAY_MODE_AUTO));
+        assertTrue(state.acceptCallback(BrightnessProtocol.COMMAND_BRIGHTNESS, 1,
+                (10 << 8) | 8));
+        assertTrue(state.snapshot().levelsKnown);
+
+        state.invalidate516Observation();
+        BrightnessPolicy.State invalidated = state.snapshot();
+        assertFalse(invalidated.levelsKnown);
+        assertEquals(0, invalidated.dayLevel);
+        assertEquals(0, invalidated.nightLevel);
+        assertFalse(invalidated.effectiveNight);
+
+        assertTrue(state.acceptCallback(BrightnessProtocol.COMMAND_BRIGHTNESS, 1,
+                (10 << 8) | 8));
+        assertTrue(state.snapshot().levelsKnown);
+        assertTrue(state.snapshot().effectiveNight);
+    }
+    @Test public void repeatedAutoModeCallbackDoesNotDiscardFresh516Observation() {
+        BrightnessState state = new BrightnessState();
+        assertTrue(state.acceptCallback(BrightnessProtocol.COMMAND_MODE, 0,
+                BrightnessPolicy.TOPWAY_MODE_AUTO));
+        assertTrue(state.acceptCallback(BrightnessProtocol.COMMAND_BRIGHTNESS, 1,
+                (10 << 8) | 8));
+        assertTrue(state.acceptCallback(BrightnessProtocol.COMMAND_MODE, 0,
+                BrightnessPolicy.TOPWAY_MODE_AUTO));
+        BrightnessPolicy.State snapshot = state.snapshot();
+        assertTrue(snapshot.levelsKnown);
+        assertTrue(snapshot.effectiveNight);
+    }
     @Test public void ignoresUnexpectedCommandsWithoutChangingState() {
         BrightnessState state = new BrightnessState();
         assertFalse(state.acceptCallback(9999, 1, 2));
