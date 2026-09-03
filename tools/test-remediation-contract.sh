@@ -56,6 +56,10 @@ require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessControlle
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessController.java 'BrightnessProtocol.MODE_TRANSACTION_SECOND_VALUE'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessController.java 'Topway 516 retained as observation-only'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessController.java 'READBACK_CONFIRMED'
+require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessController.java 'AtomicLong ACTION_GENERATION'
+require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessController.java 'ACTION_GENERATION.incrementAndGet()'
+require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessController.java 'generation != ACTION_GENERATION.get()'
+require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessController.java 'actionStillAuthorised'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessSettingsActivity.java 'TS18 System UI'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessSettingsActivity.java 'Save diagnostics to Downloads'
 require magisk-combined/module.prop.in 'id=ts18_sysui'
@@ -66,7 +70,8 @@ require tools/test-packaged-artifacts.sh 'single combined Magisk'
 
 # 516 remains query/observation-only. Collapse Java whitespace and inspect each
 # write3 invocation through its terminating semicolon so a multiline call cannot
-# evade the contract check.
+# evade the contract check. Also verify that a rejected Settings write cannot be
+# recorded as a successful physical/module write.
 python3 - <<'PY'
 from pathlib import Path
 import re
@@ -76,6 +81,11 @@ source = path.read_text(encoding='utf-8')
 flat = re.sub(r'\s+', ' ', source)
 if re.search(r'write3\.invoke\([^;]*(?:BrightnessProtocol\.COMMAND_BRIGHTNESS|\b516\b)', flat):
     raise SystemExit('FAILED: controller reintroduced Topway 516 as a physical brightness write.')
+write_at = source.find('boolean written = Settings.System.putInt')
+reject_at = source.find('if (!written)', write_at)
+stamp_at = source.find('lastPhysicalWriteAt =', write_at)
+if min(write_at, reject_at, stamp_at) < 0 or not (write_at < reject_at < stamp_at):
+    raise SystemExit('FAILED: physical write timestamp must occur only after Settings.System accepts the write.')
 PY
 
 # Keep pull-request validation and the manual signed-release path aligned.
