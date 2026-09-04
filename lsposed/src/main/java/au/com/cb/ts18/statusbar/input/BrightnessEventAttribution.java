@@ -2,7 +2,9 @@ package au.com.cb.ts18.statusbar.input;
 
 /**
  * Bounded temporal correlation only. It deliberately does not claim causal
- * writer identity from a Settings observer callback.
+ * writer identity from a Settings observer callback. Classification output is
+ * bounded temporal correlation only unless the module's own exact requested
+ * SCREEN_BRIGHTNESS write is the matching event.
  */
 final class BrightnessEventAttribution {
     static final long CORRELATION_WINDOW_MS = 1500L;
