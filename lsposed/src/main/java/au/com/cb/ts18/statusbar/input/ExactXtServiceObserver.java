@@ -31,7 +31,6 @@ final class ExactXtServiceObserver {
     private static boolean bound;
     private static boolean binding;
     private static boolean callbackRegistered;
-    private static long bindStartedAt;
     private static long lastBindAttemptAt;
     private static volatile String identityState = "UNCHECKED";
     private static volatile String identityDetail = "not-checked";
@@ -55,8 +54,15 @@ final class ExactXtServiceObserver {
     private static final Runnable BIND = ExactXtServiceObserver::bindNow;
     private static final Runnable BIND_TIMEOUT = () -> {
         if (!binding || stopped) return;
+        ServiceConnection timedOut = connection;
+        connection = null;
         binding = false;
+        bound = false;
+        remote = null;
+        callbackRegistered = false;
+        callbackBinder = null;
         bindState = "bind-timeout";
+        safeUnbind(timedOut, "bind-timeout");
         XtServiceFeatureRuntime.recordFailure("bind-timeout",
                 new IllegalStateException("CommandService bind timed out"));
         scheduleBind(REBIND_MS);
@@ -94,21 +100,27 @@ final class ExactXtServiceObserver {
             return;
         }
         lastBindAttemptAt = now;
-        bindStartedAt = now;
         binding = true;
         bindState = "binding";
         ServiceConnection next = new ServiceConnection() {
             @Override public void onServiceConnected(ComponentName name, IBinder service) {
-                postWorker(() -> connectedOnWorker(name, service));
+                ServiceConnection source = this;
+                postWorker(() -> connectedOnWorker(source, name, service));
             }
             @Override public void onServiceDisconnected(ComponentName name) {
-                postWorker(() -> disconnectedOnWorker("disconnected:" + name, false));
+                ServiceConnection source = this;
+                postWorker(() -> disconnectedOnWorker(source,
+                        "disconnected:" + name, false));
             }
             @Override public void onBindingDied(ComponentName name) {
-                postWorker(() -> disconnectedOnWorker("binding-died:" + name, true));
+                ServiceConnection source = this;
+                postWorker(() -> disconnectedOnWorker(source,
+                        "binding-died:" + name, true));
             }
             @Override public void onNullBinding(ComponentName name) {
-                postWorker(() -> disconnectedOnWorker("null-binding:" + name, true));
+                ServiceConnection source = this;
+                postWorker(() -> disconnectedOnWorker(source,
+                        "null-binding:" + name, true));
             }
         };
         connection = next;
@@ -117,7 +129,7 @@ final class ExactXtServiceObserver {
                     ExactXtServiceContract.bindIntent(), next, Context.BIND_AUTO_CREATE);
             if (!accepted) {
                 binding = false;
-                connection = null;
+                if (connection == next) connection = null;
                 bindState = "bindService-returned-false";
                 XtServiceFeatureRuntime.recordFailure("bind-rejected",
                         new IllegalStateException(bindState));
@@ -128,15 +140,20 @@ final class ExactXtServiceObserver {
             worker.postDelayed(BIND_TIMEOUT, BIND_TIMEOUT_MS);
         } catch (Throwable t) {
             binding = false;
-            connection = null;
+            if (connection == next) connection = null;
+            safeUnbind(next, "bind-exception");
             bindState = "bind-exception:" + t.getClass().getSimpleName();
             XtServiceFeatureRuntime.recordFailure("bind", t);
             scheduleBind(REBIND_MS);
         }
     }
 
-    private static void connectedOnWorker(ComponentName name, IBinder service) {
-        if (stopped) return;
+    private static void connectedOnWorker(ServiceConnection source,
+                                          ComponentName name, IBinder service) {
+        if (stopped || source != connection) {
+            safeUnbind(source, "stale-service-connected-callback");
+            return;
+        }
         worker.removeCallbacks(BIND_TIMEOUT);
         binding = false;
         bound = service != null;
@@ -145,7 +162,7 @@ final class ExactXtServiceObserver {
         if (!bound) {
             XtServiceFeatureRuntime.recordFailure("connected-null",
                     new IllegalStateException(bindState));
-            scheduleBind(REBIND_MS);
+            disconnectedOnWorker(source, bindState, false);
             return;
         }
         try {
@@ -164,20 +181,23 @@ final class ExactXtServiceObserver {
             bindState = "bound-callback-registered-initial-state-requested";
             DiagnosticJournal.state("xtservice-bind", "READY", bindState);
         } catch (Throwable t) {
-            callbackRegistered = false;
             XtServiceFeatureRuntime.recordFailure("register-query", unwrap(t));
-            disconnectedOnWorker("register-query-failed", false);
+            disconnectedOnWorker(source, "register-query-failed", false);
         }
     }
 
-    private static void disconnectedOnWorker(String reason, boolean countFailure) {
-        worker.removeCallbacks(BIND_TIMEOUT);
+    private static void disconnectedOnWorker(ServiceConnection source,
+                                             String reason, boolean countFailure) {
+        if (source != null && source != connection) {
+            safeUnbind(source, "stale-service-disconnect-callback");
+            return;
+        }
+        Handler currentWorker = worker;
+        if (currentWorker != null) currentWorker.removeCallbacks(BIND_TIMEOUT);
+        unregisterCallbackBestEffort();
         ServiceConnection oldConnection = connection;
         connection = null;
-        if (oldConnection != null && context != null) {
-            try { context.unbindService(oldConnection); }
-            catch (Throwable ignored) { }
-        }
+        safeUnbind(oldConnection, reason);
         remote = null;
         bound = false;
         binding = false;
@@ -284,20 +304,24 @@ final class ExactXtServiceObserver {
     static void appendStatus(Bundle out) {
         if (out == null) return;
         VehicleStatePolicy.Decision decision = vehicleDecision();
+        long now = SystemClock.elapsedRealtime();
         out.putString("xtservice_expected_sha256", ExactXtServiceContract.EXPECTED_APK_SHA256);
         out.putString("xtservice_actual_sha256", actualSha256);
         out.putString("xtservice_version", versionName);
         out.putString("xtservice_identity_state", identityState);
         out.putString("xtservice_identity_detail", identityDetail);
         out.putString("xtservice_bind_state", bindState);
+        out.putLong("xtservice_last_bind_attempt_at", lastBindAttemptAt);
         out.putBoolean("xtservice_bound", bound);
         out.putBoolean("xtservice_callback_registered", callbackRegistered);
         out.putBoolean("xtservice_reverse_known", reverseKnown);
         out.putInt("xtservice_reverse_status", reverseStatus);
         out.putLong("xtservice_reverse_at", reverseAt);
+        out.putLong("xtservice_reverse_age_ms", reverseAt <= 0L ? -1L : now - reverseAt);
         out.putBoolean("xtservice_sleep_known", sleepKnown);
         out.putInt("xtservice_sleep_status", sleepStatus);
         out.putLong("xtservice_sleep_at", sleepAt);
+        out.putLong("xtservice_sleep_age_ms", sleepAt <= 0L ? -1L : now - sleepAt);
         out.putBoolean("xtservice_vehicle_veto", !decision.allowNavMedia);
         out.putString("xtservice_vehicle_policy", decision.reason);
         out.putBoolean("xtservice_breaker_open", XtServiceFeatureRuntime.isBreakerOpen());
@@ -311,23 +335,21 @@ final class ExactXtServiceObserver {
     static void stopForProcess() {
         stopped = true;
         Handler current = worker;
-        if (current != null) current.post(ExactXtServiceObserver::cleanupOnWorker);
+        if (current == null) return;
+        if (Looper.myLooper() == current.getLooper()) {
+            cleanupOnWorker();
+        } else {
+            current.post(ExactXtServiceObserver::cleanupOnWorker);
+        }
     }
 
     private static void cleanupOnWorker() {
-        worker.removeCallbacksAndMessages(null);
-        IBinder currentRemote = remote;
-        ExactXtServiceBinder.CallbackBinder currentCallback = callbackBinder;
-        if (currentRemote != null && currentCallback != null && callbackRegistered) {
-            try { ExactXtServiceBinder.unregisterCallback(currentRemote, currentCallback); }
-            catch (Throwable ignored) { }
-        }
+        Handler currentWorker = worker;
+        if (currentWorker != null) currentWorker.removeCallbacksAndMessages(null);
+        unregisterCallbackBestEffort();
         ServiceConnection currentConnection = connection;
         connection = null;
-        if (currentConnection != null && context != null) {
-            try { context.unbindService(currentConnection); }
-            catch (Throwable ignored) { }
-        }
+        safeUnbind(currentConnection, "process-stop");
         remote = null;
         bound = false;
         binding = false;
@@ -336,7 +358,37 @@ final class ExactXtServiceObserver {
         reverseKnown = false;
         sleepKnown = false;
         requestVehicleReevaluation();
-        if (thread != null) thread.quitSafely();
+        HandlerThread currentThread = thread;
+        thread = null;
+        worker = null;
+        if (currentThread != null) currentThread.quitSafely();
+    }
+
+    private static void unregisterCallbackBestEffort() {
+        IBinder currentRemote = remote;
+        ExactXtServiceBinder.CallbackBinder currentCallback = callbackBinder;
+        if (currentRemote == null || currentCallback == null || !callbackRegistered) return;
+        try {
+            ExactXtServiceBinder.unregisterCallback(currentRemote, currentCallback);
+        } catch (Throwable t) {
+            DiagnosticJournal.record("WARN", "xtservice-unregister",
+                    "best-effort callback unregister failed: "
+                            + unwrap(t).getClass().getSimpleName());
+        }
+    }
+
+    private static void safeUnbind(ServiceConnection target, String reason) {
+        Context currentContext = context;
+        if (target == null || currentContext == null) return;
+        try {
+            currentContext.unbindService(target);
+        } catch (IllegalArgumentException ignored) {
+            DiagnosticJournal.record("DEBUG", "xtservice-unbind",
+                    "connection already unbound/not registered: " + reason);
+        } catch (Throwable t) {
+            DiagnosticJournal.record("WARN", "xtservice-unbind",
+                    "unbind failed " + reason + ": " + t.getClass().getSimpleName());
+        }
     }
 
     private static void scheduleBind(long delay) {
