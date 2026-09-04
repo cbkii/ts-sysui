@@ -113,7 +113,6 @@ public final class BrightnessSettingsActivity extends Activity {
             String response = data == null ? null
                     : data.getString(SystemUiBridge.EXTRA_RESPONSE_TYPE);
             if (SystemUiBridge.RESPONSE_APPLY.equals(response)) {
-                // Configuration acknowledgement is not hardware confirmation.
                 mainHandler.postDelayed(thisActivity()::queryStatus, 1800L);
             }
         }
@@ -207,9 +206,9 @@ public final class BrightnessSettingsActivity extends Activity {
         applyNav.setOnClickListener(v -> applyNav());
         root.addView(applyNav);
 
-        section(root, "Topway brightness");
+        section(root, "Exact TS18 brightness");
         brightnessRuntimeStatus = text("Brightness runtime: checking…", 14f);
-        detectedBrightness = text("Detected Topway state: checking…", 14f);
+        detectedBrightness = text("Detected Topway/physical state: checking…", 14f);
         root.addView(brightnessRuntimeStatus);
         root.addView(detectedBrightness);
         brightnessEnabled = new Switch(this);
@@ -238,7 +237,7 @@ public final class BrightnessSettingsActivity extends Activity {
         root.addView(dayStart);
         nightStart = button("");
         root.addView(nightStart);
-        root.addView(text("Managed level 0 remains blocked. Day/Night mode changes can look identical when the stored slots are equal.", 13f));
+        root.addView(text("Managed level 0 remains blocked. Managed 1..10 maps to CarSetting's screen_brightness 30..255. Topway 516 is observation-only, not physical-write confirmation.", 13f));
         brightnessDebug = check("Debug logging");
         root.addView(brightnessDebug);
 
@@ -450,27 +449,30 @@ public final class BrightnessSettingsActivity extends Activity {
                 + status.getInt("nav_host_height_px") + "px density="
                 + formatFloat(status.getFloat("nav_density"))
                 + " projectedCell=" + status.getInt("nav_projected_cell_px") + "px"
+                + "\ndirect=" + safe(status.getString("nav_direct_children"), "not observed")
                 + "\nmedia controllers=" + status.getInt("nav_media_controller_count")
                 + " selected=" + safe(status.getString("nav_media_selected_package"), "none"));
 
         int detectedDay = status.getInt("brightness_detected_day_level", -1);
         int detectedNight = status.getInt("brightness_detected_night_level", -1);
+        int screenRaw = status.getInt("brightness_screen_raw", -1);
         String runtime = status.getString("brightness_runtime_state", "unknown");
         String confirm = status.getString("brightness_confirmation", "unknown");
         brightnessRuntimeStatus.setText("Brightness: " + runtime
                 + " · hooks=" + status.getInt("brightness_hook_count")
                 + " · transport=" + yesNo(status.getBoolean("brightness_transport_ready"))
+                + "\nphysical raw=" + (screenRaw < 0 ? "unknown" : screenRaw)
+                + " via " + safe(status.getString("brightness_physical_backend"), "unknown backend")
                 + "\nconfirmation=" + confirm);
-        StringBuilder detected = new StringBuilder("Detected Topway: mode=")
+        StringBuilder detected = new StringBuilder("Topway observation: mode=")
                 .append(status.getInt("brightness_topway_mode", -1))
-                .append(" day=").append(detectedDay < 0 ? "unknown" : detectedDay)
-                .append(" night=").append(detectedNight < 0 ? "unknown" : detectedNight)
+                .append(" 516-day=").append(detectedDay < 0 ? "unknown" : detectedDay)
+                .append(" 516-night=").append(detectedNight < 0 ? "unknown" : detectedNight)
                 .append(" effectiveNight=")
-                .append(yesNo(status.getBoolean("brightness_effective_night")));
-        if (detectedDay >= 0 && detectedNight >= 0 && detectedDay == detectedNight) {
-            detected.append("\n⚠ Day and Night are both ").append(detectedDay)
-                    .append("; changing mode alone will not visibly change brightness.");
-        }
+                .append(status.getBoolean("brightness_levels_known")
+                        ? yesNo(status.getBoolean("brightness_effective_night"))
+                        : "unknown")
+                .append("\n516 slots are observation-only; physical output confirms by screen_brightness readback.");
         detectedBrightness.setText(detected.toString());
         diagnostics.setText(formatDiagnostics(status));
     }
@@ -497,6 +499,7 @@ public final class BrightnessSettingsActivity extends Activity {
                 + " hFloor=" + s.getInt("nav_horizontal_floor_px")
                 + " hPreferred=" + s.getInt("nav_horizontal_preferred_px")
                 + " preferredMet=" + s.getBoolean("nav_horizontal_preferred_met"));
+        line(out, "nav-direct-children", s.getString("nav_direct_children"));
         line(out, "nav-stock", s.getString("nav_stock_summary"));
         line(out, "nav-injected", s.getString("nav_injected_actions"));
         line(out, "nav-media", "controllers=" + s.getInt("nav_media_controller_count")
@@ -509,11 +512,22 @@ public final class BrightnessSettingsActivity extends Activity {
                 + " compatible=" + s.getBoolean("brightness_compatible")
                 + " transport=" + s.getBoolean("brightness_transport_ready")
                 + " modeKnown=" + s.getBoolean("brightness_mode_known")
-                + " levelsKnown=" + s.getBoolean("brightness_levels_known"));
-        line(out, "brightness-state", "mode=" + s.getInt("brightness_topway_mode")
-                + " day=" + s.getInt("brightness_detected_day_level")
-                + " night=" + s.getInt("brightness_detected_night_level")
-                + " effectiveNight=" + s.getBoolean("brightness_effective_night"));
+                + " topway516Known=" + s.getBoolean("brightness_levels_known"));
+        line(out, "brightness-topway-observation", "mode=" + s.getInt("brightness_topway_mode")
+                + " daySlot=" + s.getInt("brightness_detected_day_level")
+                + " nightSlot=" + s.getInt("brightness_detected_night_level")
+                + " effectiveNight=" + s.getBoolean("brightness_effective_night")
+                + " observationOnly=" + s.getBoolean("brightness_topway_slots_observation_only"));
+        line(out, "brightness-physical", "backend=" + s.getString("brightness_physical_backend")
+                + " raw=" + s.getInt("brightness_screen_raw", -1)
+                + " requestedLogical=" + s.getInt("brightness_requested_logical_level", -1)
+                + " requestedRaw=" + s.getInt("brightness_requested_screen_raw", -1));
+        line(out, "brightness-physical-times", "write=" + s.getLong("brightness_last_physical_write_at")
+                + " read=" + s.getLong("brightness_last_physical_read_at"));
+        line(out, "brightness-mode-transaction", s.getString("brightness_mode_transaction")
+                + " stage1=" + s.getLong("brightness_last_mode_stage1_at")
+                + " stage2=" + s.getLong("brightness_last_mode_stage2_at"));
+        line(out, "brightness-contract-carsetting", s.getString("brightness_carsetting_contract_sha256"));
         line(out, "brightness-callbacks", "258=" + s.getLong("brightness_last_258_callback_at")
                 + " 516=" + s.getLong("brightness_last_516_callback_at"));
         line(out, "brightness-stock-write", s.getString("brightness_last_stock_write"));
@@ -684,7 +698,8 @@ public final class BrightnessSettingsActivity extends Activity {
     }
 
     private void updateLevelLabel(TextView view, String label, int value) {
-        view.setText(label + " level: " + value + "/10");
+        view.setText(label + " level: " + value + "/10 · raw "
+                + BrightnessLevelMapper.logicalToRaw(value));
     }
 
     private void section(LinearLayout root, String title) {

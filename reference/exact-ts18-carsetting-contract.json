@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "packageName": "com.dofun.carsetting",
+    "sharedUserId": "android.uid.system",
+    "apkSha256": "06060263e3968a4203c6c37efe95858cd959ac39481dc133de576023b7de2b71",
+    "permissionsObserved": [
+      "android.permission.WRITE_SETTINGS",
+      "android.permission.WRITE_SECURE_SETTINGS"
+    ]
+  },
+  "provenance": {
+    "class": "APK-STATIC",
+    "source": "user-supplied exact TS18 CarSetting.apk reverse-engineering",
+    "temporalStatus": "exact supplied privileged APK; physical behaviour still requires runtime qualification",
+    "binaryNotCommitted": true
+  },
+  "brightness": {
+    "activePhysicalBackend": "Settings.System.SCREEN_BRIGHTNESS",
+    "androidSettingKey": "screen_brightness",
+    "carSettingSliderMin": 0,
+    "carSettingSliderMax": 225,
+    "rawBrightnessMin": 30,
+    "rawBrightnessMax": 255,
+    "moduleLogicalMin": 1,
+    "moduleLogicalMax": 10,
+    "moduleLogicalZeroAllowed": false,
+    "topway516Role": "semantic-observation-only-for-this-module",
+    "modeCommand": 258,
+    "modeValues": {
+      "auto": 0,
+      "day": 1,
+      "night": 2
+    },
+    "modeTransaction": [
+      { "arity": 3, "command": 258, "arg1": 1, "arg2": "selectedMode" },
+      { "arity": 2, "command": 258, "arg1": 128 }
+    ],
+    "stateQueriesRetained": [
+      { "arity": 2, "command": 258, "arg1": 255 },
+      { "arity": 2, "command": 516, "arg1": 255 }
+    ]
+  },
+  "navigationSettings": [
+    "persist.navibar.position",
+    "navigationbar_config",
+    "show_navigationbar"
+  ],
+  "scopeDecision": {
+    "lsposedPackages": ["com.android.systemui"],
+    "carSettingHookRequired": false,
+    "reason": "supplied evidence identifies CarSetting as the reference implementation; required mutations remain achievable from exact-gated SystemUI"
+  }
+}

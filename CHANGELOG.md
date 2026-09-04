@@ -1,57 +1,48 @@
 # Changelog
 
-## Unreleased — physical 0.5.1 remediation and usability
+## Unreleased — exact TS18 nav and CarSetting brightness correction
 
-- recorded the first exact-device 0.5.1 failures before implementation: Day/Night
-  produced no visible brightness change and right-nav media buttons were absent;
-- added one signature-protected bidirectional SystemUI control/status bridge so
-  the companion UI can report exact identity, hook, nav-preflight, media and
-  Topway brightness state instead of silently failing open;
-- turned the launcher Activity into a TS18 System UI dashboard for compact touch,
-  configurable right-nav media actions, brightness controls and bounded
-  diagnostics export;
-- corrected exact collapsed touch so one post-stock listener owns mutation,
-  runtime/type-checks `mShouldAdjustInsets`, leaves stock special states untouched
-  and explicitly establishes REGION from ordinary Android-Q FRAME/empty state;
-- marshalled exact-SystemUI identity completion callbacks onto the main looper
-  before View/SystemUI lifecycle reconciliation;
-- made right-nav OFF -> ON configuration invalidate its cache and request
-  immediate in-process reconciliation instead of requiring a SystemUI restart;
-- retained exact host safety while allowing the two known conditional OEM
-  screen/app controls to be absent and still requiring Home, Back, Recents and
-  both volume controls plus no unknown direct child;
-- added a stock-navigation visibility monitor: hidden/detached/not-shown
-  `NavigationBarView/navbar_left` state removes the owned media group and stops
-  media observation, while return to visible reruns full exact preflight without
-  forcing OEM visibility or hooking reverse/MCU commands;
-- separated navbar sizing into a >=56dp vertical production target and a 48dp
-  absolute horizontal floor, using the existing OEM strip width rather than
-  widening/rejecting it solely for density rounding;
-- made injected media controls remain visible-but-disabled without a usable
-  MediaController and exposed controller count/package/state/action diagnostics;
-- replaced brightness persistence-only success semantics with live transport,
-  258/516 callback, detected Day/Night level, pending-action and confirmation
-  status;
-- replaced the 450ms repeated-write loop with callback-first bounded confirmation,
-  one semantic query before retry, controlled retry delay and distinct
-  `NO_258_CALLBACK` / `NO_516_CALLBACK` failure reasons;
-- made the brightness breaker clean up the module-owned time receiver, settings
-  observer, queued work and worker thread while leaving stock Topway state alone;
-- added Day/Night equal-slot warnings, explicit Test Day/Test Night flows and a
-  bounded restore action in the dashboard while retaining the 1..10 safety gate;
-- combined geometry and visual RROs into one normal user-facing `ts18_sysui`
-  Magisk module, with an explicit legacy-module migration helper instead of
-  deleting `/data/adb` state automatically;
-- incorporated secondary 4PDA Topway SystemUI/navigation-panel precedent while
-  keeping exact TS18 runtime/binary evidence authoritative, including the
-  reverse+DVR panel-hide firmware history and the separation between Android
-  navbar geometry and Topway panel behaviour;
-- updated packaging/CI contracts for the single Magisk ZIP plus LSPosed APK and
-  expanded exact-touch/nav-visibility remediation regression tests.
+- retained the physically proven compact top-right collapsed-shade path without
+  widening its scope or changing its safety bounds;
+- corrected the exact Topway right-nav resource contract from generic
+  `home`/`back`/`recent_apps`/`app` assumptions to the supplied SystemUI's
+  `navbar_home`, `navbar_back`, `navbar_history`, `navbar_app`,
+  `navbar_volume_plus`, `navbar_volume_reduce` and `navbar_guanping` names;
+- kept Home, Back, Recents and both volume controls mandatory, the exact
+  screen/power and app-slot controls optional when absent, and unknown/duplicate
+  direct children as fail-open STOP conditions;
+- retained immediate OFF -> ON nav reconciliation, stock-panel visibility
+  following, >=56dp projected vertical cells, >=48dp existing horizontal width,
+  visible-disabled no-session controls and existing-session-only media dispatch;
+- replaced the disproven ordinary 516 physical brightness write path with the
+  exact supplied `CarSetting.apk` active actuator,
+  `Settings.System.SCREEN_BRIGHTNESS`, while retaining logical managed levels
+  1..10 mapped linearly to raw 30..255;
+- added an exact CarSetting package/SHA-256 gate in addition to the exact
+  SystemUI gate so the recovered physical backend is never applied to an unknown
+  privileged binary;
+- reproduced the exact observed two-stage Topway mode transaction:
+  `write(258,1,<mode>)` followed by `write(258,128)`;
+- retained Topway 258 as mode authority and 516 as observation-only state for
+  packed Day/Night slots and effective Day/Night, rather than treating 516 as
+  physical convergence proof;
+- changed physical confirmation to `SCREEN_BRIGHTNESS` readback and separated
+  `NO_258_CALLBACK` from `SCREEN_BRIGHTNESS_READBACK_MISMATCH` diagnostics;
+- kept stock Auto fail-open: managed Day/Night output is selected only after a
+  valid effective Day/Night observation is known;
+- expanded dashboard/diagnostic reporting for exact CarSetting compatibility,
+  live navbar child names, requested logical/raw brightness, observed raw
+  brightness, physical write/read timestamps and both 258 transaction stages;
+- added focused mapper/policy/action tests and repository source contracts that
+  reject the old navbar IDs and an ordinary three-argument 516 brightness write;
+- updated the exact-binary fixtures and governing implementation/installation/
+  recovery/validation documentation to match the supplied APK evidence; and
+- retained the single user-facing `ts18_sysui` Magisk module containing both RRO
+  APKs plus the SystemUI-only LSPosed behavioural module.
 
-Physical success is not inferred from source or CI. The repaired build still
-requires the exact-unit progression in `docs/PHYSICAL-0.5.1-REMEDIATION.md` and
-`docs/VALIDATION.md` before release qualification.
+Physical success is not inferred from source or CI. The corrected build still
+requires the exact-unit staged matrix in `docs/VALIDATION.md` before release
+qualification.
 
 ## 0.5.0 — exact TS18 SystemUI finalisation and brightness controller
 

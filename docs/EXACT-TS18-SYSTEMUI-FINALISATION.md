@@ -2,15 +2,18 @@
 
 ## 1. Scope and outcome
 
-This document is the controlling source-level contract for `ts-sysui` on CB's
-exact Topway TS18 Android 10/API29 unit. It records the current architecture
-after merged PR #5, merged PR #4 and the unreleased physical-0.5.1 remediation.
+This is the controlling source-level contract for `ts-sysui` on CB's exact
+Topway TS18 Android 10/API29 unit. Current physical evidence proves the compact
+collapsed-shade restriction works. The first installed nav/brightness
+implementation did not; exact supplied SystemUI/CarSetting reverse-engineering
+now supplies the correction contract in
+`EXACT-APK-NAV-BRIGHTNESS-CORRECTION.md`.
 
-The project must remain systemless, reversible, independently disableable and
+The project remains systemless, reversible, independently disableable and
 fail-open. It must not replace/resign `SystemUI.apk`, write protected Android
-partitions, hook `system_server`, broaden LSPosed beyond the main
-`com.android.systemui` process, create another media playback authority, or use
-Android/sysfs brightness as a substitute for the recovered Topway semantic path.
+partitions, hook `system_server`, broaden LSPosed beyond main
+`com.android.systemui`, create another media authority, or add a second physical
+brightness actuator.
 
 Source/static/CI completion is not physical TS18 qualification.
 
@@ -18,21 +21,21 @@ Source/static/CI completion is not physical TS18 qualification.
 
 Use, in order:
 
-1. present exact-device runtime evidence;
+1. present exact-device runtime/physical evidence;
 2. current repository source/tests/configuration;
-3. exact supplied/current TS18 Android-10 binaries and reproducible derived
+3. exact supplied/current TS18 privileged binaries and reproducible derived
    contracts;
-4. applicable exact-device retained captures;
-5. same-firmware Topway components such as CarSetting/TWUtil;
-6. TS10/Driving/UIS7862/FYT implementations only as secondary precedent;
-7. AOSP Android 10 where it matches the target contract.
+4. retained exact-device captures;
+5. same-firmware Topway components;
+6. comparable TS10/UIS/FYT material only as secondary precedent; and
+7. AOSP Android 10 where it matches the exact target.
 
-Current physical evidence overrides old source assumptions. Current source
-supersedes old roadmap wording. Duplicate binary copies are not corroboration.
+Current physical evidence overrides old source assumptions. Current exact APK
+analysis overrides earlier incomplete static interpretations.
 
-## 3. Exact SystemUI identity
+## 3. Exact binary identity
 
-The retained executable contract is:
+### SystemUI mutation gate
 
 | Property | Contract |
 |---|---|
@@ -43,166 +46,102 @@ The retained executable contract is:
 | APK SHA-256 | `668dec9ac14fbabd76ae73d693dcdd1518190f7941b6ac0b00d16587d6c4bd3f` |
 | Platform certificate SHA-256 | `AA:6F:9F:B3:07:05:12:AC:96:24:25:79:7C:D6:5A:A5:85:CF:62:02:93:7E:E3:CE:EF:B1:4B:58:02:EA:BD:F3` |
 
-Before private mutation, runtime must re-hash the installed APK off the SystemUI
-main thread. Resolution callbacks that can touch Views/SystemUI lifecycle state
-must be explicitly dispatched back to the main looper.
+### Brightness actuator gate
 
-A hash/class/member/resource/topology mismatch means zero exact mutation. Do not
-weaken the gate or silently select compatibility mode.
+Managed brightness also requires the exact supplied/current:
+
+| Property | Contract |
+|---|---|
+| Package | `com.dofun.carsetting` |
+| APK SHA-256 | `06060263e3968a4203c6c37efe95858cd959ac39481dc133de576023b7de2b71` |
+| Active physical setting | `Settings.System.SCREEN_BRIGHTNESS` |
+| Observed raw range | `30..255` |
+
+Both hashes must be verified off the SystemUI main thread. A changed SystemUI,
+CarSetting, class/member/resource or topology contract means the affected
+mutation stays stock/off. Do not broaden matching.
 
 ## 4. Independent authority layers
 
-The implementation deliberately keeps these separate:
+1. **Framework geometry RRO** — status-bar height only.
+2. **SystemUI visual RRO** — reviewed icon/clock allow-list only.
+3. **SystemUI-scoped LSPosed behaviour** — optional compact touch, nav-media
+   client and brightness policy/bridge.
+4. **Stock Topway SystemUI/TWSystemUI** — OEM nav, panel visibility and Topway
+   mode transport.
+5. **Exact CarSetting physical brightness contract** — active slider semantics
+   reproduced through Android `SCREEN_BRIGHTNESS` from exact-gated SystemUI.
+6. **Existing Android MediaSessions** — sole media playback authority.
 
-1. **Framework geometry RRO** — owns the compact status-bar height only.
-2. **SystemUI visual RRO** — owns the narrow reviewed status icon/clock resource
-   allow-list only.
-3. **SystemUI-scoped LSPosed behaviour** — owns optional compact touch,
-   right-nav media client and brightness policy/bridge.
-4. **Stock Topway SystemUI/TWSystemUI/TWUtil** — continues to own OEM navigation,
-   vehicle-state panel visibility, screen power and vendor transport.
-5. **Existing Android media sessions** — remain playback authority.
-
-No one feature failure may take down another feature domain.
+No one feature failure may disable another domain.
 
 ## 5. Exact collapsed touch
 
-### 5.1 Stock Android-Q lifecycle
+The physically proven path remains one persistent module-owned
+`OnComputeInternalInsetsListener` targeting Android-Q
+`StatusBarTouchableRegionManager`, ordered after stock lifecycle changes.
 
-The exact adapter targets
-`com.android.systemui.statusbar.phone.StatusBarTouchableRegionManager`.
+Exact mutation is allowed only when the exact SystemUI gate, configuration,
+attachment, coordinate mapping and special-state checks pass. In ordinary
+collapsed state it may explicitly set `TOUCHABLE_INSETS_REGION` to the bounded
+strip. `mShouldAdjustInsets=true`, expanded shade, keyguard/bouncer, heads-up,
+bubbles or ambiguous state stays entirely stock.
 
-Ordinary Android-Q `InternalInsetsInfo` computation starts in the default FRAME
-mode with an empty `touchableRegion`. Therefore exact mode must **not** require
-stock SystemUI to have already supplied a non-empty REGION before applying the
-normal collapsed strip.
-
-The production exact path uses one persistent module-owned
-`OnComputeInternalInsetsListener`. Constructor and `updateTouchableRegion()`
-lifecycle hooks only keep that listener ordered after stock changes. The module
-does not also hook `onComputeInternalInsets()` as a second mutation path.
-
-### 5.2 Stock ownership signal
-
-The Android-Q stock control state `mShouldAdjustInsets` is a required runtime
-reflection/type gate. The supplied exact-static fixture did not independently
-prove that private field, so the repository records it accurately as an
-AOSP-Q-derived control requirement that must be verified against the installed
-exact binary before mutation.
-
-If the field is missing or not boolean, exact touch does not install.
-
-If:
-
-```text
-mShouldAdjustInsets == true
-```
-
-leave `InternalInsetsInfo` completely untouched. Stock keeps ownership of its
-special touch state.
-
-### 5.3 Ordinary collapsed mutation
-
-Exact mutation is allowed only when all required gates pass, including:
-
-- exact APK identity supported;
-- compact/input explicitly armed;
-- root attached;
-- `mShouldAdjustInsets == false`;
-- `mIsStatusBarExpanded == false`;
-- keyguard and bouncer not active;
-- no pinned/departing heads-up state;
-- no bubble state requiring stock handling;
-- no force-collapsed/layout transition;
-- physical/local coordinate mapping proven;
-- valid runtime dimensions.
-
-Then exact mode explicitly performs:
-
-```text
-info.setTouchableInsets(TOUCHABLE_INSETS_REGION)
-info.touchableRegion.set(stripLeft, 0, stripRight, barHeight)
-```
-
-The strip must remain at least 64 physical pixels from both top corners, never
-exceed 20% of full physical width and exclude the current right-system inset.
-Configuration can only make it smaller/further from corners.
-
-The generic compatibility adapter remains explicit-only and preserves its older
-recognised-stock-REGION safety policy. Exact failure never activates it
-automatically.
+The strip remains >=64 physical px from both top corners, <=20% full physical
+width and excludes the current right-system inset. Configuration may only narrow
+it/increase the gap.
 
 ## 6. Geometry and visuals
 
-The framework RRO remains the only status-bar height authority. Do not restore a
-runtime `TYPE_STATUS_BAR` height normaliser.
-
-The SystemUI visual RRO is independently packaged and may override only the
-reviewed status resource allow-list in
-`reference/exact-ts18-systemui-resource-matrix.md`. Current intended resources
-are status icon size/drawing size and clock size.
-
-Do not override navigation width/height/frame resources or shared-risk resources
-for convenience. Do not restore recursive `View.setScaleX()/setScaleY()` tree
-scaling. Overlay/idmap rejection is a clean STOP that retains stock visuals.
+The framework RRO is the only status-bar height authority. The SystemUI visual
+RRO may override only the reviewed status resource allow-list in
+`reference/exact-ts18-systemui-resource-matrix.md`. Never change nav geometry,
+shared-risk resources or recursively scale View trees to make a build pass.
+Overlay/idmap rejection is a clean STOP.
 
 ## 7. Exact Topway right navigation
 
-The current exact host is the vertical weighted
-`com.android.systemui:id/navbar_left` inside the exact `NavigationBarView`.
+The exact host remains the vertical weighted
+`com.android.systemui:id/navbar_left` inside exact `NavigationBarView`.
 
-Current physical evidence makes these direct stock controls mandatory:
+The exact supplied SystemUI resource names are:
 
-- Home;
-- Back;
-- Recents;
-- Volume+;
-- Volume−.
-
-The exact-static screen/power and app-slot controls are known optional children
-and may be absent/conditional at runtime. Unknown or duplicate direct children
-remain a STOP.
-
-Preserve current runtime stock order, every OEM View, ID, listener,
-`LayoutParams` and Topway command. Never replace/recreate the strip.
-
-One owner-tagged weighted group may contain a unique configured subset/order of:
+Required:
 
 ```text
-previous,play_pause,next
+navbar_home
+navbar_back
+navbar_history
+navbar_volume_plus
+navbar_volume_reduce
 ```
 
-It may be injected only after exact identity, topology and measured sizing
-preflight. Vertical cells must remain >=56dp. The module uses the existing OEM
-sidebar width; 48dp is the absolute horizontal floor, not permission to narrow
-or widen the stock strip.
+Known optional:
+
+```text
+navbar_guanping
+navbar_app
+```
+
+The prior generic names `home`, `back`, `recent_apps`, `app` were wrong for this
+binary and caused preflight failure. They must not return as exact-match aliases.
+
+Unknown or duplicate direct children remain a STOP. Diagnostics must report the
+actual live direct-child resource names, visibility and preflight reason.
+Preserve current runtime order, every OEM View, ID, listener and `LayoutParams`.
+Never reconstruct or replace the strip.
+
+One owner-tagged weighted media group may contain a unique configured subset/order
+of `previous,play_pause,next`, only after exact identity/topology/measurement
+preflight. Vertical projected cells remain >=56dp; the existing host width must
+remain >=48dp and is never widened by this module.
 
 ## 8. Stock nav visibility lifecycle
 
-Topway navigation visibility is stock/vendor authority. The module must never
-force the panel visible.
-
-A public-View visibility monitor observes the exact `NavigationBarView` and
-`navbar_left` lifecycle. If the stock root/host is detached, hidden or not shown,
-the owned media group is removed and its media observer stopped. When stock
-becomes visible again, start over with the full exact identity/topology/size
-preflight before reinjection.
-
-Do not add reverse/MCU hooks merely to keep module buttons alive.
-
-Secondary 4PDA firmware history supports this fail-open design: Topway has
-changed navigation-panel sorting/configuration/fullscreen behaviour, and the
-December-2024 TS18 branch family records a reverse+DVR navigation-panel hide fix.
-These references are precedent only, not exact current runtime proof:
-
-- `https://4pda.to/forum/index.php?showtopic=1015856&st=28740`
-- `https://4pda.to/forum/index.php?showtopic=1015856&st=45340`
-- `https://4pda.to/forum/index.php?showtopic=1015856&st=44300`
-- `https://4pda.to/forum/index.php?showtopic=1015856&st=46140`
-
-Android navbar overlays remain a separate geometry layer. TS10/Driving/FYT
-SystemUI binaries are differential research material only and must never be
-transplanted onto this TS18.
+Topway navigation visibility remains stock/vendor authority. If the exact root
+or `navbar_left` host is detached, hidden or not shown, remove/suspend the owned
+media group and stop media observation. On return, run the complete preflight
+again. Do not add reverse/MCU hooks to force visibility.
 
 ## 9. Media authority
 
@@ -212,152 +151,184 @@ Right-nav media controls use only:
 MediaSessionManager -> existing MediaController -> TransportControls
 ```
 
-Do not create a MediaSession, playback service, queue, notification, audio-focus
-owner or vendor media authority.
+No MediaSession/service/queue/notification/audio-focus owner or vendor-media
+fallback is introduced. Controller selection remains deterministic/sticky while
+valid. Unsupported actions remain disabled. One accepted tap dispatches at most
+one transport operation.
 
-Controller selection remains deterministic/sticky while valid. Unsupported
-commands are disabled. One accepted tap dispatches at most one operation:
+## 10. Exact brightness authority
 
-- Previous -> one `skipToPrevious()`;
-- Next -> one `skipToNext()`;
-- Play/Pause -> one `play()` or one `pause()`.
+### 10.1 Physical output
 
-Never pair TransportControls with media-key fallback or guessed
-`TWSystemUI.write(...)` media commands.
+Exact supplied `CarSetting.apk` analysis supersedes the earlier assumption that
+Topway command 516 is the ordinary physical brightness actuator for this build.
+The active CarSetting slider writes:
 
-## 10. Brightness authority
+```text
+Settings.System.SCREEN_BRIGHTNESS
+```
 
-The current exact semantic model is:
+The module exposes logical managed levels `1..10` and maps them monotonically to
+raw `30..255`:
 
-- Topway command/callback `258` = mode (`0=Auto`, `1=Day`, `2=Night`);
-- Topway command/callback `516` = separate Day/Night stored 0..10 slots and
-  active Day/Night condition.
+```text
+1=30, 2=55, 3=80, 4=105, 5=130,
+6=155, 7=180, 8=205, 9=230, 10=255
+```
 
-Use one policy engine and one narrow adapter around the existing SystemUI
-`TWSystemUI`/`TWUtil` transport. Android `screen_brightness`, backlight sysfs,
-theme state, screen power and factory panel-current calibration are separate
-surfaces/domains.
+Level 0 remains blocked. `-1` means preserve current.
 
-Supported policy modes are Auto, Day, Night and local-clock Set-auto. Managed
-Day/Night levels are independent and preserve the opposite/unmanaged slot.
-Managed level 0 remains blocked pending a separate timed no-backlight recovery
-test.
+Physical confirmation is the readback of the same Android setting. A policy
+acknowledgement, Topway callback or successful reflection call is not physical
+success.
 
-No first query/write occurs until stock `TWSystemUI.init()` succeeds or a valid
-Topway callback proves transport readiness. Reconciliation is callback-first,
-changes one semantic variable at a time, performs one semantic query before a
-bounded retry and opens only the brightness breaker on non-convergence.
+### 10.2 Topway mode transaction
 
-When the brightness breaker opens, stop future writes and clean up the module's
-owned time receiver, settings observer, queued work and HandlerThread. Do not
-alter stock Topway state during breaker cleanup. SystemUI restart is required to
-re-arm that process.
+Topway command 258 remains mode authority (`0=Auto`, `1=Day`, `2=Night`). The
+exact CarSetting mode setter performs:
 
-Reverse-camera brightness coexistence remains a physical evidence question. Do
-not invent a private reverse signal pre-emptively; observe 258/516 during parked
-reverse testing and add suspension only if current evidence proves it necessary.
+```text
+write(258, 1, selectedMode)
+write(258, 128)
+```
 
-## 11. Dashboard, configuration and recovery
+Both stages are reproduced on the SystemUI main looper after stock transport is
+ready. Do not invent a private semantic name for the second stock operation.
+Mode confirmation remains the observed 258 callback/state.
 
-The companion TS18 System UI Activity and the signature-protected in-process
-bridge provide the normal configuration/status surface. It exposes bounded
-current identity, hook/breaker, nav preflight/media-session and brightness
-258/516 transport/callback/confirmation state.
+### 10.3 Role of command 516
 
-Root helpers remain recovery/engineering fallbacks. Persistent feature switches
-remain independent so compact input, nav media and brightness can be disabled
-without removing unrelated layers. LSPosed disable plus reboot remains the broad
-behavioural recovery path.
+Command/callback 516 remains a query/observation surface. Its callback can expose
+packed Day/Night slots and effective Day/Night state. The module does not use an
+ordinary three-argument 516 write for physical output and does not treat a 516
+callback as physical brightness confirmation.
 
-No configuration path grants the normal APK platform identity or
-`WRITE_SECURE_SETTINGS`; privileged settings writes stay in the already
-privileged exact SystemUI process or explicit root helper.
+### 10.4 Mode policies
+
+- **Day**: converge mode 1, then apply configured Day physical level if managed.
+- **Night**: converge mode 2, then apply configured Night physical level if
+  managed.
+- **Set auto**: choose Day/Night from local clock, converge that mode, then apply
+  the corresponding managed physical level.
+- **Auto (stock)**: keep Topway mode 0 authoritative. If managed Day/Night levels
+  are configured, wait for valid 516 effective Day/Night observation before
+  choosing the physical level. Unknown effective state fails open.
+
+### 10.5 Confirmation and breaker
+
+No first 258 query/write occurs until `TWSystemUI.init()` completes or a valid
+Topway callback proves transport readiness. Mode and physical actions share a
+bounded query/read-before-retry discipline but use different confirmation:
+
+- mode -> 258 callback/state;
+- physical -> `SCREEN_BRIGHTNESS` readback.
+
+At most one controlled retry is allowed. Repeated non-convergence opens only the
+brightness breaker. Breaker cleanup removes module-owned receivers, observers,
+queued work and worker resources without altering stock state.
+
+Do not add sysfs, Factory Backlight Current, panel calibration, command 33281,
+CarSetting LSPosed scope or another physical brightness authority without new
+exact evidence.
+
+## 11. Dashboard, diagnostics and recovery
+
+The normal dashboard and diagnostic variant must separate semantic and physical
+state. At minimum report:
+
+- exact SystemUI and CarSetting contract state;
+- nav hook/root/host/direct-child names/preflight/measurements;
+- media controller/action state;
+- Topway 258 mode and 516 observation state;
+- physical backend and raw current/requested `screen_brightness`;
+- both 258 transaction stage timestamps/status;
+- physical read/write timestamps and convergence result; and
+- independent nav/brightness breaker state.
+
+Persistent feature switches remain independent. LSPosed disable plus reboot is
+the broad behavioural recovery path. Root helpers remain bounded engineering/
+recovery fallbacks, not the normal product UX.
 
 ## 12. Required repository verification
 
-The final remediation head must pass the repository-owned checks for:
+The final correction head must pass:
 
 - shell syntax/policy;
-- exact SystemUI fixture and single-path exact-touch source contract;
+- exact SystemUI and CarSetting repository-safe fixtures;
+- exact touch/nav source contracts;
 - proprietary-artifact exclusion;
 - visual overlay allow-list;
-- remediation contract;
-- legacy Xposed compile/APK contract;
-- release-version tooling;
-- source manifest;
+- remediation and diagnostic contracts;
+- Xposed compile/APK contracts;
+- release tooling;
+- source-manifest integrity;
 - Gradle wrapper integrity;
 - JVM tests;
-- Android compile and Lint;
-- geometry/visual/LSPosed APK assembly;
-- APK contract;
-- development packaging and packaged-artifact contract.
+- debug/release/diagnostic compile and Lint;
+- geometry/visual/LSPosed assembly; and
+- debug/diagnostic packaging contracts.
 
-Inspect complete workflow logs and fix task-owned failures. A green check is
-source/CI evidence only.
+Inspect complete CI logs and address task-owned failures. Green CI is not
+physical proof.
 
 ## 13. Physical qualification
 
-Follow `docs/PHYSICAL-0.5.1-REMEDIATION.md` and `docs/VALIDATION.md` in staged
-order. At minimum re-establish:
+Follow `docs/VALIDATION.md`. The correction must at minimum re-establish:
 
-1. stock baseline and recovery;
-2. geometry RRO;
-3. visual RRO/idmap;
-4. LSPosed inert;
-5. corrected exact compact touch;
-6. nav observation/visibility;
-7. Play/Pause only;
-8. Previous/Play-Pause/Next;
-9. reverse/fullscreen/call/projection/nav lifecycle;
-10. brightness BR0 observation;
-11. BR1 Day;
-12. BR2 Night;
-13. BR3 scheduled transitions;
-14. BR4 stock-slider/ILL/reverse coexistence;
-15. BR5 SystemUI/reboot/cold-boot/ACC lifecycle;
-16. combined lifecycle and long-duration qualification.
-
-Do not claim any stage passed until exact-device evidence is supplied.
+1. stock/recovery baseline;
+2. RRO rendering;
+3. LSPosed inert state;
+4. compact-touch regression (already physically proven in prior build);
+5. exact navbar direct-child observation;
+6. Play/Pause no-session and active-session tests;
+7. Previous/Play-Pause/Next;
+8. nav hide/reverse/fullscreen lifecycle;
+9. brightness raw stock-CarSetting observation;
+10. fixed Day mode + physical readback/visible change;
+11. fixed Night mode + physical readback/visible change;
+12. stock Auto effective-state handling;
+13. local scheduled transitions;
+14. CarSetting/ILL/reverse coexistence;
+15. SystemUI/reboot/cold-boot/ACC lifecycle; and
+16. combined long-duration qualification.
 
 ## 14. STOP conditions
 
 Keep the affected feature stock/off rather than improvising if:
 
-- installed SystemUI hash differs;
-- any required private member/type differs, including `mShouldAdjustInsets`;
+- installed SystemUI or CarSetting hash differs;
+- any required private member/type differs;
 - physical coordinate mapping is ambiguous;
-- overlay/idmap rejects the visual/geometry design;
+- overlay/idmap rejects the design;
 - an unknown navbar topology/control appears;
 - stock nav is hidden/detached/not shown;
 - projected nav size is unsafe;
 - a media tap can duplicate commands;
-- Topway 258/516 semantics or transport readiness differ;
-- brightness does not converge within bounded confirmation;
-- reverse/vehicle behaviour is being fought;
+- Topway 258 mode semantics/transport readiness differ;
+- stock Auto effective Day/Night state is unknown while managed levels need it;
+- `SCREEN_BRIGHTNESS` write/readback does not converge;
+- readback converges but the physical panel does not visibly change;
+- reverse/vehicle behaviour is being fought; or
 - rollback/ownership cannot be established.
 
-Firmware, MCU, panel calibration or protected package replacement remains a
-separate STOP requiring explicit approval and exact recovery evidence.
+A readback-converged/no-visible-change result requires a narrow stock CarSetting
+vs module trace before reconsidering actuator authority.
 
 ## 15. Definition of source-complete
 
-The repository is source-complete for this milestone when:
+This correction is source-complete when:
 
-- exact touch uses one persistent post-stock listener;
-- `mShouldAdjustInsets=true` leaves stock InternalInsetsInfo untouched;
-- safe ordinary collapsed FRAME/empty state is explicitly converted to bounded
-  REGION;
-- identity completion that can touch Views runs on main;
-- nav media follows stock visibility and re-preflights on return;
+- the physically proven compact path remains unchanged;
+- navbar preflight uses the exact supplied `navbar_*` child IDs and reports live
+  child names;
 - existing MediaController remains sole media authority;
-- brightness retains one 258/516 semantic controller and cleans up owned runtime
-  resources on breaker;
-- dashboard/recovery paths remain bounded and independent;
-- docs match current code/evidence;
-- all final repository checks pass;
+- managed physical brightness uses exact-gated `SCREEN_BRIGHTNESS` writes with
+  readback confirmation;
+- mode changes reproduce both exact observed 258 transaction stages;
+- 516 is observation-only for this module;
+- stock Auto never guesses effective Day/Night;
+- dashboard/diagnostics expose the complete semantic/physical distinction;
+- docs match current exact evidence;
+- all final repository checks pass; and
 - no proprietary binaries, decoded OEM material, generated APKs, logs,
   credentials or temporary workflows are tracked.
-
-After that boundary, remaining work is physical TS18 qualification, not an
-unknown source architecture. Do not merge or publish a release without separate
-approval.

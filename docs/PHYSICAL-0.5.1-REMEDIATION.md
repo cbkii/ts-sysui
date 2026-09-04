@@ -1,19 +1,86 @@
 # Physical 0.5.1 remediation roadmap
 
-## Purpose
+## Status and purpose
 
-This roadmap records the first exact-device remediation milestone after physical installation of `0.5.1` on CB's Topway TS18 (`s9863a1h10`, Android 10/API 29).
+This document records the physical failure that initiated the remediation after
+installing `0.5.1` on CB's exact Topway TS18 (`s9863a1h10`, Android 10/API 29),
+and the staged qualification path that remains required after the later exact-APK
+correction.
 
-Current physical findings are higher-value evidence than CI/static assumptions:
+The first exact-device installation established that:
 
-- all `0.5.1` release assets were installed;
-- the LSPosed module is scoped only to the main `com.android.systemui` process, which remains the intended scope;
-- applying Day versus Night through the brightness UI produced no observable brightness change;
-- Previous / Play-Pause / Next controls were not visible in the right-side navigation strip;
-- the stock right strip visibly retains Home, Recents, Back, Volume+ and Volume-;
-- separate geometry and visual Magisk modules are an unnecessary user-facing installation burden and should become one normal module.
+- compact top-right collapsed-shade routing works physically;
+- Previous / Play-Pause / Next were absent from the right navigation strip;
+- Day/Night selection produced no useful observable brightness change; and
+- the stock sidebar retained Home, Recents, Back, Volume+ and Volume−.
 
-The goal is not to broaden privilege or replace SystemUI. The goal is to make activation, runtime matching and confirmation observable, then repair only the exact gates proven to be blocking the required behaviour.
+Subsequent exact supplied `SystemUI.apk` and `CarSetting.apk` analysis superseded
+this roadmap's earlier actuator hypotheses. The controlling correction contract
+is now `EXACT-APK-NAV-BRIGHTNESS-CORRECTION.md`.
+
+## Current exact correction
+
+### Right navigation
+
+The correct direct-child resource entry names are:
+
+Required:
+
+```text
+navbar_home
+navbar_back
+navbar_history
+navbar_volume_plus
+navbar_volume_reduce
+```
+
+Known optional:
+
+```text
+navbar_guanping
+navbar_app
+```
+
+The earlier generic `home`, `back`, `recent_apps` and `app` assumptions caused
+safe preflight to reject the exact host before injection.
+
+### Brightness
+
+The exact supplied CarSetting build's active physical slider path writes:
+
+```text
+Settings.System.SCREEN_BRIGHTNESS
+raw range 30..255
+```
+
+Managed logical levels remain 1..10 and map linearly to that raw range. Level 0
+remains blocked.
+
+Topway command/callback 258 remains mode authority:
+
+```text
+0 = Auto
+1 = Day
+2 = Night
+```
+
+A mode write reproduces the exact observed stock transaction:
+
+```text
+write(258, 1, selectedMode)
+write(258, 128)
+```
+
+Topway 516 remains useful **observation only** for packed Day/Night slots and the
+effective Day/Night state. It is not the normal physical actuator and is not
+physical convergence proof.
+
+Managed brightness additionally requires the exact supplied CarSetting contract:
+
+```text
+package: com.dofun.carsetting
+SHA-256: 06060263e3968a4203c6c37efe95858cd959ac39481dc133de576023b7de2b71
+```
 
 ## Non-negotiable safety boundary
 
@@ -21,189 +88,151 @@ Preserve:
 
 - LSPosed scope restricted to the main `com.android.systemui` process;
 - exact installed SystemUI identity gating before private mutation;
-- systemless RROs; no direct `/system` or `/product` writes;
+- exact CarSetting hash gating before the CarSetting-derived physical backend is
+  used;
+- systemless RROs and no direct `/system` or `/product` writes;
 - framework geometry as the sole status-bar-height authority;
-- existing `MediaSessionManager -> MediaController -> TransportControls` media authority;
-- recovered Topway 258/516 brightness semantic authority;
-- no additional MediaSession, playback service, queue, notification or audio-focus owner;
+- existing `MediaSessionManager -> MediaController -> TransportControls` media
+  authority;
+- Topway 258 as semantic mode authority and 516 as observation-only state;
+- `Settings.System.SCREEN_BRIGHTNESS` as the exact CarSetting-backed physical
+  output for this build only;
+- no additional MediaSession, playback service, queue, notification or
+  audio-focus owner;
 - no `system_server` hooks;
 - independent compact, navbar and brightness failure domains;
-- fail-open behaviour for unknown identity/topology/state;
-- managed brightness level `0` blocked until separate timed recovery qualification.
+- fail-open behaviour for unknown identity/topology/state; and
+- managed brightness level 0 blocked until separate timed recovery qualification.
 
-Do not weaken exact-device hash/topology safety simply to make the feature appear active.
+Do not weaken exact-device hash/topology safety to make a feature appear active.
 
-## Root-cause hypotheses to discriminate
+## Implemented remediation milestones
 
-### Right nav
+### R0 — live observability and control bridge
 
-The current implementation can remain visually stock because:
+The signature-protected package-targeted in-SystemUI bridge supports coherent
+feature configuration, read-only runtime status and private `ResultReceiver`
+acknowledgements. Policy acknowledgement is never reported as physical success.
 
-1. navbar mutation defaults off and normal installation does not arm it;
-2. configuration changes are not guaranteed to trigger immediate in-process reconciliation from the default-off state;
-3. the exact preflight may reject the live host/topology/weights/width/height;
-4. the horizontal `56dp` production requirement may reject a stock-width sidebar that is physically around the OEM 55px interaction width;
-5. media-session state should not be capable of hiding the group, so complete absence of buttons points earlier in the activation/preflight path.
+### R1 — TS18 System UI dashboard
 
-### Brightness
+The launcher Activity provides compact, right-nav and brightness configuration
+with bounded diagnostics. Root scripts remain recovery/development tools.
 
-The current implementation can appear to apply configuration while producing no physical change because:
+### R2 — right-nav activation and exact preflight
 
-1. brightness mutation defaults off;
-2. Day and Night levels can both remain `preserve current`, so mode switching may be visually indistinguishable;
-3. the configuration acknowledgement proves persistence, not transport readiness or hardware convergence;
-4. the controller waits for mode/level state callbacks before acting;
-5. the 450ms confirmation loop can be too aggressive for an OEM MCU path and can open the brightness-only breaker before delayed confirmation;
-6. a private Topway contract mismatch or missing callback currently fails open with insufficient user-visible explanation.
+OFF -> ON configuration invalidates the nav cache and requests immediate
+reconciliation. Preflight reports live topology/measurements and accepts only the
+exact mandatory/optional resource contract above, with unknown/duplicate direct
+children remaining a STOP.
 
-## Milestone sequence
+The module uses the existing OEM strip width, requires >=56dp projected vertical
+cells and >=48dp horizontal width, and never widens the sidebar merely to pass a
+dp target. Enabled media controls remain visible but disabled when no usable
+MediaController/capability exists.
 
-### R0 - live observability and control bridge
+### R3 — media diagnostics
 
-Generalise the current brightness-only SystemUI configuration bridge into one signature-protected, package-targeted SystemUI bridge that supports:
+Diagnostics report controller count, selected package, playback state/action
+bits and injected actions. Media dispatch remains exactly one supported
+`TransportControls` operation per accepted tap.
 
-- coherent feature configuration transactions;
-- read-only runtime status snapshots;
-- private `ResultReceiver` acknowledgements;
-- no manifest receiver or new privileged app permission.
+### R4 — brightness state and physical confirmation
 
-Expose enough state for the user to answer why a feature is active, off, blocked or failed without logcat.
+The brightness controller now separates:
 
-### R1 - TS18 System UI dashboard
+```text
+exact SystemUI + CarSetting compatibility
+Topway transport readiness
+258 mode state/confirmation
+516 effective-state observation
+requested logical/raw physical brightness
+SCREEN_BRIGHTNESS write/readback
+brightness-only breaker
+```
 
-Replace the brightness-only launcher UX with a coherent dashboard containing:
+Physical success requires the raw `SCREEN_BRIGHTNESS` readback to equal the
+requested raw value. Missing mode confirmation is reported separately from a
+physical readback mismatch.
 
-- installation/identity state;
-- compact-status controls/status;
-- right-nav controls/status;
-- brightness controls/status;
-- bounded diagnostics export/status text.
+### R5 — bounded pending-action model
 
-Shell helpers remain recovery/development tools, not the normal product UX.
+One required semantic/physical action is pending at a time. After the first
+write the controller waits, performs one matching state query/read before retry,
+permits at most one controlled retry, and only then records a breaker failure.
 
-### R2 - right-nav activation and preflight remediation
+Relevant failure states include:
 
-- make OFF -> ON configuration reconcile immediately without SystemUI restart;
-- invalidate nav configuration cache after a successful transaction;
-- expose exact preflight STOP reason and measured host geometry;
-- retain exact topology safety, but distinguish known `GONE`/optional stock controls from unknown children when exact evidence supports it;
-- use full stock sidebar width for module controls;
-- maintain >=56dp vertical production target, >=48dp absolute horizontal floor, and prefer >=56dp horizontally where the existing OEM strip permits it;
-- never widen the sidebar just to satisfy dp rounding;
-- keep the media group visible but disabled when no session exists.
+```text
+NO_258_CALLBACK
+SCREEN_BRIGHTNESS_READBACK_MISMATCH
+AUTO_EFFECTIVE_STATE_UNKNOWN
+```
 
-### R3 - media diagnostics
+A missing 516 observation is not a failed physical write. In stock Auto with
+managed levels it blocks selection of a Day/Night target until effective state is
+known, then fails open rather than guessing.
 
-Keep the existing public media backend and add status for:
+### R6 — single Magisk module
 
-- discovered controller count;
-- selected package;
-- playback state and action bits;
-- per-button enabled/disabled reason.
+The independently built geometry and visual RRO APKs are packaged in one normal
+user-facing `ts18_sysui` Magisk ZIP. Legacy split IDs are migrated only through
+the bounded helper; no unknown `/data/adb` state is deleted.
 
-Physical progression remains Play/Pause first, then Previous/Next.
+### R7 — tests, CI and package contracts
 
-### R4 - brightness state machine and confirmation
-
-Replace persistence-only success semantics with explicit runtime states:
-
-`HOOK_INSTALLED -> IDENTITY_VERIFIED -> TRANSPORT_READY -> MODE_STATE_KNOWN -> LEVEL_STATE_KNOWN -> CONFIG_ENABLED -> ACTION_PENDING -> CALLBACK_CONFIRMED -> ACTIVE/SETTLED`
-
-with explicit `BLOCKED(reason)` / `ERROR(reason)` states.
-
-Track callback/write timestamps and expose current Topway mode, effective night state and stored Day/Night levels.
-
-### R5 - brightness UX and bounded pending-action model
-
-- show detected current Day/Night slot values;
-- warn when Day and Night values are equal;
-- distinguish `policy saved` from `hardware confirmed`;
-- add bounded Test Day/Test Night flows with safe non-zero values and restore guidance;
-- replace the fixed 450ms repeated-write loop with one pending action, callback-based confirmation, one bounded semantic query on timeout, controlled backoff and a small retry budget;
-- do not open the breaker on one ordinary slow confirmation window.
-
-### R6 - single Magisk module
-
-Keep the two Android RRO projects independently buildable/testable but package both APKs into one user-facing Magisk module:
-
-`TS18-SystemUI-Magisk-v<version>-release.zip`
-
-containing:
-
-- `TS18StatusBarGeometry.apk`;
-- `TS18StatusBarVisuals.apk`.
-
-The installer must validate API/device/payloads and guard against duplicate legacy module IDs (`ts18_statusbar_geometry`, `ts18_statusbar_visuals`). Do not delete unknown `/data/adb` state blindly.
-
-### R7 - tests, CI and release packaging
-
-Add coverage for:
-
-- OFF -> ON nav reconciliation without process restart;
-- config cache invalidation;
-- exact known topology variants and unknown-child STOP;
-- stock-width horizontal policy, 48dp floor and >=56dp vertical production target;
-- visible-disabled no-session buttons;
-- exactly-once reinflation;
-- secure status/config bridge;
-- `policy-saved != hardware-confirmed`;
-- equal Day/Night warning;
-- transport/callback missing and delayed-confirmation paths;
-- bounded unconfirmed-write failure;
-- subsystem breaker isolation;
-- one combined Magisk ZIP containing exactly both RRO APKs;
-- legacy-module migration guard.
-
-Do not weaken existing identity, overlay allow-list, media exactly-once, signing, source-manifest or proprietary-artifact checks.
-
-## User-visible runtime status contract
-
-At minimum expose:
-
-- exact SystemUI identity state/detail/hash;
-- compact hook and block state;
-- nav hook/root/host/preflight state and reason;
-- nav measured width/height/density and projected cell size;
-- stock child IDs/visibility/order/weights;
-- injected actions and nav breaker state;
-- active-session count, selected media package/state/actions;
-- brightness hook compatibility, transport readiness, mode/levels-known state;
-- current Topway mode/effectiveNight/Day/Night levels;
-- last 258/516 callbacks, last stock/module write, pending action and confirmation result;
-- brightness breaker state.
-
-Avoid unrelated user/media data.
+Repository checks cover exact navbar IDs/topology, mapping/readback policy,
+258 transaction constants, 516 observation-only constraints, stock-Auto safety,
+combined packaging, exact binary fixtures, Android debug/release/diagnostic
+builds and source integrity. These checks are source/CI evidence only.
 
 ## Physical qualification after implementation
 
-1. Install the single combined Magisk module and reboot.
+1. Install the combined Magisk module and reboot.
 2. Install/update the LSPosed APK and scope only `com.android.systemui`.
-3. Reboot and open TS18 System UI diagnostics.
-4. Confirm exact identity/hooks are READY.
-5. Confirm nav host/preflight state.
-6. Enable Play/Pause only; button must remain visible even without a session.
-7. Start media and verify one command per tap, then add Previous/Next.
-8. Confirm all OEM nav controls remain present/correct.
-9. Inspect detected Day/Night levels; configure deliberately distinct safe non-zero values.
-10. Test fixed Day then Night and require 258/516 confirmation.
-11. Test scheduled transition.
-12. Qualify SystemUI restart, reboot, cold boot, ACC sleep/wake, reverse camera, calls and projection.
+3. Reboot and open **TS18 System UI**.
+4. Confirm exact SystemUI and CarSetting compatibility are READY.
+5. Confirm the nav host and exact direct-child preflight state.
+6. Enable Play/Pause only; it must appear even with no usable media session while
+   the stock panel itself is visible.
+7. Start media and verify exactly one command per tap, then add Previous/Next.
+8. Confirm Home, Back, Recents, Volume+ and Volume− remain unchanged.
+9. Configure safe distinct logical Day/Night values from 1..10.
+10. Test fixed Day: require 258 mode confirmation, raw `SCREEN_BRIGHTNESS`
+    readback convergence and a corresponding physical brightness change.
+11. Repeat for fixed Night with a distinct value.
+12. Test stock Auto with managed levels; require a known 516 effective state
+    before the matching physical level is applied.
+13. Test scheduled Set-auto transitions in both directions.
+14. Test stock CarSetting/SystemUI brightness coexistence when module brightness
+    is disabled and enabled as designed.
+15. Qualify reverse/fullscreen, SystemUI restart, reboot, cold boot, ACC
+    sleep/wake, calls, projection and representative long-duration use.
 
 ## STOP conditions
 
-STOP and leave the affected layer stock if:
+STOP and leave only the affected layer stock/off if:
 
 - exact SystemUI identity differs;
-- required private hook/class contract is absent;
+- exact CarSetting identity differs for managed brightness;
+- a required private hook/class contract is absent;
 - navbar topology cannot be interpreted unambiguously;
 - any OEM nav function disappears or changes semantics;
 - an injected cell falls below the accepted physical floor;
 - SystemUI becomes unstable;
-- Topway brightness writes cannot obtain semantic confirmation;
-- confirmed module 258/516 writes still produce no physical brightness change.
+- Topway 258 mode cannot be confirmed within the bounded sequence;
+- `SCREEN_BRIGHTNESS` is rejected or cannot be read back to the requested raw
+  value;
+- stock Auto effective Day/Night state is unknown while a managed level would
+  otherwise be selected; or
+- reverse/vehicle behaviour is being fought.
 
-For the final brightness case, collect a narrow stock-vs-module marker trace and reassess the exact actuator from that evidence rather than adding generic Android/sysfs fallbacks.
+Do not respond to a STOP by writing backlight sysfs, factory panel calibration,
+screen-power commands, broadening LSPosed scope, weakening hashes/topology, or
+inventing private vendor semantics.
 
-## Completion criteria
+## Completion boundary
 
-A review-ready PR must include the roadmap, implementation, tests, CI, updated install/recovery/validation docs and packaging changes. It may be described as source/CI validated only. Do not publish a release or claim physical TS18 success until the exact-unit matrix above is performed.
+A review-ready PR may be described as source/CI validated after all repository
+checks and review findings pass. It must not be called physically qualified until
+the exact-unit progression above and `VALIDATION.md` are completed.

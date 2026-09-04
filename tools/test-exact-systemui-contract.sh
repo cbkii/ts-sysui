@@ -6,13 +6,14 @@ ROOT="$(dirname -- "$SCRIPT_DIR")"
 FIXTURE="$ROOT/reference/exact-ts18-systemui-contract.json"
 ADAPTER="$ROOT/lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactTs18TouchableRegionAdapter.java"
 INSETS="$ROOT/lsposed/src/main/java/au/com/cb/ts18/statusbar/input/InternalInsetsAccess.java"
+NAV="$ROOT/lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactTopwayNavController.java"
 
 if ! command -v python3 >/dev/null 2>&1; then
     printf 'FAILED: python3 is required for contract fixture validation\n' >&2
     exit 3
 fi
 
-python3 - "$FIXTURE" "$ADAPTER" "$INSETS" <<'PY'
+python3 - "$FIXTURE" "$ADAPTER" "$INSETS" "$NAV" <<'PY'
 import json
 import re
 import sys
@@ -21,6 +22,7 @@ from pathlib import Path
 fixture = Path(sys.argv[1])
 adapter_path = Path(sys.argv[2])
 insets_path = Path(sys.argv[3])
+nav_path = Path(sys.argv[4])
 data = json.loads(fixture.read_text(encoding="utf-8"))
 target = data["target"]
 expected = {
@@ -83,10 +85,10 @@ if len(resources["knownNavbarChildren"]) != len(set(resources["knownNavbarChildr
     raise SystemExit("FAILED: duplicate known navbar child resource")
 expected_nav_children = {
     "com.android.systemui:id/navbar_guanping",
-    "com.android.systemui:id/home",
-    "com.android.systemui:id/back",
-    "com.android.systemui:id/recent_apps",
-    "com.android.systemui:id/app",
+    "com.android.systemui:id/navbar_home",
+    "com.android.systemui:id/navbar_back",
+    "com.android.systemui:id/navbar_history",
+    "com.android.systemui:id/navbar_app",
     "com.android.systemui:id/navbar_volume_plus",
     "com.android.systemui:id/navbar_volume_reduce",
 }
@@ -95,6 +97,7 @@ if set(resources["knownNavbarChildren"]) != expected_nav_children:
 
 adapter = adapter_path.read_text(encoding="utf-8")
 insets = insets_path.read_text(encoding="utf-8")
+nav = nav_path.read_text(encoding="utf-8")
 if 'Field shouldAdjust = requireField(manager, "mShouldAdjustInsets", boolean.class)' not in adapter:
     raise SystemExit("FAILED: exact adapter no longer runtime/type-checks mShouldAdjustInsets")
 if 'InternalInsetsAccess.setTouchableRegion(info' not in adapter:
@@ -105,6 +108,16 @@ if 'getDeclaredMethod("setTouchableInsets", int.class)' not in insets:
     raise SystemExit("FAILED: InternalInsetsAccess no longer resolves setTouchableInsets(int)")
 if 'contract.setTouchableInsets.invoke(info, contract.regionMode)' not in insets:
     raise SystemExit("FAILED: InternalInsetsAccess no longer switches FRAME/default state to REGION")
+for exact_name in (
+        "navbar_home", "navbar_back", "navbar_history", "navbar_app",
+        "navbar_volume_plus", "navbar_volume_reduce"):
+    if f'"{exact_name}"' not in nav:
+        raise SystemExit(f"FAILED: exact navbar controller lacks {exact_name}")
+for obsolete in ('"home"', '"back"', '"recent_apps"', '"app"'):
+    if obsolete in nav:
+        raise SystemExit(f"FAILED: obsolete preflight resource name remains: {obsolete}")
+if 'nav_direct_children' not in nav or 'resourceEntryName' not in nav:
+    raise SystemExit("FAILED: exact navbar diagnostics no longer report live child resource names")
 
-print("SUCCESS: exact TS18 SystemUI contract fixture and single-path touch runtime contract")
+print("SUCCESS: exact TS18 SystemUI contract fixture and single-path touch/navbar runtime contract")
 PY

@@ -88,8 +88,6 @@ public final class DiagnosticSettingsActivity extends Activity {
     }
 
     @Override protected void onStop() {
-        // Invalidate any report worker from the previous visible Activity lifetime.
-        // A resumed refresh must never be overwritten by a stale callback.
         renderGeneration++;
         setReportReady(false);
         main.removeCallbacks(timeout);
@@ -145,8 +143,6 @@ public final class DiagnosticSettingsActivity extends Activity {
 
     private void refresh() {
         if (pendingNonce != null) return;
-        // Invalidate any report already being generated before starting a new
-        // bridge request, so its completion cannot re-enable stale export.
         renderGeneration++;
         setReportReady(false);
         report.setText("Waiting for SystemUI bridge status...");
@@ -256,6 +252,7 @@ public final class DiagnosticSettingsActivity extends Activity {
         line(out, "nav-projected-cell-px", s.getInt("nav_projected_cell_px"));
         line(out, "nav-horizontal-floor-px", s.getInt("nav_horizontal_floor_px"));
         line(out, "nav-horizontal-preferred-px", s.getInt("nav_horizontal_preferred_px"));
+        line(out, "nav-direct-children", s.getString("nav_direct_children"));
         line(out, "nav-stock-summary", s.getString("nav_stock_summary"));
         line(out, "nav-injected-actions", s.getString("nav_injected_actions"));
         line(out, "nav-media-controller-count", s.getInt("nav_media_controller_count"));
@@ -266,21 +263,34 @@ public final class DiagnosticSettingsActivity extends Activity {
         line(out, "nav-breaker", "open=" + s.getBoolean("nav_breaker_open")
                 + " failures=" + s.getInt("nav_failure_count"));
 
-        out.append("\n=== TOPWAY BRIGHTNESS ===\n");
+        out.append("\n=== EXACT BRIGHTNESS ===\n");
         line(out, "brightness-controller-attached",
                 s.getBoolean("brightness_controller_attached"));
         line(out, "brightness-compatible", s.getBoolean("brightness_compatible"));
+        line(out, "brightness-carsetting-contract-sha256",
+                s.getString("brightness_carsetting_contract_sha256"));
         line(out, "brightness-transport-ready", s.getBoolean("brightness_transport_ready"));
         line(out, "brightness-mode-known", s.getBoolean("brightness_mode_known"));
-        line(out, "brightness-levels-known", s.getBoolean("brightness_levels_known"));
+        line(out, "brightness-topway-516-known", s.getBoolean("brightness_levels_known"));
         line(out, "brightness-topway-mode", s.getInt("brightness_topway_mode", -1));
         line(out, "brightness-effective-night", s.getBoolean("brightness_effective_night"));
-        line(out, "brightness-day-level", s.getInt("brightness_detected_day_level", -1));
-        line(out, "brightness-night-level", s.getInt("brightness_detected_night_level", -1));
-        line(out, "brightness-callback-258",
-                s.getLong("brightness_last_258_callback_at"));
-        line(out, "brightness-callback-516",
-                s.getLong("brightness_last_516_callback_at"));
+        line(out, "brightness-516-day-slot", s.getInt("brightness_detected_day_level", -1));
+        line(out, "brightness-516-night-slot", s.getInt("brightness_detected_night_level", -1));
+        line(out, "brightness-516-observation-only",
+                s.getBoolean("brightness_topway_slots_observation_only"));
+        line(out, "brightness-physical-backend", s.getString("brightness_physical_backend"));
+        line(out, "brightness-screen-raw", s.getInt("brightness_screen_raw", -1));
+        line(out, "brightness-requested-logical",
+                s.getInt("brightness_requested_logical_level", -1));
+        line(out, "brightness-requested-raw",
+                s.getInt("brightness_requested_screen_raw", -1));
+        line(out, "brightness-physical-write-at", s.getLong("brightness_last_physical_write_at"));
+        line(out, "brightness-physical-read-at", s.getLong("brightness_last_physical_read_at"));
+        line(out, "brightness-mode-transaction", s.getString("brightness_mode_transaction"));
+        line(out, "brightness-mode-stage1-at", s.getLong("brightness_last_mode_stage1_at"));
+        line(out, "brightness-mode-stage2-at", s.getLong("brightness_last_mode_stage2_at"));
+        line(out, "brightness-callback-258", s.getLong("brightness_last_258_callback_at"));
+        line(out, "brightness-callback-516", s.getLong("brightness_last_516_callback_at"));
         line(out, "brightness-stock-write", s.getString("brightness_last_stock_write"));
         line(out, "brightness-module-action", s.getString("brightness_last_module_action"));
         line(out, "brightness-pending-action", s.getString("brightness_pending_action"));

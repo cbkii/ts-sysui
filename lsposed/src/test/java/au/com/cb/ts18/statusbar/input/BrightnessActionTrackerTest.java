@@ -7,15 +7,18 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 public final class BrightnessActionTrackerTest {
-    @Test public void matchingCallbackConfirmsModeAndLevels() {
+    @Test public void matchingConfirmationSeparatesModeFromPhysicalReadback() {
         BrightnessPolicy.State state = new BrightnessPolicy.State(
                 true, BrightnessPolicy.TOPWAY_MODE_NIGHT,
                 true, 9, 4, true);
         assertTrue(BrightnessActionTracker.matches(
-                BrightnessPolicy.Action.mode(BrightnessPolicy.TOPWAY_MODE_NIGHT), state));
-        assertTrue(BrightnessActionTracker.matches(BrightnessPolicy.Action.dayLevel(9), state));
-        assertTrue(BrightnessActionTracker.matches(BrightnessPolicy.Action.nightLevel(4), state));
-        assertFalse(BrightnessActionTracker.matches(BrightnessPolicy.Action.dayLevel(8), state));
+                BrightnessPolicy.Action.mode(BrightnessPolicy.TOPWAY_MODE_NIGHT), state, 105));
+        BrightnessPolicy.Action physical = BrightnessPolicy.Action.physicalLevel(
+                BrightnessPolicy.SLOT_NIGHT, 4);
+        assertTrue(BrightnessActionTracker.matches(physical, state,
+                BrightnessLevelMapper.logicalToRaw(4)));
+        assertFalse(BrightnessActionTracker.matches(physical, state,
+                BrightnessLevelMapper.logicalToRaw(5)));
     }
 
     @Test public void deadlineQueriesBeforeAnyRetry() {
@@ -30,10 +33,11 @@ public final class BrightnessActionTrackerTest {
                         BrightnessActionTracker.MAX_WRITE_ATTEMPTS, true));
     }
 
-    @Test public void missingCallbackReasonIsSemantic() {
-        assertEquals("NO_258_CALLBACK", BrightnessActionTracker.missingCallbackReason(
+    @Test public void missingConfirmationReasonDistinguishesBackends() {
+        assertEquals("NO_258_CALLBACK", BrightnessActionTracker.missingConfirmationReason(
                 BrightnessPolicy.Action.mode(BrightnessPolicy.TOPWAY_MODE_DAY)));
-        assertEquals("NO_516_CALLBACK", BrightnessActionTracker.missingCallbackReason(
-                BrightnessPolicy.Action.nightLevel(4)));
+        assertEquals("SCREEN_BRIGHTNESS_READBACK_MISMATCH",
+                BrightnessActionTracker.missingConfirmationReason(
+                        BrightnessPolicy.Action.physicalLevel(BrightnessPolicy.SLOT_NIGHT, 4)));
     }
 }
