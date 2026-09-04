@@ -19,11 +19,11 @@ c468d6569e79e0f848bf10f45139248bf6557643c1b8069acd3223894fd1442d  ./docs/EXACT-T
 36c7aa9059e48160fd54d94a7d2f891835cd5d6d7c12206eb9f94cc6ae327ae6  ./docs/INSTALL.md
 067a36bdcf90ca38348576d8487ca8f72d706c753cad5da18a24d10e8e798e4d  ./docs/LSPOSED-COMPATIBILITY.md
 236ee5d4f83aedabd6b1ef46bfa303511f0389b59c067dfcc5fe2cf2a4dc7233  ./docs/PHYSICAL-0.5.1-REMEDIATION.md
-a48e2e11422ba53acd33a85446edc6d5184c49b065bbae01e11b600003652146  ./docs/RECOVERY.md
+0524b665b70f6caee1e81e3dcf319ee5d12f7e860572f9becef0d0b15d3ae740  ./docs/RECOVERY.md
 7fa23e4134d86a64817e745bb7583f0807e9b7afacfe6138beaa4f59c3a10804  ./docs/RIGHT-NAV-MEDIA-ROADMAP.md
 99bc466061624d7867aa400ea68ce3dfa1c5df08aab836e46dc3c39e68299cea  ./docs/ROADMAP.md
 c4821c01e8275dbb0d67ae15d394539704c37897150b98b8433e056306101d4c  ./docs/SIGNING.md
-e94bbcbcce686511427cc6b20db6300199bfabaa94855d448a84e82378e0326b  ./docs/VALIDATION.md
+12dad0299f55c967fb808553cccdc5c8ba0e16a54d126a111c7ff68ec58b613d  ./docs/VALIDATION.md
 af56e88cbd0f5c5a55484802dfb8b310bc9c1d46d10466d58bc6de37f69f1b64  ./gradle.properties
 dc0c4f45f299ac2d51077dd1587e619128d091816ad9170d535a23694ddf355b  ./gradle/wrapper/gradle-wrapper.properties
 a3648413b47ef77af21d5ebc36c687c7d103aaef3e17f33de7d4f080a6f300a3  ./gradlew
@@ -60,7 +60,7 @@ e57892e9e18d0f17d89d36d03b20d4a61d49be117683458b9634611388681243  ./lsposed/src/
 9070985fc96a126c9d5819f22884eb7e8c06a1cc8db919db89afde4856819afa  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactTs18TouchableRegionAdapter.java
 e5ba2cde912dd140f29a35e533e79d9eec8ced4a60a2a6daeb6030aff74057ce  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactXtServiceBinder.java
 4f3f0373fdcb3fe42750d11197b1957e8e8e86aeae2e6b540e680d093a362ed4  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactXtServiceContract.java
-26dd1f99e96dc0612da87c74b1695a0be71d2b6de56f86e8013f3bf5902dfce5  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactXtServiceObserver.java
+b415ff78d47f858dc2d2bb4e3ce3e0580c7bff11fc2d143f934ffc35723e55d5  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactXtServiceObserver.java
 d55b76c9491e31e9b5a93f120327dd44f29152cc7fedd71951b58a4ee82d0e61  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/HookRegistry.java
 108c51c6f29e48cc7b7a1c5e90030beddf32ecdbd8064be54164b364ac7c84a3  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/HookRuntime.java
 d617473c8cc28d810047d9b8ba6a9ea5725fcdf8cec97f3d55ae01bb1bf8a155  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/InternalInsetsAccess.java
@@ -153,7 +153,7 @@ d1fdcb429cf0c98841f7bae6c189b91c2dcfbd67cda22d25de8ae6515c7682f8  ./tools/test-r
 237af416e1f21d14ca67088725fbf64f5515f507958aa384c2ee27295bdaac61  ./tools/test-source-manifest.sh
 88602294ba9b2b4ba451badfc088cc071f2338d51336911cd3159c01df8fdeb1  ./tools/test-visual-overlay-contract.sh
 cc596059929522179a01df74bf922546b75af0c5c5d1d04c5384ca395fed36e2  ./tools/test-xposed-stubs.sh
-b471c0e4cc6d2467404719a0ce4aa27648a0485543793e9dde0a3d0833662963  ./tools/test-xtservice-contract.sh
+58fa75e9a37f850bf8ddf8e926e9c94a0237bf3ee9959b0626206a14c7f9d8f3  ./tools/test-xtservice-contract.sh
 287709819c07177a71984c94cd4c992d4642922d527d9ec29330a3c5f4494a88  ./tools/ts18-brightness-config.sh
 4ceff5c4e1d2de20899a623e61c1b3ccfd3f2590b6be863c392a4e7be58681de  ./tools/ts18-migrate-magisk-modules.sh
 8e9e5ae1752a53feb2f725de32070861ae8e7be188b050b28373b5af437c6ba3  ./tools/ts18-right-nav-evidence.sh
