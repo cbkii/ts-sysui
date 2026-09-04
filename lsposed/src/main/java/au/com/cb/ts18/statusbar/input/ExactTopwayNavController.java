@@ -89,6 +89,9 @@ final class ExactTopwayNavController {
         out.putBoolean("nav_media_previous_enabled", media.previousEnabled);
         out.putBoolean("nav_media_play_pause_enabled", media.playPauseEnabled);
         out.putBoolean("nav_media_next_enabled", media.nextEnabled);
+        VehicleStatePolicy.Decision vehicle = ExactXtServiceObserver.vehicleDecision();
+        out.putBoolean("nav_vehicle_veto", !vehicle.allowNavMedia);
+        out.putString("nav_vehicle_veto_reason", vehicle.reason);
     }
 
     static void failOpen() {
@@ -208,6 +211,12 @@ final class ExactTopwayNavController {
                     removeOwnedGroup();
                     stop("identity-" + ExactSystemUiIdentity.state() + '-'
                             + ExactSystemUiIdentity.detail(), config.debug);
+                    return;
+                }
+                VehicleStatePolicy.Decision vehicle = ExactXtServiceObserver.vehicleDecision();
+                if (!vehicle.allowNavMedia) {
+                    removeOwnedGroup();
+                    stop("vehicle-" + vehicle.reason, config.debug);
                     return;
                 }
 
@@ -418,7 +427,14 @@ final class ExactTopwayNavController {
             button.setAlpha(0.38f);
             button.setOnClickListener(view -> {
                 NavMediaSessionRepository repository = media;
-                if (repository != null && view.isEnabled()) repository.dispatch(action);
+                VehicleStatePolicy.Decision vehicle = ExactXtServiceObserver.vehicleDecision();
+                if (repository != null && view.isEnabled() && vehicle.allowNavMedia) {
+                    repository.dispatch(action);
+                } else if (!vehicle.allowNavMedia) {
+                    RateLimitedLog.always("media tap suppressed by vehicle-state veto: "
+                            + vehicle.reason);
+                    ExactTopwayNavVisibilityMonitor.requestVehicleStateReevaluation();
+                }
             });
             return button;
         }
