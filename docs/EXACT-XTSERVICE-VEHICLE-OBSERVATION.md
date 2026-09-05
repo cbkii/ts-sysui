@@ -73,13 +73,21 @@ are re-read rather than hard-coded.
 
 After exact SystemUI identity resolves `SUPPORTED`, a dedicated bounded worker:
 
-1. hashes the installed `com.tw.service.xt` APK off the SystemUI main thread;
+1. hashes and verifies the currently installed `com.tw.service.xt` APK off the
+   SystemUI main thread before **every actual bind or rebind attempt**;
 2. verifies the exact package/service/bind action and supplied SHA-256;
-3. binds explicitly to `CommandService` only when the gate passes;
-4. registers the minimal callback Binder;
+3. binds explicitly to `CommandService` only when the current gate passes;
+4. registers the minimal callback Binder under the current binding generation;
 5. requests initial reverse and sleep state;
-6. keeps timestamps and known/unknown state separate; and
-7. reconnects with bounded delay after service loss.
+6. keeps timestamps and known/unknown state separate;
+7. rejects callback work from retired binding generations; and
+8. reconnects with bounded delay after service loss only after the exact
+   installed-APK gate passes again.
+
+A changed/replaced APK therefore cannot inherit a previous `SUPPORTED` result on
+a reconnect. Identity failure terminally stops this XTService observer session
+for the current SystemUI process rather than retrying an unverified private
+surface.
 
 The observer has its own process-local breaker. Repeated XTService failures do
 not disable compact touch, normal right-nav code or brightness.
@@ -103,6 +111,13 @@ leave every OEM View and visibility value untouched
 A service disconnect after a known active state retains a stale-active veto
 until a fresh inactive callback is seen. Initial unknown state does not invent a
 vehicle value; ordinary stock visibility still applies.
+
+A callback value outside the currently accepted `0`/`1` domain is different
+from an ordinary unknown state. It is a terminal contract STOP for the current
+SystemUI process: the observer retains an unsafe vehicle-state veto for
+module-owned nav media, unregisters/unbinds XTService, rejects further private
+qualification/rebind work, and requires a fresh verified process lifecycle
+before XTService use can resume.
 
 On fresh reverse-inactive or wake state, the module does not blindly restore the
 controls. It reruns the existing exact SystemUI identity, stock visibility,
@@ -220,7 +235,8 @@ resolve that discrepancy by assumption.
 
 STOP exact XTService use for the process if:
 
-- installed XTService SHA does not match the supplied exact APK;
+- installed XTService SHA does not match the supplied exact APK, including on a
+  reconnect identity check;
 - exact service/action/component cannot be resolved;
 - repeated bind/register/query failures open the XTService breaker;
 - callback values are outside the currently accepted 0/1 observation domain;
@@ -235,11 +251,14 @@ A STOP does not justify adding `com.tw.service.xt`, CarSetting, TWCore or
 
 ## Recovery
 
-Disable the affected nav feature or restart SystemUI to clear process-local
-observer/breaker state. If the module itself causes instability, disable the
-LSPosed module using the existing recovery route. No APK replacement, partition
-write, service deletion or vendor-state rollback is required because this layer
-owns only its connection, callbacks, diagnostic activity and module Views.
+Disable the affected nav feature or restart SystemUI to clear ordinary
+process-local observer/breaker state. An out-of-domain reverse/sleep callback is
+a terminal unsafe-state STOP and requires a fresh SystemUI process before
+XTService observation or qualification is attempted again. If the module itself
+causes instability, disable the LSPosed module using the existing recovery
+route. No APK replacement, partition write, service deletion or vendor-state
+rollback is required because this layer owns only its connection, callbacks,
+diagnostic activity and module Views.
 
 ## Physical status
 
