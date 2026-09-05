@@ -17,22 +17,26 @@ final class StockNavConfigObserver {
     static final String SETTING_NAV_CONFIG = "navigationbar_config";
     static final String SETTING_SHOW_NAV = "show_navigationbar";
     private static final long POLL_MS = 2500L;
+    private static final long INIT_RETRY_MS = 5000L;
     private static final AtomicBoolean STARTED = new AtomicBoolean();
 
     private static Context context;
     private static HandlerThread thread;
     private static Handler worker;
     private static ContentObserver observer;
-    private static Snapshot last;
+    private static volatile Snapshot last;
     private static volatile long lastChangeAt;
     private static volatile String lastChangeReason = "baseline-not-observed";
     private static volatile String propertyReadDetail = "not-read";
+    private static volatile boolean ready;
 
+    private static final Runnable INITIALISE = StockNavConfigObserver::initialiseOnWorker;
     private static final Runnable POLL = new Runnable() {
         @Override public void run() {
+            if (!ready) return;
             observe("poll");
             Handler current = worker;
-            if (current != null) current.postDelayed(this, POLL_MS);
+            if (current != null && ready) current.postDelayed(this, POLL_MS);
         }
     };
 
@@ -40,32 +44,67 @@ final class StockNavConfigObserver {
 
     static void start(Context source) {
         if (source == null || !STARTED.compareAndSet(false, true)) return;
-        Context app = source.getApplicationContext();
-        context = app == null ? source : app;
-        thread = new HandlerThread("TS18-NavConfigObserve");
-        thread.start();
-        worker = new Handler(thread.getLooper());
-        worker.post(StockNavConfigObserver::initialiseOnWorker);
+        try {
+            Context app = source.getApplicationContext();
+            context = app == null ? source : app;
+            thread = new HandlerThread("TS18-NavConfigObserve");
+            thread.start();
+            worker = new Handler(thread.getLooper());
+            worker.post(INITIALISE);
+        } catch (Throwable t) {
+            STARTED.set(false);
+            ready = false;
+            HandlerThread currentThread = thread;
+            thread = null;
+            worker = null;
+            if (currentThread != null) currentThread.quitSafely();
+            DiagnosticJournal.failure("stock-nav-config-observer",
+                    "read-only nav configuration observer setup failed", t);
+        }
     }
 
     private static void initialiseOnWorker() {
+        if (ready) return;
+        Handler currentWorker = worker;
+        Context currentContext = context;
+        if (currentWorker == null || currentContext == null) return;
+
+        ContentObserver candidate = new ContentObserver(currentWorker) {
+            @Override public void onChange(boolean selfChange) {
+                observe("settings-system-change");
+            }
+        };
         try {
-            observer = new ContentObserver(worker) {
-                @Override public void onChange(boolean selfChange) {
-                    observe("settings-system-change");
-                }
-            };
-            context.getContentResolver().registerContentObserver(
-                    Settings.System.getUriFor(SETTING_NAV_CONFIG), false, observer);
-            context.getContentResolver().registerContentObserver(
-                    Settings.System.getUriFor(SETTING_SHOW_NAV), false, observer);
+            currentContext.getContentResolver().registerContentObserver(
+                    Settings.System.getUriFor(SETTING_NAV_CONFIG), false, candidate);
+            currentContext.getContentResolver().registerContentObserver(
+                    Settings.System.getUriFor(SETTING_SHOW_NAV), false, candidate);
+            observer = candidate;
             observe("initial-baseline");
-            worker.postDelayed(POLL, POLL_MS);
+            ready = true;
+            currentWorker.removeCallbacks(INITIALISE);
+            currentWorker.removeCallbacks(POLL);
+            currentWorker.postDelayed(POLL, POLL_MS);
             DiagnosticJournal.state("stock-nav-config-observer", "READY",
                     "Settings.System + read-only property observation");
         } catch (Throwable t) {
+            ready = false;
+            observer = null;
+            safeUnregister(candidate);
             DiagnosticJournal.failure("stock-nav-config-observer",
-                    "read-only nav configuration observer failed to start", t);
+                    "read-only nav configuration observer failed to start; retrying", t);
+            currentWorker.removeCallbacks(INITIALISE);
+            currentWorker.postDelayed(INITIALISE, INIT_RETRY_MS);
+        }
+    }
+
+    private static void safeUnregister(ContentObserver target) {
+        Context current = context;
+        if (target == null || current == null) return;
+        try {
+            current.getContentResolver().unregisterContentObserver(target);
+        } catch (Throwable ignored) {
+            // A partially registered observer is best-effort cleanup before bounded retry.
         }
     }
 
@@ -123,6 +162,7 @@ final class StockNavConfigObserver {
         out.putLong("stock_nav_config_last_change_at", lastChangeAt);
         out.putString("stock_nav_config_last_change_reason", lastChangeReason);
         out.putBoolean("stock_nav_config_observer_started", STARTED.get());
+        out.putBoolean("stock_nav_config_observer_ready", ready);
     }
 
     static final class Snapshot {
