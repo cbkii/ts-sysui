@@ -55,7 +55,7 @@ require "$OBSERVER" 'REBIND_MS = 5000L'
 require "$OBSERVER" 'safeUnbind(timedOut, "bind-timeout")'
 require "$OBSERVER" 'source != connection'
 require "$OBSERVER" 'activeCallbackGeneration'
-require "$OBSERVER" 'generation != activeCallbackGeneration'
+require "$OBSERVER" 'generation == activeCallbackGeneration'
 require "$OBSERVER" 'unregisterCallbackBestEffort()'
 require "$OBSERVER" 'vehicleStateUnsafe = true'
 require "$OBSERVER" 'stopForInvalidVehicleState("reverse-status-out-of-domain:" + status)'
@@ -93,11 +93,12 @@ for required in (
     if required not in connected:
         raise SystemExit(f'FAILED: callback generation contract missing: {required}')
 
-for method, invalid_stop in (
-        ('private static void acceptReverse', 'reverse-status-out-of-domain:'),
-        ('private static void acceptSleep', 'sleep-status-out-of-domain:')):
-    body = block(method, 'private static void acceptSleep' if 'Reverse' in method
-                 else 'private static void stopForInvalidVehicleState')
+for method, next_method, invalid_stop in (
+        ('private static void acceptReverse', 'private static void acceptSleep',
+         'reverse-status-out-of-domain:'),
+        ('private static void acceptSleep', 'private static void stopForInvalidVehicleState',
+         'sleep-status-out-of-domain:')):
+    body = block(method, next_method)
     if 'currentCallbackGeneration(generation' not in body or invalid_stop not in body:
         raise SystemExit(f'FAILED: stale/invalid callback guard missing in {method}')
 
