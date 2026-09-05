@@ -23,7 +23,6 @@ final class XtServiceDiagnosticBridge {
 
     private static final AtomicBoolean REGISTERED = new AtomicBoolean();
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
-    private static Context context;
     private static BroadcastReceiver receiver;
 
     private XtServiceDiagnosticBridge() {}
@@ -47,7 +46,6 @@ final class XtServiceDiagnosticBridge {
                 }
             };
             app.registerReceiver(receiver, filter, BrightnessConfig.CONFIGURE_PERMISSION, MAIN);
-            context = app;
             REGISTERED.set(true);
             DiagnosticJournal.state("xtservice-diagnostic-bridge", "READY",
                     "diagnostic-only signature-protected receiver");
