@@ -32,6 +32,8 @@ final class ExactXtServiceObserver {
     private static boolean binding;
     private static boolean callbackRegistered;
     private static long lastBindAttemptAt;
+    private static long nextBindingGeneration;
+    private static long activeCallbackGeneration;
     private static volatile String identityState = "UNCHECKED";
     private static volatile String identityDetail = "not-checked";
     private static volatile String actualSha256 = "unknown";
@@ -45,6 +47,8 @@ final class ExactXtServiceObserver {
     private static volatile int sleepStatus = -1;
     private static volatile boolean sleepLastKnownActive;
     private static volatile long sleepAt;
+    private static volatile boolean vehicleStateUnsafe;
+    private static volatile String vehicleStateUnsafeReason = "none";
     private static volatile String lastQualificationAction = "none";
     private static volatile long lastQualificationAt;
     private static volatile boolean lastQualificationBinderSuccess;
@@ -61,6 +65,7 @@ final class ExactXtServiceObserver {
         remote = null;
         callbackRegistered = false;
         callbackBinder = null;
+        activeCallbackGeneration = 0L;
         bindState = "bind-timeout";
         safeUnbind(timedOut, "bind-timeout");
         XtServiceFeatureRuntime.recordFailure("bind-timeout",
@@ -81,6 +86,10 @@ final class ExactXtServiceObserver {
     }
 
     private static void initialiseOnWorker() {
+        bindNow();
+    }
+
+    private static boolean refreshIdentityForBind() {
         ExactXtServiceContract.Result result = ExactXtServiceContract.verifyInstalled(context);
         actualSha256 = result.actualSha256;
         versionName = result.versionName;
@@ -88,8 +97,12 @@ final class ExactXtServiceObserver {
         identityState = result.supported ? "SUPPORTED" : "UNSUPPORTED";
         DiagnosticJournal.state("xtservice-identity", identityState,
                 result.detail + " version=" + result.versionName);
-        if (!result.supported || stopped) return;
-        bindNow();
+        if (result.supported) return true;
+
+        bindState = "identity-blocked:" + result.detail;
+        DiagnosticJournal.state("xtservice-bind", "STOP", bindState);
+        stopForProcess();
+        return false;
     }
 
     private static void bindNow() {
@@ -99,13 +112,16 @@ final class ExactXtServiceObserver {
             scheduleBind(REBIND_MS - (now - lastBindAttemptAt));
             return;
         }
+        if (!refreshIdentityForBind() || stopped) return;
+
         lastBindAttemptAt = now;
+        long generation = ++nextBindingGeneration;
         binding = true;
         bindState = "binding";
         ServiceConnection next = new ServiceConnection() {
             @Override public void onServiceConnected(ComponentName name, IBinder service) {
                 ServiceConnection source = this;
-                postWorker(() -> connectedOnWorker(source, name, service));
+                postWorker(() -> connectedOnWorker(source, generation, name, service));
             }
             @Override public void onServiceDisconnected(ComponentName name) {
                 ServiceConnection source = this;
@@ -148,9 +164,9 @@ final class ExactXtServiceObserver {
         }
     }
 
-    private static void connectedOnWorker(ServiceConnection source,
+    private static void connectedOnWorker(ServiceConnection source, long generation,
                                           ComponentName name, IBinder service) {
-        if (stopped || source != connection) {
+        if (stopped || source != connection || generation != nextBindingGeneration) {
             safeUnbind(source, "stale-service-connected-callback");
             return;
         }
@@ -166,13 +182,14 @@ final class ExactXtServiceObserver {
             return;
         }
         try {
+            activeCallbackGeneration = generation;
             callbackBinder = new ExactXtServiceBinder.CallbackBinder(
                     new ExactXtServiceBinder.Listener() {
                         @Override public void onReverseStatus(int status) {
-                            postWorker(() -> acceptReverse(status));
+                            postWorker(() -> acceptReverse(generation, status));
                         }
                         @Override public void onSleepStatus(int status) {
-                            postWorker(() -> acceptSleep(status));
+                            postWorker(() -> acceptSleep(generation, status));
                         }
                     });
             ExactXtServiceBinder.registerCallback(remote, callbackBinder);
@@ -194,6 +211,7 @@ final class ExactXtServiceObserver {
         }
         Handler currentWorker = worker;
         if (currentWorker != null) currentWorker.removeCallbacks(BIND_TIMEOUT);
+        activeCallbackGeneration = 0L;
         unregisterCallbackBestEffort();
         ServiceConnection oldConnection = connection;
         connection = null;
@@ -214,42 +232,70 @@ final class ExactXtServiceObserver {
                 && "SUPPORTED".equals(identityState)) scheduleBind(REBIND_MS);
     }
 
-    private static void acceptReverse(int status) {
-        reverseAt = SystemClock.elapsedRealtime();
-        if (status == 0 || status == 1) {
-            reverseKnown = true;
-            reverseStatus = status;
-            reverseLastKnownActive = status == 1;
-        } else {
-            reverseKnown = false;
-            reverseStatus = status;
-        }
-        DiagnosticJournal.record("INFO", "xtservice-reverse",
-                "known=" + reverseKnown + " status=" + status);
-        requestVehicleReevaluation();
+    private static boolean currentCallbackGeneration(long generation, String callback) {
+        if (!stopped && callbackRegistered && generation == activeCallbackGeneration) return true;
+        DiagnosticJournal.record("DEBUG", "xtservice-stale-callback",
+                "ignored " + callback + " generation=" + generation
+                        + " active=" + activeCallbackGeneration);
+        return false;
     }
 
-    private static void acceptSleep(int status) {
+    private static void acceptReverse(long generation, int status) {
+        if (!currentCallbackGeneration(generation, "reverse")) return;
+        reverseAt = SystemClock.elapsedRealtime();
+        reverseStatus = status;
+        if (status == 0 || status == 1) {
+            reverseKnown = true;
+            reverseLastKnownActive = status == 1;
+            DiagnosticJournal.record("INFO", "xtservice-reverse",
+                    "known=true status=" + status);
+            requestVehicleReevaluation();
+            return;
+        }
+
+        reverseKnown = false;
+        stopForInvalidVehicleState("reverse-status-out-of-domain:" + status);
+    }
+
+    private static void acceptSleep(long generation, int status) {
+        if (!currentCallbackGeneration(generation, "sleep")) return;
         sleepAt = SystemClock.elapsedRealtime();
+        sleepStatus = status;
         if (status == 0 || status == 1) {
             sleepKnown = true;
-            sleepStatus = status;
             sleepLastKnownActive = status == 1;
-        } else {
-            sleepKnown = false;
-            sleepStatus = status;
+            DiagnosticJournal.record("INFO", "xtservice-sleep",
+                    "known=true status=" + status);
+            requestVehicleReevaluation();
+            return;
         }
-        DiagnosticJournal.record("INFO", "xtservice-sleep",
-                "known=" + sleepKnown + " status=" + status);
+
+        sleepKnown = false;
+        stopForInvalidVehicleState("sleep-status-out-of-domain:" + status);
+    }
+
+    private static void stopForInvalidVehicleState(String reason) {
+        vehicleStateUnsafe = true;
+        vehicleStateUnsafeReason = reason;
+        DiagnosticJournal.state("xtservice-vehicle-state", "STOP", reason);
         requestVehicleReevaluation();
+        stopForProcess();
     }
 
     static VehicleStatePolicy.Decision vehicleDecision() {
+        if (vehicleStateUnsafe) {
+            return VehicleStatePolicy.Decision.veto(vehicleStateUnsafeReason);
+        }
         return VehicleStatePolicy.evaluate(reverseKnown, reverseStatus,
                 reverseLastKnownActive, sleepKnown, sleepStatus, sleepLastKnownActive);
     }
 
     static void qualifyMedia(String action, QualificationCallback callback) {
+        if (stopped || vehicleStateUnsafe) {
+            finishQualification(callback, false,
+                    "XTService observer stopped for this process: " + vehicleStateUnsafeReason);
+            return;
+        }
         Handler current = worker;
         if (current == null) {
             finishQualification(callback, false, "XTService observer not started");
@@ -263,6 +309,11 @@ final class ExactXtServiceObserver {
         lastQualificationAction = action == null ? "null" : action;
         lastQualificationAt = now;
         lastQualificationBinderSuccess = false;
+        if (stopped || vehicleStateUnsafe) {
+            finishQualification(callback, false,
+                    "XTService observer stopped for this process: " + vehicleStateUnsafeReason);
+            return;
+        }
         if (!BuildConfig.TS18_DIAGNOSTIC) {
             finishQualification(callback, false, "qualification is diagnostic-build-only");
             return;
@@ -312,6 +363,8 @@ final class ExactXtServiceObserver {
         out.putString("xtservice_identity_detail", identityDetail);
         out.putString("xtservice_bind_state", bindState);
         out.putLong("xtservice_last_bind_attempt_at", lastBindAttemptAt);
+        out.putLong("xtservice_active_callback_generation", activeCallbackGeneration);
+        out.putBoolean("xtservice_stopped", stopped);
         out.putBoolean("xtservice_bound", bound);
         out.putBoolean("xtservice_callback_registered", callbackRegistered);
         out.putBoolean("xtservice_reverse_known", reverseKnown);
@@ -322,6 +375,8 @@ final class ExactXtServiceObserver {
         out.putInt("xtservice_sleep_status", sleepStatus);
         out.putLong("xtservice_sleep_at", sleepAt);
         out.putLong("xtservice_sleep_age_ms", sleepAt <= 0L ? -1L : now - sleepAt);
+        out.putBoolean("xtservice_vehicle_state_unsafe", vehicleStateUnsafe);
+        out.putString("xtservice_vehicle_state_unsafe_reason", vehicleStateUnsafeReason);
         out.putBoolean("xtservice_vehicle_veto", !decision.allowNavMedia);
         out.putString("xtservice_vehicle_policy", decision.reason);
         out.putBoolean("xtservice_breaker_open", XtServiceFeatureRuntime.isBreakerOpen());
@@ -346,6 +401,7 @@ final class ExactXtServiceObserver {
     private static void cleanupOnWorker() {
         Handler currentWorker = worker;
         if (currentWorker != null) currentWorker.removeCallbacksAndMessages(null);
+        activeCallbackGeneration = 0L;
         unregisterCallbackBestEffort();
         ServiceConnection currentConnection = connection;
         connection = null;
