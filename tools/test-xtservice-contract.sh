@@ -45,6 +45,7 @@ require "$BINDER" 'TX_UNREGISTER_COMMAND_CALLBACK = IBinder.FIRST_CALL_TRANSACTI
 
 require "$AUX" 'ExactXtServiceObserver.start(source)'
 require "$AUX" 'StockNavConfigObserver.start(source)'
+require "$OBSERVER" 'refreshIdentityForBind()'
 require "$OBSERVER" 'ExactXtServiceContract.verifyInstalled(context)'
 require "$OBSERVER" 'ExactXtServiceBinder.registerCallback(remote, callbackBinder)'
 require "$OBSERVER" 'ExactXtServiceBinder.requestInitialState(remote)'
@@ -53,7 +54,13 @@ require "$OBSERVER" 'BIND_TIMEOUT_MS = 10000L'
 require "$OBSERVER" 'REBIND_MS = 5000L'
 require "$OBSERVER" 'safeUnbind(timedOut, "bind-timeout")'
 require "$OBSERVER" 'source != connection'
+require "$OBSERVER" 'activeCallbackGeneration'
+require "$OBSERVER" 'generation != activeCallbackGeneration'
 require "$OBSERVER" 'unregisterCallbackBestEffort()'
+require "$OBSERVER" 'vehicleStateUnsafe = true'
+require "$OBSERVER" 'stopForInvalidVehicleState("reverse-status-out-of-domain:" + status)'
+require "$OBSERVER" 'stopForInvalidVehicleState("sleep-status-out-of-domain:" + status)'
+require "$OBSERVER" 'xtservice_vehicle_state_unsafe'
 require "$OBSERVER" 'reverseKnown = false'
 require "$OBSERVER" 'sleepKnown = false'
 require "$OBSERVER" 'xtservice_reverse_age_ms'
@@ -63,6 +70,41 @@ require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/XtServiceFeatureRun
     'MAX_FAILURES = 3'
 require lsposed/src/main/java/au/com/cb/ts18/statusbar/input/XtServiceFeatureRuntime.java \
     'ExactXtServiceObserver.stopForProcess()'
+
+python3 - <<'PY'
+from pathlib import Path
+
+source = Path('lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactXtServiceObserver.java').read_text(encoding='utf-8')
+
+def block(name: str, next_name: str) -> str:
+    start = source.index(name)
+    end = source.index(next_name, start)
+    return source[start:end]
+
+bind = block('private static void bindNow()', 'private static void connectedOnWorker')
+if bind.index('refreshIdentityForBind()') > bind.index('context.bindService('):
+    raise SystemExit('FAILED: XTService identity must be revalidated before every bindService call')
+
+connected = block('private static void connectedOnWorker', 'private static void disconnectedOnWorker')
+for required in (
+        'activeCallbackGeneration = generation',
+        'acceptReverse(generation, status)',
+        'acceptSleep(generation, status)'):
+    if required not in connected:
+        raise SystemExit(f'FAILED: callback generation contract missing: {required}')
+
+for method, invalid_stop in (
+        ('private static void acceptReverse', 'reverse-status-out-of-domain:'),
+        ('private static void acceptSleep', 'sleep-status-out-of-domain:')):
+    body = block(method, 'private static void acceptSleep' if 'Reverse' in method
+                 else 'private static void stopForInvalidVehicleState')
+    if 'currentCallbackGeneration(generation' not in body or invalid_stop not in body:
+        raise SystemExit(f'FAILED: stale/invalid callback guard missing in {method}')
+
+stop = block('private static void stopForInvalidVehicleState', 'static VehicleStatePolicy.Decision vehicleDecision')
+if 'vehicleStateUnsafe = true' not in stop or 'stopForProcess()' not in stop:
+    raise SystemExit('FAILED: invalid vehicle status must terminally stop XTService for the process')
+PY
 
 require "$NAV" 'VehicleStatePolicy.Decision vehicle = ExactXtServiceObserver.vehicleDecision()'
 require "$NAV" 'stop("vehicle-" + vehicle.reason'
