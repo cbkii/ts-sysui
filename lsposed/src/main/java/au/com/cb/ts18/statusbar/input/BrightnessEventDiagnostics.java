@@ -17,9 +17,7 @@ final class BrightnessEventDiagnostics {
     private static HandlerThread thread;
     private static Handler worker;
     private static ContentObserver observer;
-    private static volatile int lastRaw = -1;
-    private static volatile int previousRaw = -1;
-    private static volatile long lastChangeAt;
+    private static volatile ChangeSnapshot change = new ChangeSnapshot(-1, -1, 0L);
     private static volatile boolean ready;
 
     private BrightnessEventDiagnostics() {}
@@ -27,17 +25,28 @@ final class BrightnessEventDiagnostics {
     static void start(Context source) {
         if (!BuildConfig.TS18_DIAGNOSTIC || source == null
                 || !STARTED.compareAndSet(false, true)) return;
-        Context app = source.getApplicationContext();
-        context = app == null ? source : app;
-        thread = new HandlerThread("TS18-BrightnessChronology");
-        thread.start();
-        worker = new Handler(thread.getLooper());
-        worker.post(BrightnessEventDiagnostics::initialiseOnWorker);
+        try {
+            Context app = source.getApplicationContext();
+            context = app == null ? source : app;
+            thread = new HandlerThread("TS18-BrightnessChronology");
+            thread.start();
+            worker = new Handler(thread.getLooper());
+            worker.post(BrightnessEventDiagnostics::initialiseOnWorker);
+        } catch (Throwable t) {
+            STARTED.set(false);
+            HandlerThread currentThread = thread;
+            thread = null;
+            worker = null;
+            if (currentThread != null) currentThread.quitSafely();
+            DiagnosticJournal.failure("brightness-chronology",
+                    "could not set up diagnostic brightness chronology", t);
+        }
     }
 
     private static void initialiseOnWorker() {
         try {
-            lastRaw = readRaw();
+            int initialRaw = readRaw();
+            if (initialRaw >= 0) change = new ChangeSnapshot(-1, initialRaw, 0L);
             observer = new ContentObserver(worker) {
                 @Override public void onChange(boolean selfChange) { observeChange(); }
             };
@@ -55,12 +64,13 @@ final class BrightnessEventDiagnostics {
 
     private static void observeChange() {
         int raw = readRaw();
-        if (raw == lastRaw) return;
-        previousRaw = lastRaw;
-        lastRaw = raw;
-        lastChangeAt = SystemClock.elapsedRealtime();
+        ChangeSnapshot current = change;
+        if (raw < 0 || raw == current.lastRaw) return;
+        ChangeSnapshot next = new ChangeSnapshot(
+                current.lastRaw, raw, SystemClock.elapsedRealtime());
+        change = next;
         DiagnosticJournal.record("INFO", "brightness-setting-change",
-                "screen_brightness " + previousRaw + " -> " + raw);
+                "screen_brightness " + next.previousRaw + " -> " + next.lastRaw);
     }
 
     private static int readRaw() {
@@ -74,16 +84,17 @@ final class BrightnessEventDiagnostics {
 
     static void appendStatus(Bundle out) {
         if (out == null) return;
+        ChangeSnapshot snapshot = change;
         out.putBoolean("brightness_chronology_active", ready && BuildConfig.TS18_DIAGNOSTIC);
-        out.putLong("brightness_setting_last_change_at", lastChangeAt);
-        out.putInt("brightness_setting_previous_raw", previousRaw);
-        out.putInt("brightness_setting_changed_raw", lastRaw);
-        if (lastChangeAt <= 0L) {
+        out.putLong("brightness_setting_last_change_at", snapshot.lastChangeAt);
+        out.putInt("brightness_setting_previous_raw", snapshot.previousRaw);
+        out.putInt("brightness_setting_changed_raw", snapshot.lastRaw);
+        if (snapshot.lastChangeAt <= 0L) {
             out.putString("brightness_setting_correlation", "no-setting-change-observed");
             out.putLong("brightness_setting_correlation_delta_ms", Long.MIN_VALUE);
         } else {
             BrightnessEventAttribution.Result result = BrightnessEventAttribution.classify(
-                    lastChangeAt, lastRaw,
+                    snapshot.lastChangeAt, snapshot.lastRaw,
                     out.getLong("brightness_last_physical_write_at", 0L),
                     out.getInt("brightness_requested_screen_raw", -1),
                     out.getLong("brightness_last_stock_write_at", 0L),
@@ -95,5 +106,17 @@ final class BrightnessEventDiagnostics {
         }
         out.putString("brightness_setting_correlation_note",
                 "bounded temporal correlation only; causal writer identity is not proven");
+    }
+
+    private static final class ChangeSnapshot {
+        final int previousRaw;
+        final int lastRaw;
+        final long lastChangeAt;
+
+        ChangeSnapshot(int previousRaw, int lastRaw, long lastChangeAt) {
+            this.previousRaw = previousRaw;
+            this.lastRaw = lastRaw;
+            this.lastChangeAt = lastChangeAt;
+        }
     }
 }
