@@ -27,6 +27,14 @@ claim generic TS10/TS18 compatibility or Android 16 support.
   `CarSetting.apk` actuator contract, SHA-256
   `06060263e3968a4203c6c37efe95858cd959ac39481dc133de576023b7de2b71`;
   a changed CarSetting binary blocks managed brightness until re-analysed.
+- Private XTService Binder use additionally requires the current installed
+  `com.tw.service.xt` APK to hash to the supplied exact
+  `341af03ccbaeb6a7debe1929153eaadf9ced421d64a4933016010e0e7aa77267`.
+  Historical package/version/path evidence does not replace this live hash gate.
+- XTService use is limited to read-only reverse/sleep observation and explicit
+  diagnostic media qualification described in
+  `reference/exact-ts18-xtservice-contract.json`. Do not copy or expose the full
+  vendor command surface merely because it exists in the supplied APK.
 - Hashing must stay off the SystemUI main thread; callbacks that touch View or
   SystemUI lifecycle state must be marshalled explicitly back to the main looper.
 - A reflection/resource/topology mismatch means zero exact mutation; do not
@@ -82,14 +90,26 @@ narrow the strip or increase a gap, never weaken these limits.
   shown (including reverse/fullscreen-style states), remove/suspend module-owned
   controls and stop media observation; when stock returns, run the full exact
   topology and measurement preflight again.
+- Exact XTService reverse/sleep callbacks are an additional module-only veto, not
+  a replacement for public View visibility. Active reverse/sleep removes only
+  module-owned controls. Fresh inactive/wake state must rerun the complete exact
+  preflight before reinjection. Never command reverse, sleep, screen power, MCU,
+  CAN or OEM navigation visibility.
+- Read-only observation of `navigationbar_config`, `show_navigationbar` and
+  `persist.navibar.position` may invalidate module-owned cached/preflight state.
+  Never write those values or treat historical values as current runtime truth.
 - Controlled proportional reflow is permitted only by inserting one tagged
   module-owned weighted group when projected vertical cells remain at least
   56dp. The existing OEM strip width is retained; 48dp is the absolute
   horizontal floor and never a licence to narrow or widen the stock strip.
 - Reinflation, disablement and failure cleanup remove only module-owned Views.
 - Nav configuration and circuit breaker remain independent from compact status.
-- Use only an existing `MediaController` through public `TransportControls`.
-  Never create MediaSession/service/queue/notification/audio-focus authority.
+- Normal runtime media authority remains only an existing `MediaController`
+  through public `TransportControls`. Never create MediaSession/service/queue/
+  notification/audio-focus authority.
+- XTService `mediaPre/mediaPlay/mediaPause/mediaNext` are diagnostic qualification
+  calls only. They are never an automatic fallback and are never combined with a
+  normal `MediaController` dispatch.
 - One tap produces at most one command. Do not combine TransportControls with a
   media-key fallback or guessed `TWSystemUI.write(...)` command.
 
@@ -133,6 +153,10 @@ narrow the strip or increase a gap, never weaken these limits.
   changes use the observed 258 callback/state; query before retry, cap attempts,
   and open only the brightness breaker on non-convergence. Breaker cleanup must
   remove owned observers/receivers/workers without touching stock state.
+- Diagnostic writer attribution must distinguish proof from temporal correlation.
+  A `SCREEN_BRIGHTNESS` observer event may be correlated with module writes,
+  Topway 258/516 callbacks or stock Topway writes within a bounded window, but it
+  must be labelled external/unknown when causality is not established.
 - Do not add backlight sysfs, panel calibration, Factory Backlight Current,
   `DIM_ADJ`/`LED_PWM`, VCOM/AVDD, screen-power command `33281`, a CarSetting
   LSPosed scope, or a second physical brightness authority without new evidence.
@@ -159,6 +183,10 @@ narrow the strip or increase a gap, never weaken these limits.
 - Brightness diagnostics must keep Topway semantic observation separate from the
   physical `SCREEN_BRIGHTNESS` write/readback path and expose both 258 transaction
   stages.
+- The diagnostic-only Topway qualification UI may invoke exactly one explicit
+  XTService media method per user action after both exact identity gates pass.
+  Binder success is not playback confirmation and automatic vendor fallback
+  remains prohibited.
 - The release-derived `diagnostic` variant keeps the production application ID.
   A trusted Manual Diagnostic Build may use the configured release certificate
   solely to permit exact-device upgrade testing. It must never tag, publish a
@@ -169,8 +197,8 @@ narrow the strip or increase a gap, never weaken these limits.
 
 ## Change discipline
 
-1. Keep geometry, visuals, compact input, nav and brightness independently
-   recoverable.
+1. Keep geometry, visuals, compact input, nav, XTService observation and
+   brightness independently recoverable.
 2. Preserve observation-first, mutation-off defaults across policy generations.
 3. Roll back only state whose module ownership is still provable.
 4. Treat CI/static evidence as non-physical.
@@ -179,5 +207,6 @@ narrow the strip or increase a gap, never weaken these limits.
 6. Follow `docs/EXACT-TS18-SYSTEMUI-FINALISATION.md`,
    `docs/RIGHT-NAV-MEDIA-ROADMAP.md`, `docs/BRIGHTNESS-CONTROLLER.md`,
    `docs/DIAGNOSTIC-BUILD-POLICY.md`,
-   `docs/EXACT-APK-NAV-BRIGHTNESS-CORRECTION.md` and the current
+   `docs/EXACT-APK-NAV-BRIGHTNESS-CORRECTION.md`,
+   `docs/EXACT-XTSERVICE-VEHICLE-OBSERVATION.md` and the current
    physical-remediation runbook for STOP conditions and evidence labels.

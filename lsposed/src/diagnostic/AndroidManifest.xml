@@ -2,14 +2,24 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
         <activity
-            android:name=".DiagnosticSettingsActivity"
+            android:name=".DiagnosticLauncherActivity"
             android:exported="true"
-            android:label="TS18 Diagnostic Console"
+            android:label="TS18 Diagnostics"
             android:theme="@android:style/Theme.Material.NoActionBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".DiagnosticSettingsActivity"
+            android:exported="false"
+            android:label="TS18 Diagnostic Console"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
+        <activity
+            android:name=".TopwayQualificationActivity"
+            android:exported="false"
+            android:label="TS18 Topway Qualification"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
     </application>
 </manifest>
