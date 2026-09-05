@@ -5,7 +5,7 @@ ba9a9a45dd7d12bdf9649b5aa8fe0c06c17b0fabacbfc2f74339b92fb716d54c  ./.gitignore
 51194f4c7da9951921ffa54d0763bce0af77adf0099811e87d5452f7f7f3cee4  ./AGENTS.md
 073b941dcf43e8d3931bd34aa6a9b08b849cbc712466530b1d4b9df747f00c84  ./CHANGELOG.md
 19fa48c9422e7da83d622d0b5f60208f6a1450a6f7b2bcef2d6fb91f1a77b26d  ./LICENSE
-f263b8539d81f9af5a46278c1f13bee172a8cbbb46c0b3c520920833e173de  ./NOTICE.md
+f263b8539d81f9afad5a46278c1f13bee172a8cbbb46c0b3c520920833e173de  ./NOTICE.md
 3ab518680bb5f9245446aec3dddfa370196e1b991a62739eeedf83ea91567572  ./README.md
 21db4e80df350d4bcd57c139d6f56e336bf4052ae7667b8881e6fa27889dca65  ./build.gradle.kts
 92a7b81b514a3c2bdb3a19a202216b4be90783dbf5cb3284ca4f274dccc01b1d  ./docs/ARCHITECTURE.md
@@ -147,7 +147,10 @@ af44839a40a5b36d443425aaf05276477db2692dbf247d7acc8984bc58ac8bbc  ./tools/test-g
 94d2ae29e476e999f9694257266c66fb70eadfd5dadf4ccfb01e9433db313d13  ./tools/test-gradle-wrapper.sh
 eff69f9201a651d1129d94196ad31f8d19be7cb685e05ebfea406a5001c71d28  ./tools/test-nav-observation-contract.sh
 d2fe0cc89c5b7309ea5c4e535a02f0e13cc8405e0aa3cbeafc90e4ac60cfa975  ./tools/test-packaged-artifacts.sh
-02b51adab1f21d14ca67088725fbf64f5515f507958aa384c2ee27295bdaac61  ./tools/test-source-manifest.sh
+02b51adab1f556955b8f5148c9fde8656fd2132fe57a52746589ba974ac08bee  ./tools/test-proprietary-artifacts.sh
+d1fdcb429cf0c98841f7bae6c189b91c2dcfbd67cda22d25de8ae6515c7682f8  ./tools/test-release-tools.sh
+3fa9c4c839cc7460f6d8c9e4b035f985569f8449415b33f39c4bae620902f3dc  ./tools/test-remediation-contract.sh
+237af416e1f21d14ca67088725fbf64f5515f507958aa384c2ee27295bdaac61  ./tools/test-source-manifest.sh
 88602294ba9b2b4ba451badfc088cc071f2338d51336911cd3159c01df8fdeb1  ./tools/test-visual-overlay-contract.sh
 cc596059929522179a01df74bf922546b75af0c5c5d1d04c5384ca395fed36e2  ./tools/test-xposed-stubs.sh
 7b92c754937806106ec05f0d3275833a53dd870929187e753ba9283689d19d9d  ./tools/test-xtservice-contract.sh
