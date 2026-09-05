@@ -45,6 +45,9 @@ final class ExactXtServiceBinder {
     }
 
     static void requestInitialState(IBinder remote) throws RemoteException {
+        // Exact supplied DEX declares getReverseStatus()/getSleepStatus() as void.
+        // These calls request service-side state publication through the registered callback;
+        // there is no integer return payload to read from the reply Parcel.
         transactNoArgs(remote, TX_GET_REVERSE_STATUS);
         transactNoArgs(remote, TX_GET_SLEEP_STATUS);
     }
