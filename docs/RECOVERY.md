@@ -1,9 +1,9 @@
 # Recovery
 
-Compact input, right-nav media and brightness behaviour remain independently
-disableable in the LSPosed layer. Geometry and visual RROs are packaged in the
-single user-facing Magisk module `ts18_sysui`; recover the narrowest affected
-behavioural layer first.
+Compact input, right-nav media, XTService observation and brightness behaviour
+remain independently failure-isolated in the LSPosed layer. Geometry and visual
+RROs are packaged in the single user-facing Magisk module `ts18_sysui`; recover
+the narrowest affected behavioural layer first.
 
 ## Behavioural recovery while Android is usable
 
@@ -74,11 +74,51 @@ au.com.cb.ts18.statusbar.input
 ```
 
 then reboot. Keep LSPosed scope limited to the main `com.android.systemui`
-process; do not add Framework/system_server, CarSetting, TWCore, Launcher or
-other vendor processes as a recovery experiment.
+process; do not add Framework/system_server, XTService, CarSetting, TWCore,
+Launcher or other vendor processes as a recovery experiment.
 
 If instability remains, disable `ts18_sysui` and reboot. This returns both
 project overlays to stock without changing partitions.
+
+## XTService observer-specific recovery
+
+The XTService layer binds from the already-scoped SystemUI process; it does not
+hook or modify `com.tw.service.xt`. Private Binder use is admitted only when the
+current installed package/component/action and APK SHA match:
+
+```text
+com.tw.service.xt
+com.tw.service.xt.CommandService
+com.tw.service.xt.CommandService.Bind
+341af03ccbaeb6a7debe1929153eaadf9ced421d64a4933016010e0e7aa77267
+```
+
+Repeated bind/register/query/connection failures open only the process-local
+XTService breaker. Breaker cleanup best-effort unregisters the callback, unbinds
+the exact service connection and clears module observation state. Restarting
+SystemUI/rebooting starts a new process and is the recovery boundary.
+
+If reverse/sleep state or the XTService breaker behaves unexpectedly:
+
+1. disable custom right-nav controls so stock SystemUI alone owns the sidebar;
+2. save **TS18 Topway Qualification** / diagnostic state if the diagnostic build
+   remains stable;
+3. restart SystemUI or reboot using the existing safe route;
+4. leave vendor media qualification unused until exact identity/bind/callback
+   state is again known.
+
+Do not replace/disable XTService, change its permissions, broaden LSPosed scope,
+force reverse/sleep/screen state, or invoke other recovered vendor commands as a
+recovery technique.
+
+A known-active reverse/sleep observation becoming unknown after service loss is
+intentionally not treated as a fresh inactive state. The module may keep its own
+media group suppressed until fresh inactive state is observed; stock navigation
+and reverse behaviour remain untouched.
+
+Diagnostic `mediaPre/mediaPlay/mediaPause/mediaNext` calls are manual
+qualification only. A successful Binder return is not a reason to enable an
+automatic fallback or to claim playback recovery.
 
 ## Brightness-specific recovery
 
@@ -139,10 +179,15 @@ Any OEM-control regression is an immediate nav-disable STOP.
 
 - installed SystemUI SHA/device/API differs;
 - managed brightness CarSetting package/hash differs;
+- private XTService use does not match the exact package/component/action/SHA or
+  repeatedly fails its bounded bind/callback lifecycle;
+- reverse/sleep callback semantics are incompatible or unsafe on the exact unit;
+- diagnostic vendor media qualification produces duplicated/unsafe/source-
+  dependent behaviour that is not understood;
 - an RRO is rejected or renders the wrong resource domain;
 - exact touch reflection/coordinate/state preflight fails;
 - navbar topology is ambiguous or an OEM function changes;
-- one tap yields multiple media actions;
+- one normal tap yields multiple media actions;
 - Topway 258 mode cannot be confirmed within the bounded sequence;
 - physical `SCREEN_BRIGHTNESS` write/readback does not converge;
 - stock Auto effective state is unknown while a managed level is configured;

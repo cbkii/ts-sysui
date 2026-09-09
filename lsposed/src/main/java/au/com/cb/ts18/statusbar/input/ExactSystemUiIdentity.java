@@ -41,10 +41,12 @@ final class ExactSystemUiIdentity {
                                     "ignored throwable/non-Context callback");
                             return;
                         }
+                        Context appContext = (Context) param.thisObject;
                         DiagnosticJournal.state("systemui-oncreate", "SEEN",
                                 "bridge install + identity verification requested");
-                        SystemUiBridge.install((Context) param.thisObject);
-                        start((Context) param.thisObject);
+                        SystemUiBridge.install(appContext);
+                        start(appContext);
+                        whenResolved(() -> ExactAuxiliaryRuntime.start(appContext));
                     }
                 });
         registry.addRequired("SystemUIApplication.onCreate identity gate", hook);

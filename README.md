@@ -3,7 +3,7 @@
 A systemless, reversible Android 10/API 29 implementation for CB's exact
 Topway TS18 (`s9863a1h10`). It is not a generic TS10/TS18 modification.
 
-The project keeps five authorities separate:
+The project keeps six authorities separate:
 
 1. **Geometry** — a framework RRO reduces the OEM status-bar height to 43dp.
 2. **Visuals** — an exact-SystemUI RRO changes only allow-listed status
@@ -13,7 +13,10 @@ The project keeps five authorities separate:
 4. **Right-nav media** — the same LSPosed APK can add a reversible media group to
    the recognised Topway `navbar_left` host and command an existing
    `MediaController`.
-5. **Brightness** — an independently gated controller follows the newly supplied
+5. **Vehicle-state observation** — an exact-hash-gated XTService Binder client
+   observes reverse/sleep state only as an additional module-owned nav veto and
+   can expose explicit diagnostic-only vendor-media qualification actions.
+6. **Brightness** — an independently gated controller follows the newly supplied
    exact CarSetting binary's selected slider path: Topway 258 for mode/state and
    Android `Settings.System.SCREEN_BRIGHTNESS` for the candidate physical output.
 
@@ -70,8 +73,18 @@ package: com.dofun.carsetting
 SHA-256: 06060263e3968a4203c6c37efe95858cd959ac39481dc133de576023b7de2b71
 ```
 
-Both hashes are checked from the injected SystemUI process off the UI thread.
-Changing either protected binary blocks the affected private mutation rather
+Private XTService observation/qualification additionally requires the currently
+installed `com.tw.service.xt` APK to match the supplied exact artefact:
+
+```text
+package: com.tw.service.xt
+service: com.tw.service.xt.CommandService
+bind action: com.tw.service.xt.CommandService.Bind
+SHA-256: 341af03ccbaeb6a7debe1929153eaadf9ced421d64a4933016010e0e7aa77267
+```
+
+All relevant hashes are checked from the injected SystemUI environment off the
+UI thread. Changing a protected binary blocks the affected private path rather
 than broadening compatibility.
 
 ## Hard collapsed-input boundary
@@ -123,14 +136,60 @@ previous,play_pause,next
 One module-owned weighted group is allowed only when the existing sidebar still
 meets >=56dp projected vertical cells and >=48dp existing horizontal width. The
 module never widens the strip. Controls remain visible-but-disabled when no
-usable session/capability exists. Media authority remains strictly:
+usable session/capability exists. Normal media authority remains strictly:
 
 ```text
 MediaSessionManager -> existing MediaController -> TransportControls
 ```
 
-There is no second MediaSession/service, media-key fallback or guessed Topway
-media command.
+There is no second MediaSession/service, media-key fallback or automatic vendor
+media fallback.
+
+## Exact XTService vehicle observation
+
+The supplied XTService APK exposes the exact `CommandService` Binder surface.
+This project uses only the smallest recovered subset needed for:
+
+```text
+getReverseStatus()
+getSleepStatus()
+registerTWCommandCallback(...)
+unRegisterTWCommandCallback(...)
+```
+
+Reverse-active or sleep-active state is an **additional veto only**. It removes
+module-owned sidebar media and stops the module's media observation without
+changing any OEM View visibility or commanding vehicle state. Stock navbar
+visibility remains independently authoritative. A fresh reverse-inactive/wake
+callback requires the full exact topology/measurement preflight before owned
+controls return.
+
+The exact CarSetting navigation surfaces are also observed read-only:
+
+```text
+persist.navibar.position
+Settings.System.navigationbar_config
+Settings.System.show_navigationbar
+```
+
+A detected change invalidates module-owned preflight state and forces a fresh
+exact inspection. The module never writes those values.
+
+The diagnostic build additionally exposes **manual qualification only** for:
+
+```text
+mediaPre()
+mediaPlay()
+mediaPause()
+mediaNext()
+```
+
+Each explicit test button emits at most one vendor Binder call. A Binder return
+without exception is not playback proof. The production/right-nav path still
+uses Android `MediaController.TransportControls` only.
+
+See
+[`docs/EXACT-XTSERVICE-VEHICLE-OBSERVATION.md`](docs/EXACT-XTSERVICE-VEHICLE-OBSERVATION.md).
 
 ## Exact CarSetting-backed brightness controller
 
@@ -197,7 +256,12 @@ The normal dashboard reports, among other state:
 
 The release-derived diagnostic build adds the bounded Diagnostic Console and
 structured `TS18SysUI`/LSPosed journal described in
-[`docs/DIAGNOSTIC-BUILD-POLICY.md`](docs/DIAGNOSTIC-BUILD-POLICY.md).
+[`docs/DIAGNOSTIC-BUILD-POLICY.md`](docs/DIAGNOSTIC-BUILD-POLICY.md), plus the
+separate **TS18 Topway Qualification** activity. The latter reports exact
+XTService identity/bind/callback state, reverse/sleep freshness, read-only stock
+nav configuration, explicit vendor-media qualification results and diagnostic
+`SCREEN_BRIGHTNESS` chronology/correlation. Correlation is not reported as
+causal writer identity unless the module's own exact requested write is known.
 
 ## Installation artefacts
 
@@ -220,8 +284,8 @@ system/product/overlay/TS18StatusBarVisuals.apk
 If either legacy ID `ts18_statusbar_geometry` or `ts18_statusbar_visuals` is
 still active, use the bundled migration helper, reboot, then install the combined
 ZIP. Install/update the LSPosed APK and scope it **only to the main
-`com.android.systemui` process**. Do not add CarSetting, TWCore or Launcher to
-scope.
+`com.android.systemui` process**. Do not add XTService, CarSetting, TWCore or
+Launcher to scope.
 
 ## Build and trust
 
@@ -237,12 +301,17 @@ diagnostic lint and assembly, APK contracts and packaging.
 ## Validation status
 
 Compact collapsed-input narrowing is physically confirmed on the exact unit.
-The corrected right-nav IDs and CarSetting-backed brightness path remain
-**physical validation outstanding** until a new build is installed and tested.
-Qualification must include one-command media dispatch, fixed Day/Night physical
-readback and visible change, stock Auto, scheduled transitions, stock CarSetting
-coexistence, reverse/fullscreen, SystemUI restart, reboot, cold boot and ACC
-sleep/wake.
+The corrected right-nav IDs, XTService reverse/sleep integration, vendor-media
+qualification calls and CarSetting-backed brightness path remain **physical
+validation outstanding** until a new build is installed and tested.
+
+Qualification must include exact XTService hash/bind/register/unregister,
+reverse enter/exit, sleep/wake and ACC reconnect, one-command vendor media tests
+against no media/Android session/stock local music/Bluetooth/radio, fixed
+Day/Night physical readback and visible change, stock Auto, scheduled
+transitions, stock CarSetting coexistence, SystemUI restart, reboot and cold
+boot. No CI result is physical proof.
 
 See [`docs/INSTALL.md`](docs/INSTALL.md), [`docs/VALIDATION.md`](docs/VALIDATION.md),
-[`docs/RECOVERY.md`](docs/RECOVERY.md) and the exact correction plan.
+[`docs/RECOVERY.md`](docs/RECOVERY.md), the exact correction plan and the exact
+XTService observation contract.

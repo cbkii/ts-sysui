@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Validate that the installable diagnostic APK is release-compatible but visibly
-# diagnostic, and that production release does not expose its console.
+# diagnostic, and that production release does not expose its consoles.
 
 set -euo pipefail
 
@@ -53,6 +53,14 @@ if [ "$MODE" = diagnostic ]; then
         printf 'FAILED: diagnostic console label missing\n' >&2
         exit 2
     }
+    printf '%s\n' "$XML" | grep -F 'au.com.cb.ts18.statusbar.input.TopwayQualificationActivity' >/dev/null || {
+        printf 'FAILED: diagnostic APK does not expose TopwayQualificationActivity\n' >&2
+        exit 2
+    }
+    printf '%s\n' "$XML" | grep -F 'TS18 Topway Qualification' >/dev/null || {
+        printf 'FAILED: Topway qualification activity label missing\n' >&2
+        exit 2
+    }
 else
     printf '%s\n' "$BADGING" | grep -F "versionName='$VERSION'" >/dev/null || {
         printf 'FAILED: release APK versionName drifted\n' >&2
@@ -64,6 +72,10 @@ else
     fi
     if printf '%s\n' "$XML" | grep -F 'au.com.cb.ts18.statusbar.input.DiagnosticSettingsActivity' >/dev/null; then
         printf 'FAILED: production release exposes DiagnosticSettingsActivity\n' >&2
+        exit 2
+    fi
+    if printf '%s\n' "$XML" | grep -F 'au.com.cb.ts18.statusbar.input.TopwayQualificationActivity' >/dev/null; then
+        printf 'FAILED: production release exposes TopwayQualificationActivity\n' >&2
         exit 2
     fi
 fi

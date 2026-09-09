@@ -13,8 +13,8 @@ import java.util.WeakHashMap;
 
 /**
  * Keeps module-owned media controls subordinate to stock Topway panel visibility.
- * It observes public View lifecycle only; it does not hook reverse/MCU commands or
- * ever force the OEM panel visible.
+ * It observes public View lifecycle only; it never forces the OEM panel visible.
+ * Exact XTService reverse/sleep state is an additional module-only veto.
  */
 final class ExactTopwayNavVisibilityMonitor {
     private static final String SYSTEM_UI_PACKAGE = "com.android.systemui";
@@ -36,6 +36,23 @@ final class ExactTopwayNavVisibilityMonitor {
         monitor.attach();
     }
 
+    static void requestVehicleStateReevaluation() {
+        List<Monitor> snapshot = monitorSnapshot();
+        for (Monitor monitor : snapshot) {
+            if (monitor != null) monitor.reevaluateVehicleState();
+        }
+    }
+
+    static void invalidateForStockConfigChange(String reason) {
+        RateLimitedLog.always("stock navigation configuration changed; removing owned controls and requiring fresh exact preflight: "
+                + safe(reason));
+        ExactTopwayNavController.failOpen();
+        List<Monitor> snapshot = monitorSnapshot();
+        for (Monitor monitor : snapshot) {
+            if (monitor != null) monitor.invalidateAndReevaluate();
+        }
+    }
+
     static void shutdownAll() {
         List<Monitor> snapshot;
         synchronized (MONITORS) {
@@ -47,12 +64,24 @@ final class ExactTopwayNavVisibilityMonitor {
         }
     }
 
+    private static List<Monitor> monitorSnapshot() {
+        synchronized (MONITORS) {
+            return new ArrayList<>(MONITORS.values());
+        }
+    }
+
+    private static String safe(String value) {
+        if (value == null || value.trim().isEmpty()) return "unknown";
+        String clean = value.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ').trim();
+        return clean.length() <= 160 ? clean : clean.substring(0, 160);
+    }
+
     private static final class Monitor implements View.OnAttachStateChangeListener,
             ViewTreeObserver.OnGlobalLayoutListener {
         final WeakReference<View> rootRef;
         boolean attachListenerAdded;
         boolean globalListenerAdded;
-        Boolean lastVisible;
+        Boolean lastEffectiveVisible;
         boolean shutdown;
 
         Monitor(View root) {
@@ -80,7 +109,20 @@ final class ExactTopwayNavVisibilityMonitor {
                 removeGlobalListener(root);
             }
             attachListenerAdded = false;
-            lastVisible = null;
+            lastEffectiveVisible = null;
+        }
+
+        void reevaluateVehicleState() {
+            if (shutdown) return;
+            View root = rootRef.get();
+            if (root != null) evaluate(root);
+        }
+
+        void invalidateAndReevaluate() {
+            if (shutdown) return;
+            lastEffectiveVisible = null;
+            View root = rootRef.get();
+            if (root != null) evaluate(root);
         }
 
         @Override public void onViewAttachedToWindow(View view) {
@@ -142,16 +184,20 @@ final class ExactTopwayNavVisibilityMonitor {
             transition(decision.visible, decision.reason, root);
         }
 
-        private void transition(boolean visible, String reason, View root) {
-            if (lastVisible != null && lastVisible == visible) return;
-            lastVisible = visible;
-            if (visible) {
+        private void transition(boolean stockVisible, String stockReason, View root) {
+            VehicleStatePolicy.Decision vehicle = ExactXtServiceObserver.vehicleDecision();
+            boolean effectiveVisible = stockVisible && vehicle.allowNavMedia;
+            String reason = stockVisible && !vehicle.allowNavMedia
+                    ? "vehicle-" + vehicle.reason : stockReason;
+            if (lastEffectiveVisible != null && lastEffectiveVisible == effectiveVisible) return;
+            lastEffectiveVisible = effectiveVisible;
+            if (effectiveVisible) {
                 RateLimitedLog.always(
-                        "stock Topway nav visible; rerunning exact topology/measurement preflight");
+                        "stock Topway nav visible with no vehicle-state veto; rerunning exact topology/measurement preflight");
                 ExactTopwayNavController.onInflated(root);
             } else {
                 RateLimitedLog.always(
-                        "right-nav suspended with stock panel: " + reason);
+                        "right-nav suspended without changing stock panel: " + reason);
                 ExactTopwayNavController.failOpen();
             }
         }

@@ -10,9 +10,9 @@ classes. Current exact-device evidence is now:
 - exact supplied SystemUI/CarSetting analysis identified concrete source
   corrections for both failed paths.
 
-The corrected nav/brightness implementation is not physically successful until
-the applicable stages below are recorded on the exact `s9863a1h10` Android
-10/API29 unit.
+The corrected nav/brightness implementation and the new XTService observation
+layer are not physically successful until the applicable stages below are
+recorded on the exact `s9863a1h10` Android 10/API29 unit.
 
 ## Evidence to record
 
@@ -23,7 +23,8 @@ For each consequential stage record:
 - combined Magisk module state;
 - exact SystemUI identity/hash result;
 - exact CarSetting brightness-contract/hash result;
-- TS18 System UI or Diagnostic Console export;
+- exact XTService identity/hash/bind/callback state when applicable;
+- TS18 System UI, Diagnostic Console or Topway Qualification export;
 - feature settings;
 - relevant physical observation; and
 - PASS / FAIL / STOP outcome.
@@ -38,6 +39,9 @@ shell commands known to be unreliable on this firmware.
   `668dec9ac14fbabd76ae73d693dcdd1518190f7941b6ac0b00d16587d6c4bd3f`;
 - managed brightness additionally reports exact CarSetting contract SHA-256
   `06060263e3968a4203c6c37efe95858cd959ac39481dc133de576023b7de2b71`;
+- any private XTService Binder use additionally reports the current installed
+  `com.tw.service.xt` SHA-256
+  `341af03ccbaeb6a7debe1929153eaadf9ced421d64a4933016010e0e7aa77267`;
 - LSPosed scope remains only main `com.android.systemui`;
 - no SystemUI crash loop, ANR, input lockout or repeated breaker opening;
 - no OEM Home/Back/Recents/Volume function regresses;
@@ -46,7 +50,11 @@ shell commands known to be unreliable on this firmware.
   exclusions;
 - every injected media control uses the existing sidebar width >=48dp and
   projected vertical size >=56dp;
-- one accepted media tap results in at most one transport operation;
+- reverse/sleep observation never mutates OEM visibility or vehicle state;
+- one accepted normal media tap results in at most one Android transport
+  operation, and one explicit qualification tap results in at most one XTService
+  Binder operation;
+- no normal right-nav action sends both Android and XTService commands;
 - brightness success is never inferred from policy persistence or 516 state;
 - physical brightness success requires `SCREEN_BRIGHTNESS` readback convergence
   and a visible panel change; and
@@ -104,11 +112,133 @@ If the bridge cannot respond, STOP. Do not widen LSPosed scope.
 ## Stage L1 — compact collapsed touch regression
 
 The <=20% path is already physically proven, but recheck it after this build to
-ensure the nav/brightness correction did not regress it. Test ~10%, inside and
-outside the strip, expanded shade, keyguard/bouncer, heads-up/bubbles if present,
-and immersive/fullscreen transitions.
+ensure the nav/brightness/XTService work did not regress it. Test ~10%, inside
+and outside the strip, expanded shade, keyguard/bouncer, heads-up/bubbles if
+present, and immersive/fullscreen transitions.
 
 Acceptance: the physically proven compact behaviour remains unchanged.
+
+# Exact XTService observation stages
+
+## Stage X0 — installed identity, bind and initial read-only state
+
+Use the diagnostic build and open **TS18 Topway Qualification** without pressing
+any vendor media button. Record:
+
+```text
+XTService expected/current SHA-256
+version
+identity state/detail
+bind state
+callback registered
+last bind attempt
+reverse known/status/timestamp/age
+sleep known/status/timestamp/age
+XTService breaker/failure count
+```
+
+Acceptance:
+
+- current installed XTService matches the exact supplied SHA-256;
+- the explicit `CommandService` bind succeeds from the SystemUI process;
+- callback registration succeeds;
+- initial reverse/sleep queries produce plausible fresh state; and
+- no vendor media command is issued merely by observation/launch.
+
+Hash mismatch, unresolved component/action, repeated bind/register/query failure
+or incompatible callback values is a STOP for XTService use. Do not broaden the
+identity gate or LSPosed scope.
+
+## Stage X1 — reverse veto and fresh return preflight
+
+With normal right-nav controls otherwise passing N0/N1, enter reverse while
+parked and safe, then exit reverse.
+
+Acceptance:
+
+- reverse-active callback becomes fresh/known;
+- only the module-owned media group is suspended/removed;
+- stock reverse camera and OEM navbar visibility behaviour is unchanged;
+- no media command is emitted by the transition;
+- reverse exit requires a fresh inactive callback; and
+- module-owned controls return only after the normal exact stock visibility,
+  topology and measurement preflight succeeds again.
+
+If the service disconnects after a known active reverse state, confirm stale
+active state remains a module-only veto until a fresh inactive observation.
+
+## Stage X2 — sleep/wake and ACC reconnect
+
+Exercise screen-off/sleep/wake and repeated ACC sleep/wake boundaries where safe.
+
+Acceptance:
+
+- sleep-active removes/suspends module-owned nav media only;
+- wake requires fresh inactive state and fresh nav preflight;
+- service death/binding death does not leak duplicate connections/callbacks;
+- bounded rebind restores exactly one callback registration;
+- a known-active state is not silently converted to inactive on disconnect; and
+- XTService breaker failure does not disable compact touch or brightness.
+
+Repeat across a SystemUI restart and warm reboot before cold-boot/ACC acceptance.
+
+## Stage X3 — explicit vendor-media qualification only
+
+The diagnostic **TS18 Topway Qualification** screen is the only supported path
+for these calls in this build. Test separately against:
+
+1. no media/source idle;
+2. ordinary Android MediaSession playback;
+3. stock local music;
+4. Bluetooth media;
+5. radio; and
+6. any other stock source observed on the unit.
+
+For every source, issue one explicit test at a time:
+
+```text
+Vendor Previous
+Vendor Play
+Vendor Pause
+Vendor Next
+```
+
+Record requested action, Binder result, timestamp and physical effect separately.
+
+Acceptance for qualification data collection:
+
+- one button press -> at most one XTService Binder method;
+- no Android `MediaController.TransportControls` operation is emitted by that
+  diagnostic press;
+- Binder return is never labelled playback success without the physical result;
+- normal right-nav buttons remain Android-MediaController-only; and
+- source-dependent, duplicated or unsafe behaviour is recorded as a STOP for any
+  later automatic fallback proposal.
+
+This stage does **not** authorise automatic vendor-media fallback.
+
+## Stage X4 — stock navigation configuration observation
+
+Record the read-only values of:
+
+```text
+persist.navibar.position
+Settings.System.navigationbar_config
+Settings.System.show_navigationbar
+```
+
+If a normal stock settings action safely changes one of these values, observe the
+transition without using the module to write it.
+
+Acceptance:
+
+- diagnostics report the current values and transition time/reason;
+- a changed value removes current module-owned nav media before reuse;
+- the live navbar then passes a fresh exact topology/measurement preflight; and
+- no module code writes or forces the stock configuration.
+
+Do not infer the active two-button/three-button/gestural overlay solely from the
+supplied overlay APKs.
 
 # Right-nav correction stages
 
@@ -126,6 +256,7 @@ live direct-child resource names
 recognised stock summary
 projected cell size
 horizontal floor/preferred result
+vehicle veto/reason
 nav breaker state
 ```
 
@@ -203,6 +334,8 @@ observed raw screen_brightness
 last physical read timestamp
 last 258/516 callbacks
 last stock Topway write
+brightness setting-change previous/current/timestamp
+brightness correlation classification/delta/note
 breaker state
 ```
 
@@ -213,6 +346,8 @@ Acceptance:
 
 - raw `screen_brightness` changes in the same direction as the stock slider;
 - module reports 516 values as observation-only;
+- diagnostic correlation stays explicitly temporal/unknown unless a module-owned
+  exact requested write establishes the stronger case; and
 - no module physical write is attributed while disabled.
 
 If stock CarSetting visibly changes the panel but raw `screen_brightness` does
@@ -302,8 +437,8 @@ physical writes, sysfs, panel calibration or a second actuator.
 
 # Combined lifecycle qualification
 
-Only after compact, nav and brightness pass independently, test the intended
-combined set through:
+Only after compact, XTService observation, nav and brightness pass independently,
+test the intended combined set through:
 
 1. normal launcher/app use;
 2. SystemUI restart;
@@ -319,7 +454,10 @@ combined set through:
 Acceptance:
 
 - exactly one module-owned nav group;
+- exactly one XTService connection/callback registration after recovery;
 - no duplicate media command;
+- reverse/sleep remain module-only vetoes and never become vehicle-state
+  actuators;
 - brightness re-establishes both exact binary gates, Topway transport/state and
   physical readback before mutation;
 - intended settings survive only where designed;
@@ -328,14 +466,14 @@ Acceptance:
 
 # STOP evidence
 
-On failure save dashboard/Diagnostic Console diagnostics plus the smallest
-physical reproduction and disable only the affected layer.
+On failure save dashboard/Diagnostic Console/Topway Qualification diagnostics
+plus the smallest physical reproduction and disable only the affected layer.
 
 Do not respond to a STOP by broadening hashes/topology, widening LSPosed scope,
-reducing nav safety targets, hiding/replacing OEM controls, introducing another
-media authority, replacing/resigning SystemUI, writing Android partitions,
-using brightness level 0, restoring ordinary 516 physical writes, or adding a
-sysfs fallback.
+reducing nav safety targets, hiding/replacing OEM controls, introducing automatic
+vendor-media fallback or another media authority, replacing/resigning SystemUI,
+writing Android partitions, using brightness level 0, restoring ordinary 516
+physical writes, or adding a sysfs fallback.
 
 If `SCREEN_BRIGHTNESS` write/readback converges but physical brightness still
 does not change, collect a narrow stock-CarSetting-vs-module runtime trace before

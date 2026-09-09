@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "packageName": "com.tw.service.xt",
+    "serviceClass": "com.tw.service.xt.CommandService",
+    "bindAction": "com.tw.service.xt.CommandService.Bind",
+    "suppliedApkSha256": "341af03ccbaeb6a7debe1929153eaadf9ced421d64a4933016010e0e7aa77267",
+    "suppliedVersionName": "2022.02.17"
+  },
+  "provenance": {
+    "apkStatic": "user-supplied XTService_2022.02.17.apk reconstructed interface",
+    "runtimeHistorical": "2026-06-18 exact-device package dump observed /system/priv-app/com.tw.xtservice/com.tw.xtservice.apk, versionName 2022.02.17, shared android.uid.system/1000 and the exact bind action",
+    "temporalStatus": "historical runtime identity plus supplied immutable APK; current installed SHA must be re-verified before private Binder use",
+    "binaryNotCommitted": true
+  },
+  "requiredBinderSurface": {
+    "commandDescriptor": "com.tw.service.xt.aidl.ITWCommandAidl",
+    "callbackDescriptor": "com.tw.service.xt.aidl.ITWCommandCallbackAidl",
+    "commandTransactions": {
+      "getReverseStatus": 17,
+      "getSleepStatus": 18,
+      "mediaNext": 28,
+      "mediaPause": 29,
+      "mediaPlay": 30,
+      "mediaPre": 31,
+      "registerTWCommandCallback": 49,
+      "unRegisterTWCommandCallback": 56
+    },
+    "callbackTransactions": {
+      "onReverseStatus": 5,
+      "onSleepStatus": 6
+    }
+  },
+  "runtimePolicy": {
+    "normalUse": [
+      "read-only reverse observation",
+      "read-only sleep observation",
+      "initial reverse/sleep queries",
+      "callback registration/unregistration"
+    ],
+    "diagnosticOnlyExplicitMediaQualification": [
+      "mediaPre",
+      "mediaPlay",
+      "mediaPause",
+      "mediaNext"
+    ],
+    "automaticVendorMediaFallback": false,
+    "sourceSwitching": false,
+    "screenPowerControl": false,
+    "radioControl": false,
+    "bluetoothCallControl": false,
+    "volumeControl": false,
+    "lsposedAdditionalScope": false
+  },
+  "failureBehaviour": {
+    "identityMismatch": "do not bind or transact",
+    "bindOrCallbackFailure": "open XTService-only breaker after bounded failures; never alter stock vehicle state",
+    "reverseOrSleepActive": "remove/suspend module-owned right-nav media only; never mutate OEM visibility",
+    "returnInactive": "rerun existing exact navbar identity/topology/measurement preflight before reinjection",
+    "binderMediaReturn": "records Binder call result only; never treated as proof that playback changed"
+  }
+}

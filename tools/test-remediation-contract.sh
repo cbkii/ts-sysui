@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$ROOT"
 
+bash tools/test-xtservice-contract.sh
+
 require() {
     file="$1"
     pattern="$2"
