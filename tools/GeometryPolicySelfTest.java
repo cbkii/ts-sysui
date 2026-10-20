@@ -17,6 +17,12 @@ public final class GeometryPolicySelfTest {
     }
 
     public static void main(String[] args) {
+        yes(ContrastNoisePolicy.matches("ContrastColorUtil", "background can not be translucent: #cd4f4e4e"),
+                "captured contrast WTF matched");
+        yes(!ContrastNoisePolicy.matches("Other", "background can not be translucent: #cd4f4e4e"),
+                "unrelated WTF preserved");
+        yes(!ContrastNoisePolicy.matches("ContrastColorUtil", "background can not be translucent: #cd4f4e4e\nother"),
+                "compound diagnostic preserved");
         TouchStripGeometry.Result exact = TouchStripGeometry.compute(1280, 55, .20f, 64);
         yes(exact.valid, "exact TS18 geometry valid");
         eq(960, exact.stripLeft, "TS18 stripLeft");

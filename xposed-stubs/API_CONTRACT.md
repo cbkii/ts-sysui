@@ -15,6 +15,8 @@ APK. The contract exercised by `tools/test-xposed-stubs.sh` is:
 - `XposedHelpers.findAndHookConstructor(Class, Object...)` returning
   `XC_MethodHook.Unhook` for the exact Android-Q touch-manager constructor;
 - `XC_MethodHook.MethodHookParam.thisObject/args/getThrowable()`;
+- `XC_MethodHook.MethodHookParam.setResult(Object)` for the opt-in exact-message
+  contrast filter (the documented legacy bridge API; compile-only, never packaged);
 - `XC_MethodHook.Unhook.unhook()`;
 - `XposedBridge.log(String)` and `XposedBridge.log(Throwable)`.
 

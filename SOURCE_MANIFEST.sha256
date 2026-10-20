@@ -11,6 +11,7 @@ f263b8539d81f9afad5a46278c1f13bee172a8cbbb46c0b3c520920833e173de  ./NOTICE.md
 92a7b81b514a3c2bdb3a19a202216b4be90783dbf5cb3284ca4f274dccc01b1d  ./docs/ARCHITECTURE.md
 c2c30b81a88b5fbc2e766d0507657e75421cb0cf0574d265aed2b4501a4e3d09  ./docs/BRIGHTNESS-CONTROLLER.md
 9e8ffcfc20455083acc6cbc3a422251573193a6cd0e5694b278a9f92a909fc44  ./docs/BUILD-STATUS.md
+dcd52d9b25db5fffe6eda12a2b5cd87cc33b26c2e8d823b15c7582f7aef34852  ./docs/CONTRAST-NOISE-FILTER.md
 63de171b04af253456dd50a584a03bf53de4e731829e6ead996aa8772e4c03e9  ./docs/DIAGNOSTIC-BUILD-POLICY.md
 c7914e362c24de683ef846dc94f55394fd725f27da371ef05ef61a29c9ae81fe  ./docs/EVIDENCE-LIMITS.md
 32145ff7b6d2d6646153c97eefd3112bb7bef8b968e770fdc9b4f0b10965e376  ./docs/EXACT-APK-NAV-BRIGHTNESS-CORRECTION.md
@@ -44,11 +45,13 @@ ae07a4dc64753204ba5f5b9edf5605bb15fe248b140629050352153e589686ac  ./lsposed/src/
 9359f22871d129b7046a6c74d49a2a61b523c21011439103685df6ef128a23e6  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/BrightnessState.java
 37ab7318ff9078b16854cd7e0570ce42f45cb51446186e81198ac846483a869c  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/CircuitBreaker.java
 89bf240400fa7564ad8f23d4ed4e920864994e5bdc2a575c5b024f742f87ad81  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/Config.java
+c8e17377c8e312156d8090cb4228ef7e025bb159d1c7ef300bad5734754869a6  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ContrastNoiseFilter.java
+08b0bb8953532243d90ae15e5006525cd4fe5847a2c4f6715e98edf8491ccc99  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ContrastNoisePolicy.java
 56b111b613f4c07defa70e8eadf9a9f79ffe9a4aa8c43d942488b8195954cae7  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/CoordinateSpacePolicy.java
 453ca4afea7f8899394689b2df495b8bf9dd0383d7e54a6645288f22676a6bab  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/CoordinateSpaceVerifier.java
 4070f728207dfc2ab3ed7bdb3efbe934bb865898b9b5010ff4e3ad2b63d4efe9  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/DiagnosticJournal.java
 fdaaa9a333336a7a1dabcd75f9498b94b1c126650e9595b84f440cc64250fe98  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/DiagnosticSettingsActivity.java
-f5b09a837a6c53bbe6fc24621fdf13f8f754603e3baf8f3ef4c417b7e5ee35e0  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactSystemUiIdentity.java
+726b91de2457370b7754d0f8dce44a4874fdd2004208da58cdf4338061abbca6  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactSystemUiIdentity.java
 f24ccb5ded7bb8ef61b6ddb43309bd268a9ab506f809e4008ec98814453a7b6e  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactTopwayNavAdapter.java
 68c7fa899ac1e00d14973f8d5c790f945adc52e5450439ac83e30b7dc701d9d3  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactTopwayNavController.java
 685addeaf256258bebbe6d554e12d67c11c73b161bb081ce3fd6f6b0451ca70f  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/ExactTopwayNavVisibilityMonitor.java
@@ -76,7 +79,7 @@ d73c95d4763ea10e3ffddddeda02910312bf2473ce37e05a723b3874aa34f22f  ./lsposed/src/
 39a1c48db4dea9c2f9e9c588e97380f0112ff8dbc1fdf05fe16d2461ee39c520  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/TouchStripGeometry.java
 da294ed1d7d1b6b2ac1cd9281a13cb101f49db19063a4fd96d2c09c243c1c8ca  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/TouchableInsetsHook.java
 839a83d4efa41750ec8bfccaa81deb6c278ac7a063e909086ef307c1e9b404ea  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/TouchableStatePolicy.java
-acea83f4534d77b1c01b0816ba791fea13cf6974b813eb5e1807d79245df00a6  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/Ts18StatusBarModule.java
+7d2f5b7dbd7af41368e6ed47664f096460643b9f96850369ed5cb48acd6bced3  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/Ts18StatusBarModule.java
 6823f0737468b62cd0ab24e6689b99c29f3b5b114b3500a0d7df53e480bd1350  ./lsposed/src/main/java/au/com/cb/ts18/statusbar/input/WindowHooks.java
 437cfb1600127618573564f4920e1a1fd955c0aa127c723c3f23eab595f2e2f9  ./lsposed/src/main/res/drawable/ic_ts18_media_next.xml
 ee815c0190f1e0a67efcf1eb671488b5d210c5e32f116182d52cf0ecc9892bfb  ./lsposed/src/main/res/drawable/ic_ts18_media_pause.xml
@@ -89,6 +92,7 @@ f2e4e420f43e9167bbbc991771d29455501277237bf34c02d49ee4652a07603f  ./lsposed/src/
 261c60ac642b65383e6cb4cadc6af161acbc93973152a574b9db98fbfbdb43ce  ./lsposed/src/test/java/au/com/cb/ts18/statusbar/input/BrightnessLevelMapperTest.java
 c51c367c7361b360b888f7454054b45485f702c4ecfad963b426ea303a7d7c46  ./lsposed/src/test/java/au/com/cb/ts18/statusbar/input/BrightnessPolicyTest.java
 c016e0c40de37a063eb6783ab8d60344c3e9300e670974740eaa462547c7b075  ./lsposed/src/test/java/au/com/cb/ts18/statusbar/input/BrightnessStateTest.java
+223654f3c4c5c36cb8d68326babc9199846dddb709a04e30977487820291c45c  ./lsposed/src/test/java/au/com/cb/ts18/statusbar/input/ContrastNoisePolicyTest.java
 5c75d2d22d0e8ab4f04b21f237cd4c9b12a862dc9bf86df7f68080ab28fb7ff7  ./lsposed/src/test/java/au/com/cb/ts18/statusbar/input/CoordinateSpacePolicyTest.java
 5de92db32960da4ec45c7ba978cfa9029f97de038ea4a3902470278cbb45dd4d  ./lsposed/src/test/java/au/com/cb/ts18/statusbar/input/ExactTouchSafetyPolicyTest.java
 733d4303339013dc40d9ede6e99b16fc17a1b95d1b04c8aff1420dc2dfb5057f  ./lsposed/src/test/java/au/com/cb/ts18/statusbar/input/NavActionTest.java
@@ -118,8 +122,8 @@ e151ae7832fe55556bdfcc0f126bff303bda5a2ff3c4f6b738fc1d5e738d24b6  ./reference/ex
 0d6be8c5b3940584eac86ead77748d1fcf2ff5bb41492cff9f95994ce2f5d2d6  ./reference/exact-ts18-systemui-resource-matrix.md
 c4de8efae937efbb24d7b8f7a58e0b79c0524efb46e3d6993b8911abc8bf0661  ./reference/supplied-apk-static-findings.md
 77d78192206aac57c4f3eda0a1cefbc27138a8f5c3bb2ad058f202ed74065aa8  ./settings.gradle.kts
-e25e7b045532e8cdff15cddc4b2a03b0f0e62ab9641e661e373e110a9ffc8892  ./tools/GeometryPolicySelfTest.java
-9f3a69169aa233a58c312f292ca7afdf7b436fb51de22d65de8508b49778da07  ./tools/XposedStubContractSelfTest.java
+01e2f94254fe38026e064cfd21f53ede80677bae10f269a927b7642243d45bfc  ./tools/GeometryPolicySelfTest.java
+3b5ce26c482e8e53098973e1f9fd36680669da36460d1ea8b94e6be983d54e08  ./tools/XposedStubContractSelfTest.java
 4e852364c5e4a9d67c9ef70e67e6bd5d40a830829f02aa1f5e3d164865292fce  ./tools/bootstrap-gradle-wrapper.sh
 24320f378bf783aef010c55ce68a2cbf7a4308041abc911a0730d3c8a7a77f6e  ./tools/create-signing-keystore.sh
 281ec87849db54660ce076d880b4f8a8e034e312a270c328862a4f208e5d00e5  ./tools/package-release.sh
@@ -128,7 +132,7 @@ e25e7b045532e8cdff15cddc4b2a03b0f0e62ab9641e661e373e110a9ffc8892  ./tools/Geomet
 06fa9002f0593d9f122347fcc69ff2820cf01728e804c5257f390444bfcbe99c  ./tools/test-diagnostic-apk-contract.sh
 9ee6e0735f57937697a62c8aec14717b768f52efe93e400d2aa3ebb4b4fe1fe3  ./tools/test-diagnostic-contract.sh
 f70f4b3c2660c174699fc76ab0e8b20fdaf41139de96122655f740bbda5d721f  ./tools/test-exact-systemui-contract.sh
-af44839a40a5b36d443425aaf05276477db2692dbf247d7acc8984bc58ac8bbc  ./tools/test-geometry.sh
+09e9aaf89bf64af700577aa53f9e49651b86a51afaca35dfcf11c5e3c76ec48b  ./tools/test-geometry.sh
 94d2ae29e476e999f9694257266c66fb70eadfd5dadf4ccfb01e9433db313d13  ./tools/test-gradle-wrapper.sh
 eff69f9201a651d1129d94196ad31f8d19be7cb685e05ebfea406a5001c71d28  ./tools/test-nav-observation-contract.sh
 d2fe0cc89c5b7309ea5c4e535a02f0e13cc8405e0aa3cbeafc90e4ac60cfa975  ./tools/test-packaged-artifacts.sh
@@ -149,10 +153,10 @@ d03aaa44406f32f7edeab475ad0e73869937299563c687a47effa9177e2a35df  ./tools/update
 2953f53d505e3e37951c14567ed2c0246b1acd7774b2c7aa6bfa9aed828ac157  ./visual-overlay/build.gradle.kts
 ee00960cac6ee5ad0f822ee84ceeea863c9c795f2406afc38ef848f7438adb43  ./visual-overlay/src/main/AndroidManifest.xml
 733c572784642575226e45c16cd3c96e00329d7d1d59d96a7a8d882517a3ff65  ./visual-overlay/src/main/res/values/dimens.xml
-67d928c27c25416bb2de3ddc630132a8f71af69aa409d33bf7400785dc77082e  ./xposed-stubs/API_CONTRACT.md
+44427282e5d9866eb1ea441cac3207ff44775d4b2a748eaa64036f1967a18dea  ./xposed-stubs/API_CONTRACT.md
 8b40e0df4ef4f8c2ad0f7df91cccefe05ba29ed9487f63ce70f341de7b899d1a  ./xposed-stubs/build.gradle.kts
 a7bd38a13b8f0b2fa54b45fef21dcfd3a1dddc1d4834c355ef736b161dd17fc4  ./xposed-stubs/src/main/java/de/robv/android/xposed/IXposedHookLoadPackage.java
-2e58cc25b680ef830557169d915eff3126aa3841f511d4141c4b800489369869  ./xposed-stubs/src/main/java/de/robv/android/xposed/XC_MethodHook.java
+b77403557852b058c65fa5bfa3a82e50077a33d3f53a8f5ab86e667c7a881118  ./xposed-stubs/src/main/java/de/robv/android/xposed/XC_MethodHook.java
 9696166d9247a90deb7e631bfb64092c4057128968bde702c4deda65aff23014  ./xposed-stubs/src/main/java/de/robv/android/xposed/XposedBridge.java
 05270a62d1bb18ba7009841e3d5bc3ce7cd4c57150036801729a396948f6b471  ./xposed-stubs/src/main/java/de/robv/android/xposed/XposedHelpers.java
 dda7f9f16d27b8b2257adbd668b259dab6102d908892f1ba5933832dcb8a4465  ./xposed-stubs/src/main/java/de/robv/android/xposed/callbacks/XC_LoadPackage.java

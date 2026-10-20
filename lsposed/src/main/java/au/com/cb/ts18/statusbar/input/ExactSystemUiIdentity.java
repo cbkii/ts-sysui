@@ -44,6 +44,7 @@ final class ExactSystemUiIdentity {
                         DiagnosticJournal.state("systemui-oncreate", "SEEN",
                                 "bridge install + identity verification requested");
                         SystemUiBridge.install((Context) param.thisObject);
+                        ContrastNoiseFilter.start((Context) param.thisObject);
                         start((Context) param.thisObject);
                     }
                 });

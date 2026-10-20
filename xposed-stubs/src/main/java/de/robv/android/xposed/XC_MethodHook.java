@@ -8,6 +8,7 @@ public abstract class XC_MethodHook {
         public Object thisObject;
         public Object[] args;
         public Object getResult() { throw new UnsupportedOperationException("compile-only stub"); }
+        public void setResult(Object result) { throw new UnsupportedOperationException("compile-only stub"); }
         public Throwable getThrowable() { throw new UnsupportedOperationException("compile-only stub"); }
     }
 
