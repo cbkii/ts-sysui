@@ -41,6 +41,8 @@ public final class XposedStubContractSelfTest {
 
         Method throwable = XC_MethodHook.MethodHookParam.class.getMethod("getThrowable");
         yes(throwable.getReturnType() == Throwable.class, "getThrowable return type");
+        Method result = XC_MethodHook.MethodHookParam.class.getMethod("setResult", Object.class);
+        yes(result.getReturnType() == void.class, "setResult(Object) return type");
         Method unhook = XC_MethodHook.Unhook.class.getMethod("unhook");
         yes(unhook.getReturnType() == void.class && Modifier.isPublic(unhook.getModifiers()),
                 "Unhook.unhook");

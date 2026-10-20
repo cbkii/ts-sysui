@@ -123,7 +123,7 @@ e151ae7832fe55556bdfcc0f126bff303bda5a2ff3c4f6b738fc1d5e738d24b6  ./reference/ex
 c4de8efae937efbb24d7b8f7a58e0b79c0524efb46e3d6993b8911abc8bf0661  ./reference/supplied-apk-static-findings.md
 77d78192206aac57c4f3eda0a1cefbc27138a8f5c3bb2ad058f202ed74065aa8  ./settings.gradle.kts
 01e2f94254fe38026e064cfd21f53ede80677bae10f269a927b7642243d45bfc  ./tools/GeometryPolicySelfTest.java
-9f3a69169aa233a58c312f292ca7afdf7b436fb51de22d65de8508b49778da07  ./tools/XposedStubContractSelfTest.java
+3b5ce26c482e8e53098973e1f9fd36680669da36460d1ea8b94e6be983d54e08  ./tools/XposedStubContractSelfTest.java
 4e852364c5e4a9d67c9ef70e67e6bd5d40a830829f02aa1f5e3d164865292fce  ./tools/bootstrap-gradle-wrapper.sh
 24320f378bf783aef010c55ce68a2cbf7a4308041abc911a0730d3c8a7a77f6e  ./tools/create-signing-keystore.sh
 281ec87849db54660ce076d880b4f8a8e034e312a270c328862a4f208e5d00e5  ./tools/package-release.sh
@@ -153,10 +153,10 @@ d03aaa44406f32f7edeab475ad0e73869937299563c687a47effa9177e2a35df  ./tools/update
 2953f53d505e3e37951c14567ed2c0246b1acd7774b2c7aa6bfa9aed828ac157  ./visual-overlay/build.gradle.kts
 ee00960cac6ee5ad0f822ee84ceeea863c9c795f2406afc38ef848f7438adb43  ./visual-overlay/src/main/AndroidManifest.xml
 733c572784642575226e45c16cd3c96e00329d7d1d59d96a7a8d882517a3ff65  ./visual-overlay/src/main/res/values/dimens.xml
-67d928c27c25416bb2de3ddc630132a8f71af69aa409d33bf7400785dc77082e  ./xposed-stubs/API_CONTRACT.md
+44427282e5d9866eb1ea441cac3207ff44775d4b2a748eaa64036f1967a18dea  ./xposed-stubs/API_CONTRACT.md
 8b40e0df4ef4f8c2ad0f7df91cccefe05ba29ed9487f63ce70f341de7b899d1a  ./xposed-stubs/build.gradle.kts
 a7bd38a13b8f0b2fa54b45fef21dcfd3a1dddc1d4834c355ef736b161dd17fc4  ./xposed-stubs/src/main/java/de/robv/android/xposed/IXposedHookLoadPackage.java
-2e58cc25b680ef830557169d915eff3126aa3841f511d4141c4b800489369869  ./xposed-stubs/src/main/java/de/robv/android/xposed/XC_MethodHook.java
+b77403557852b058c65fa5bfa3a82e50077a33d3f53a8f5ab86e667c7a881118  ./xposed-stubs/src/main/java/de/robv/android/xposed/XC_MethodHook.java
 9696166d9247a90deb7e631bfb64092c4057128968bde702c4deda65aff23014  ./xposed-stubs/src/main/java/de/robv/android/xposed/XposedBridge.java
 05270a62d1bb18ba7009841e3d5bc3ce7cd4c57150036801729a396948f6b471  ./xposed-stubs/src/main/java/de/robv/android/xposed/XposedHelpers.java
 dda7f9f16d27b8b2257adbd668b259dab6102d908892f1ba5933832dcb8a4465  ./xposed-stubs/src/main/java/de/robv/android/xposed/callbacks/XC_LoadPackage.java
