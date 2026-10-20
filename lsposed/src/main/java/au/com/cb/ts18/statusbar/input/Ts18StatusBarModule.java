@@ -52,6 +52,9 @@ public final class Ts18StatusBarModule implements IXposedHookLoadPackage {
                     () -> ExactSystemUiIdentity.install(lpparam.classLoader, registry),
                     installedRegistryStages);
 
+            installBooleanFeature("contrast-noise-hook",
+                    () -> ContrastNoiseFilter.install(registry), installedRegistryStages);
+
             installBooleanFeature("exact-touch-hook",
                     () -> ExactTs18TouchableRegionAdapter.installSafely(
                             lpparam.classLoader, registry),

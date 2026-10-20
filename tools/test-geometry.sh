@@ -31,7 +31,8 @@ for file in \
     NavAction.java \
     TopwayWeightedNavPolicy.java \
     NavMediaSelectionPolicy.java \
-    NavMediaDispatchPolicy.java
+    NavMediaDispatchPolicy.java \
+    ContrastNoisePolicy.java
 do
     cp -- "$ROOT/lsposed/src/main/java/au/com/cb/ts18/statusbar/input/$file" "$PKG/" || exit 2
 done
